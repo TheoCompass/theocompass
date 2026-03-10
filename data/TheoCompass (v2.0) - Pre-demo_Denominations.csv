@@ -1,0 +1,31 @@
+Denomination_ID,Denomination_Name
+DENOM_001,The Apostolic Church (Early Church)
+DENOM_031,Imperial Nicene Church
+DENOM_032,Roman Catholic Church (Latin Rite)
+DENOM_068,Eastern Orthodox Church
+DENOM_064,Coptic Orthodox Church
+DENOM_047,Old Catholic Church (Union of Utrecht)
+DENOM_052,SSPX (Society of St. Pius X)
+DENOM_124,Oxford Movement (Tractarians)
+DENOM_102,Lutheran Church–Missouri Synod (LCMS)
+DENOM_087,Unitas Fratrum (Historic Hussites)
+DENOM_114,Presbyterian Church in America (PCA)
+DENOM_109,Remonstrants (Arminians)
+DENOM_121,Church of England (Anglicanism)
+DENOM_131,Mennonites
+DENOM_144,Southern Baptist Convention (SBC)
+DENOM_148,Independent Fundamental Baptists (IFB)
+DENOM_153,United Methodist Church (UMC)
+DENOM_167,Assemblies of God (World Fellowship)
+DENOM_176,Zion Christian Church (ZCC)
+DENOM_195,Iglesia ni Cristo (Church of Christ)
+DENOM_180,Churches of Christ (A Cappella)
+DENOM_184,The Church of Jesus Christ of Latter-day Saints (LDS)
+DENOM_190,Jehovah's Witnesses
+DENOM_187,Seventh-day Adventist Church
+DENOM_120,Unitarian Universalism (UUA)
+DENOM_229,Progressive Christianity
+DENOM_157,The Salvation Army
+DENOM_221,Religious Society of Friends (Unprogrammed/Liberal)
+DENOM_013,Marcionites
+DENOM_230,Messianic Judaism
