@@ -304,10 +304,20 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
         // Find all answers the denom selected for this question
         const dAnsList = denomAnswers.filter((da: any) => da.denominationid === denomId && da.questionid === qid);
         const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
-        const dPosture = dAnsList.length > 0 ? 'affirmed' : 'apathetic'; 
+        const dPosture = dAnsList.length > 0 ? 'affirmed' : 'apathetic';
 
-        const uC = userAns.certainty;
-        const uT = userAns.tolerance;
+        // FORCE STRICT SILENCE INJECTIONS
+        let uC = userAns.certainty;
+        let uT = userAns.tolerance;
+
+        if (uPosture === 'apathetic') {
+            uC = 0;
+            uT = 2;
+        } else if (uPosture === 'hostile') {
+            uC = 3;
+            uT = 1;
+        }
+
         // Parse the database strings back into 0-3 and 0-4 numbers
         const dC = dAnsList.length > 0 ? parseCertainty(dAnsList[0].certainty) : 0;
         const dT = dAnsList.length > 0 ? parseTolerance(dAnsList[0].tolerance) : 2;
@@ -453,22 +463,30 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
     
     console.log("--- STARTING TOLERANCE CALC ---");
     
-    userAnswersArray.forEach(userAns => {
-       const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
-       if (uPosture !== 'affirmed') return;
-       
-       // Ensure C and T are strictly numbers
-       const cVal = Number(userAns.certainty ?? 2);
-       const tVal = Number(userAns.tolerance ?? 2);
+userAnswersArray.forEach(userAns => {
+    const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
+    
+    // REMOVED: if (uPosture !== 'affirmed') return;
 
-       // App.js weighting: wT = 1 + C
-       const wT = 1 + cVal; 
-       
-       console.log(`QID: ${userAns.questionId} | C: ${cVal} | T: ${tVal} | wT: ${wT}`);
-       
-       tolWeightedSum += (tVal * wT);
-       tolTotalWeight += wT;
-    });
+    // Use the exact same forced logic here for the tolerance average
+    let cVal = Number(userAns.certainty ?? 2);
+    let tVal = Number(userAns.tolerance ?? 2);
+    
+    if (uPosture === 'apathetic') {
+        cVal = 0;
+        tVal = 2;
+    } else if (uPosture === 'hostile') {
+        cVal = 3;
+        tVal = 1;
+    }
+
+    const severityMultiplier = 1 + Math.pow(Math.abs(tVal - 2), 1.5);
+    const wT = (1 + cVal) * severityMultiplier;
+
+    tolWeightedSum += (tVal * wT);
+    tolTotalWeight += wT;
+});
+
 
     let userTolerance = 50;
     if (tolTotalWeight > 0) {
@@ -476,7 +494,8 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
         userTolerance = Number((averageTValue * 25).toFixed(1));
     }
     
-    console.log(`FINAL TOLERANCE -> Sum: ${tolWeightedSum} | Weight: ${tolTotalWeight} | Score: ${userTolerance}`);
+    console.log(`FINAL TOLERANCE -> Sum: ${tolWeightedSum.toFixed(2)} | Weight: ${tolTotalWeight.toFixed(2)} | Score: ${userTolerance}`);
+
 
 
 

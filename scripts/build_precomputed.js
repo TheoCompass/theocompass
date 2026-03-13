@@ -105,7 +105,7 @@ function buildTheoDataFromCSVs() {
 
   // 5. Map Doctrines (Wide Format parsing & Text-to-Number conversion)
   const certMap = { "Certain": 3, "Pretty Sure": 2, "Leaning": 1, "Not Sure": 0 };
-  const tolMap = { "Salvation issue": 0, "Opposed": 1, "Discerning": 2, "Charitable": 3, "Indifferent": 4, "Neutral": 4 };
+  const tolMap = { "Salvation issue": 0, "Opposed": 1, "Discerning": 2, "Charitable": 3, "Extremely Accepting": 4 };
 
   rawDoctrines.forEach(row => {
     const denomId = row.Denomination_ID;
@@ -359,12 +359,20 @@ function computeToleranceScore(profileAnswers, activeQids = null) {
     if (activeQids && !activeQids.has(question.Question_ID)) continue;
     const entry = profileAnswers[question.Question_ID];
     if (!entry || entry.posture !== TC.POSTURE.AFFIRMED) continue;
-    const wT = 1 + (entry.C ?? 0);
-    weightedSum += (entry.T ?? 2) * wT;
+    
+    const cVal = entry.C ?? 0;
+    const tVal = entry.T ?? 2;
+    
+    // NEW LOGIC: Weight scales up exponentially as T moves away from neutral (2)
+    const severityMultiplier = 1 + Math.pow(Math.abs(tVal - 2), 1.5);
+    const wT = (1 + cVal) * severityMultiplier;
+    
+    weightedSum += tVal * wT;
     totalWeight += wT;
   }
   return totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 25 * 1000) / 1000 : 50;
 }
+
 
 function buildLabelProfile(profileAnswers, activeQids = null) {
   const labels = [];

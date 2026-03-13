@@ -32,18 +32,18 @@ interface UserResponse {
 
 // --- CHART CONFIGURATION ---
 const AXIS_LABELS: Record<string, { left: string, right: string, desc: string }> = {
-  theolconslib: { left: "Liberal", right: "Conservative", desc: "View of scripture, tradition, and orthodoxy" },
-  socialconslib: { left: "Progressive", right: "Traditional", desc: "Stance on ethics, gender, and society" },
+  theolconslib: { left: "Progressive", right: "Orthodox", desc: "View of scripture, tradition, and orthodoxy" },
+  socialconslib: { left: "Liberal", right: "Conservative", desc: "Stance on ethics, gender, and society" },
   counterpromodern: { left: "Accommodating", right: "Counter-Cultural", desc: "Relationship to secular culture" },
   supernat: { left: "Naturalistic", right: "Supernatural", desc: "Expectation of miracles and spiritual forces" },
-  cultsepeng: { left: "Separatist", right: "Engaged", desc: "Approach to worldly institutions and politics" },
+  cultsepeng: { left: "Engaged", right: "Separatist", desc: "Approach to worldly institutions and politics" },
   clericegal: { left: "Egalitarian", right: "Hierarchical", desc: "Church governance and ordination" },
   divhumagency: { left: "Human Free Will", right: "Divine Sovereignty", desc: "The mechanics of salvation (Arminian/Calvinist)" },
   communindiv: { left: "Individualist", right: "Communitarian", desc: "Focus of faith and church life" },
   liturgspont: { left: "Spontaneous", right: "Liturgical", desc: "Style and structure of worship" },
   sacramfunct: { left: "Functional/Symbolic", right: "Sacramental", desc: "Efficacy of Baptism and Communion" },
-  literalcrit: { left: "Critical/Historical", right: "Literal/Inerrant", desc: "Method of reading the Bible" },
-  intellectexper: { left: "Experiential/Mystic", right: "Intellectual/Confessional", desc: "Primary mode of knowing God" }
+  literalcrit: { left: "Critical", right: "Literal", desc: "Method of reading the Bible" },
+  intellectexper: { left: "Experiential", right: "Intellectual", desc: "Primary mode of knowing God" }
 };
 
 // --- NEW COMPONENT: Expandable Denomination Card ---
@@ -510,10 +510,9 @@ export default function QuizPage() {
                     const score = userCoords[key];
                     if (score === undefined || score === null) return null; // Skip if no data
                     
-                    // Math for the bar: Score is 0-100. 
-                    // < 50 means left leaning, > 50 means right leaning
-                    const isRight = score >= 50;
-                    const strength = isRight ? score - 50 : 50 - score; // 0 to 50
+                    // New (100→0 left→right to match compass)
+                    const isRight = score <= 50;  // Changed: 0 = Traditional = RIGHT
+                    const strength = isRight ? (50 - score) : (score - 50);  // Changed: strength from center
                     const barWidth = `${(strength / 50) * 100}%`;
                     
                     return (
@@ -560,22 +559,32 @@ export default function QuizPage() {
 
                   <hr className="my-2 border-slate-200" />
 
-                  {/* The 13th Axis: Tolerance / Posture */}
+                  {/* The 13th Axis: Tolerance / Posture - Dogmatic on RIGHT */}
                   <div className="flex flex-col relative group pt-2">
                     <div className="flex justify-between text-xs font-bold uppercase tracking-wide text-slate-500 mb-1 z-10 px-1">
-                      <span className={userTolerance < 50 ? "text-amber-600" : ""}>Dogmatic / Strict</span>
                       <span className={userTolerance >= 50 ? "text-amber-600" : ""}>Accepting / Open</span>
+                      <span className={userTolerance <= 50 ? "text-amber-600" : ""}>Dogmatic / Strict</span>
                     </div>
                     <div className="relative w-full h-5 bg-slate-100 rounded-full overflow-hidden flex border border-slate-200">
                       <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-slate-300 z-10"></div>
-                      <div className="w-1/2 h-full relative flex justify-end">
-                        {userTolerance < 50 && (
-                          <div className="h-full bg-amber-500 rounded-l-full" style={{ width: `${((50 - userTolerance) / 50) * 100}%` }}></div>
+                      
+                      {/* LEFT SIDE: Accepting (high scores extend LEFT) */}
+                      <div className="w-1/2 h-full relative flex justify-end ">
+                        {userTolerance >= 50 && (
+                          <div 
+                            className="h-full bg-amber-500 rounded-l-full" 
+                            style={{ width: `${((userTolerance - 50) / 50) * 100}%` }}
+                          />
                         )}
                       </div>
-                      <div className="w-1/2 h-full relative flex justify-start">
-                        {userTolerance >= 50 && (
-                          <div className="h-full bg-amber-500 rounded-r-full" style={{ width: `${((userTolerance - 50) / 50) * 100}%` }}></div>
+                      
+                      {/* RIGHT SIDE: Dogmatic (low scores extend RIGHT) */}
+                      <div className="w-1/2 h-full relative flex justify-start ">
+                        {userTolerance <= 50 && (
+                          <div 
+                            className="h-full bg-amber-500 rounded-r-full" 
+                            style={{ width: `${((50 - userTolerance) / 50) * 100}%` }}
+                          />
                         )}
                       </div>
                     </div>

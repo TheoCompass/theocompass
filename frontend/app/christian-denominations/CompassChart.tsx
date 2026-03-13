@@ -8,19 +8,19 @@ import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, Res
 // By default in Recharts, 0 is Left/Bottom, 100 is Right/Top.
 // If 100 means "Conservative", we leave it. If 0 means "Conservative", we reverse it.
 const AXIS_OPTIONS = [
-  { key: "theol_cons_lib_avg", label: "Theology: Liberal ↔ Conservative", minLabel: "Liberal", maxLabel: "Conservative" },
-  { key: "social_cons_lib_avg", label: "Society: Progressive ↔ Traditional", minLabel: "Progressive", maxLabel: "Traditional" },
+  { key: "theol_cons_lib_avg", label: "Theology: Progressive ↔ Orthodox", minLabel: "Progressive", maxLabel: "Orthodox" },
+  { key: "social_cons_lib_avg", label: "Society: Liberal ↔ Conservative", minLabel: "Liberal", maxLabel: "Conservative" },
   { key: "counter_pro_modern_avg", label: "Culture: Accommodating ↔ Counter-Cultural", minLabel: "Accommodating", maxLabel: "Counter-Cultural" },
   { key: "super_nat_avg", label: "Worldview: Naturalistic ↔ Supernatural", minLabel: "Naturalistic", maxLabel: "Supernatural" },
-  { key: "cult_sep_eng_avg", label: "Politics: Separatist ↔ Engaged", minLabel: "Engaged", maxLabel: "Separatist" },
+  { key: "cult_sep_eng_avg", label: "Politics: Engaged ↔ Separatist", minLabel: "Engaged", maxLabel: "Separatist" },
   { key: "cleric_egal_avg", label: "Authority: Egalitarian ↔ Hierarchical", minLabel: "Egalitarian", maxLabel: "Hierarchical" },
   { key: "div_hum_agency_avg", label: "Salvation: Human Free Will ↔ Divine Sovereignty", minLabel: "Free Will", maxLabel: "Sovereignty" },
   { key: "commun_indiv_avg", label: "Focus: Individualist ↔ Communitarian", minLabel: "Individualist", maxLabel: "Communitarian" },
   { key: "liturg_spont_avg", label: "Worship: Spontaneous ↔ Liturgical", minLabel: "Spontaneous", maxLabel: "Liturgical" },
   { key: "sacram_funct_avg", label: "Sacraments: Symbolic ↔ Sacramental", minLabel: "Symbolic", maxLabel: "Sacramental" },
-  { key: "literal_crit_avg", label: "Scripture: Historical/Critical ↔ Literal/Inerrant", minLabel: "Critical", maxLabel: "Literal" },
-  { key: "intellect_exper_avg", label: "Knowledge: Experiential ↔ Intellectual", minLabel: "Experiential", maxLabel: "Intellectual" },
-  { key: "tolerance_score", label: "Posture: Strict/Dogmatic ↔ Open/Accepting", minLabel: "Accepting", maxLabel: "Dogmatic" },
+  { key: "literal_crit_avg", label: "Scripture: Critical ↔ Literal", minLabel: "Critical", maxLabel: "Literal" },
+  { key: "intellect_exper_avg", label: "Practice: Experiential ↔ Intellectual", minLabel: "Experiential", maxLabel: "Intellectual" },
+  { key: "tolerance_score", label: "Posture: Accepting ↔ Dogmatic", minLabel: "Accepting", maxLabel: "Dogmatic" },
 ];
 
 const getFamilyColor = (family: string) => {
@@ -97,7 +97,7 @@ export default function CompassChart({ userCoords, userTolerance }: CompassProps
         const rawCoords = await coordRes.json();
         
         // 2. Map the DB results into Recharts format
-        const cleanData = rawCoords.map((coordRow: any) => ({
+        const formattedData = rawCoords.map((coordRow: any) => ({
           ...coordRow,
           name: coordRow.name || coordRow.denomination_id, // Fallback if name is somehow null
           family: coordRow.family || "Tradition",
@@ -106,7 +106,51 @@ export default function CompassChart({ userCoords, userTolerance }: CompassProps
           isUser: false
         }));
 
-        // 3. Build the User Point
+        // 3. MERGE LOGIC: Group duplicate denominations and average their axes
+        const mergedMap = new Map();
+
+        formattedData.forEach((item: any) => {
+          if (mergedMap.has(item.name)) {
+            const existing = mergedMap.get(item.name);
+            // Add all 13 possible axes to a running sum
+            AXIS_OPTIONS.forEach(axis => {
+              if (item[axis.key] !== undefined && item[axis.key] !== null) {
+                existing.sums[axis.key] = (existing.sums[axis.key] || 0) + Number(item[axis.key]);
+              }
+            });
+            existing.count += 1;
+          } else {
+            // First time seeing this denomination, initialize its sums
+            const initialSums: Record<string, number> = {};
+            AXIS_OPTIONS.forEach(axis => {
+              if (item[axis.key] !== undefined && item[axis.key] !== null) {
+                initialSums[axis.key] = Number(item[axis.key]);
+              }
+            });
+            
+            mergedMap.set(item.name, {
+              ...item,
+              sums: initialSums,
+              count: 1
+            });
+          }
+        });
+
+        // Calculate the final averages to create the clean dataset
+        const cleanData = Array.from(mergedMap.values()).map((item: any) => {
+          const averagedItem: any = { ...item };
+          AXIS_OPTIONS.forEach(axis => {
+            if (item.sums[axis.key] !== undefined) {
+              averagedItem[axis.key] = item.sums[axis.key] / item.count;
+            }
+          });
+          // Cleanup temporary grouping properties
+          delete averagedItem.sums;
+          delete averagedItem.count;
+          return averagedItem;
+        });
+
+        // 4. Build the User Point (Your exact original logic)
         const userPoint = {
           id: "USER",
           name: "You Are Here",
@@ -119,7 +163,7 @@ export default function CompassChart({ userCoords, userTolerance }: CompassProps
           }, {} as Record<string, number>)
         };
 
-        // Combine the DB points with the User point
+        // Combine the merged DB points with the User point
         setChartData([...cleanData, userPoint]);
       } catch (e) {
         console.error("Failed to load compass coordinates", e);
@@ -129,6 +173,7 @@ export default function CompassChart({ userCoords, userTolerance }: CompassProps
     }
     fetchLandscape();
   }, [userCoords, userTolerance]);
+
 
   // Find the selected axis objects to get their extremity labels
   const xObj = AXIS_OPTIONS.find(o => o.key === xAxis);

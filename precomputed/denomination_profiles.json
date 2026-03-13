@@ -3171,7 +3171,7 @@
           "Literal_Crit": 22.538,
           "Intellect_Exper": 34.203
         },
-        "toleranceScore": 42.143,
+        "toleranceScore": 37.348,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 19.801,
@@ -3263,7 +3263,7 @@
           "Literal_Crit": 22.926,
           "Intellect_Exper": 34.203
         },
-        "toleranceScore": 42.29,
+        "toleranceScore": 37.505,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 19.565,
@@ -3355,7 +3355,7 @@
           "Literal_Crit": 22.926,
           "Intellect_Exper": 34.203
         },
-        "toleranceScore": 42.29,
+        "toleranceScore": 37.505,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 19.565,
@@ -6640,7 +6640,7 @@
           "Literal_Crit": 30.93,
           "Intellect_Exper": 27.804
         },
-        "toleranceScore": 29.369,
+        "toleranceScore": 20.545,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 7.877,
@@ -6732,7 +6732,7 @@
           "Literal_Crit": 31.008,
           "Intellect_Exper": 27.804
         },
-        "toleranceScore": 29.762,
+        "toleranceScore": 20.798,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 8.022,
@@ -6824,7 +6824,7 @@
           "Literal_Crit": 31.008,
           "Intellect_Exper": 27.804
         },
-        "toleranceScore": 29.762,
+        "toleranceScore": 20.798,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 8.022,
@@ -10079,7 +10079,7 @@
           "Literal_Crit": 41.192,
           "Intellect_Exper": 37.056
         },
-        "toleranceScore": 28.509,
+        "toleranceScore": 23.182,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 16.077,
@@ -10171,7 +10171,7 @@
           "Literal_Crit": 41.248,
           "Intellect_Exper": 37.056
         },
-        "toleranceScore": 29.701,
+        "toleranceScore": 24.46,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 16.138,
@@ -10263,7 +10263,7 @@
           "Literal_Crit": 41.248,
           "Intellect_Exper": 37.056
         },
-        "toleranceScore": 29.701,
+        "toleranceScore": 24.46,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 16.138,
@@ -13507,7 +13507,7 @@
           "Literal_Crit": 44.869,
           "Intellect_Exper": 43.767
         },
-        "toleranceScore": 23.874,
+        "toleranceScore": 15.671,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 17.097,
@@ -13599,7 +13599,7 @@
           "Literal_Crit": 44.337,
           "Intellect_Exper": 43.767
         },
-        "toleranceScore": 23.913,
+        "toleranceScore": 15.944,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 17.206,
@@ -13691,7 +13691,7 @@
           "Literal_Crit": 44.337,
           "Intellect_Exper": 43.767
         },
-        "toleranceScore": 23.913,
+        "toleranceScore": 15.944,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 17.206,
@@ -16935,7 +16935,7 @@
           "Literal_Crit": 38.846,
           "Intellect_Exper": 39.535
         },
-        "toleranceScore": 25.893,
+        "toleranceScore": 18.312,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 13.869,
@@ -17027,7 +17027,7 @@
           "Literal_Crit": 38.527,
           "Intellect_Exper": 39.535
         },
-        "toleranceScore": 25.862,
+        "toleranceScore": 18.519,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 14.1,
@@ -17119,7 +17119,7 @@
           "Literal_Crit": 38.527,
           "Intellect_Exper": 39.535
         },
-        "toleranceScore": 25.862,
+        "toleranceScore": 18.519,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 14.1,
@@ -17440,7 +17440,7 @@
         "qid": "SCR_02",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -19601,7 +19601,7 @@
         "qid": "ESC_07",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -20390,23 +20390,23 @@
     "modes": {
       "quick": {
         "dimCoords": {
-          "Theol_Cons_Lib": 27.103,
+          "Theol_Cons_Lib": 25.911,
           "Social_Cons_Lib": 70.693,
-          "Counter_Pro_Modern": 22.354,
-          "Super_Nat": 33.189,
+          "Counter_Pro_Modern": 21.44,
+          "Super_Nat": 32.51,
           "Cult_Sep_Eng": 76.973,
           "Cleric_Egal": 21.592,
-          "Div_Hum_Agency": 35.33,
+          "Div_Hum_Agency": 34.097,
           "Commun_Indiv": 6.98,
           "Liturg_Spont": 3.61,
           "Sacram_Funct": 11.816,
-          "Literal_Crit": 53.542,
-          "Intellect_Exper": 41.044
+          "Literal_Crit": 53.642,
+          "Intellect_Exper": 40.281
         },
-        "toleranceScore": 45,
+        "toleranceScore": 47.258,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 27.103,
+            "avg": 25.911,
             "min": 0,
             "max": 100,
             "count": 35
@@ -20418,13 +20418,13 @@
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 22.354,
+            "avg": 21.44,
             "min": 0,
             "max": 100,
             "count": 36
           },
           "Super_Nat": {
-            "avg": 33.189,
+            "avg": 32.51,
             "min": 0,
             "max": 100,
             "count": 32
@@ -20442,7 +20442,7 @@
             "count": 15
           },
           "Div_Hum_Agency": {
-            "avg": 35.33,
+            "avg": 34.097,
             "min": 0,
             "max": 90,
             "count": 14
@@ -20466,13 +20466,13 @@
             "count": 15
           },
           "Literal_Crit": {
-            "avg": 53.542,
+            "avg": 53.642,
             "min": 0,
             "max": 100,
             "count": 34
           },
           "Intellect_Exper": {
-            "avg": 41.044,
+            "avg": 40.281,
             "min": 0,
             "max": 100,
             "count": 26
@@ -20482,23 +20482,23 @@
       },
       "standard": {
         "dimCoords": {
-          "Theol_Cons_Lib": 27.063,
+          "Theol_Cons_Lib": 25.893,
           "Social_Cons_Lib": 70.693,
-          "Counter_Pro_Modern": 22.401,
-          "Super_Nat": 33.28,
+          "Counter_Pro_Modern": 21.506,
+          "Super_Nat": 32.621,
           "Cult_Sep_Eng": 76.973,
           "Cleric_Egal": 21.592,
-          "Div_Hum_Agency": 35.736,
+          "Div_Hum_Agency": 34.627,
           "Commun_Indiv": 6.98,
           "Liturg_Spont": 3.61,
           "Sacram_Funct": 11.816,
-          "Literal_Crit": 53.3,
-          "Intellect_Exper": 41.044
+          "Literal_Crit": 53.386,
+          "Intellect_Exper": 40.281
         },
-        "toleranceScore": 45.796,
+        "toleranceScore": 48.127,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 27.063,
+            "avg": 25.893,
             "min": 0,
             "max": 100,
             "count": 37
@@ -20510,13 +20510,13 @@
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 22.401,
+            "avg": 21.506,
             "min": 0,
             "max": 100,
             "count": 38
           },
           "Super_Nat": {
-            "avg": 33.28,
+            "avg": 32.621,
             "min": 0,
             "max": 100,
             "count": 34
@@ -20534,7 +20534,7 @@
             "count": 15
           },
           "Div_Hum_Agency": {
-            "avg": 35.736,
+            "avg": 34.627,
             "min": 0,
             "max": 90,
             "count": 16
@@ -20558,13 +20558,13 @@
             "count": 15
           },
           "Literal_Crit": {
-            "avg": 53.3,
+            "avg": 53.386,
             "min": 0,
             "max": 100,
             "count": 36
           },
           "Intellect_Exper": {
-            "avg": 41.044,
+            "avg": 40.281,
             "min": 0,
             "max": 100,
             "count": 26
@@ -20574,23 +20574,23 @@
       },
       "deep": {
         "dimCoords": {
-          "Theol_Cons_Lib": 27.063,
+          "Theol_Cons_Lib": 25.893,
           "Social_Cons_Lib": 70.693,
-          "Counter_Pro_Modern": 22.401,
-          "Super_Nat": 33.28,
+          "Counter_Pro_Modern": 21.506,
+          "Super_Nat": 32.621,
           "Cult_Sep_Eng": 76.973,
           "Cleric_Egal": 21.592,
-          "Div_Hum_Agency": 35.736,
+          "Div_Hum_Agency": 34.627,
           "Commun_Indiv": 6.98,
           "Liturg_Spont": 3.61,
           "Sacram_Funct": 11.816,
-          "Literal_Crit": 53.3,
-          "Intellect_Exper": 41.044
+          "Literal_Crit": 53.386,
+          "Intellect_Exper": 40.281
         },
-        "toleranceScore": 45.796,
+        "toleranceScore": 48.127,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 27.063,
+            "avg": 25.893,
             "min": 0,
             "max": 100,
             "count": 37
@@ -20602,13 +20602,13 @@
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 22.401,
+            "avg": 21.506,
             "min": 0,
             "max": 100,
             "count": 38
           },
           "Super_Nat": {
-            "avg": 33.28,
+            "avg": 32.621,
             "min": 0,
             "max": 100,
             "count": 34
@@ -20626,7 +20626,7 @@
             "count": 15
           },
           "Div_Hum_Agency": {
-            "avg": 35.736,
+            "avg": 34.627,
             "min": 0,
             "max": 90,
             "count": 16
@@ -20650,13 +20650,13 @@
             "count": 15
           },
           "Literal_Crit": {
-            "avg": 53.3,
+            "avg": 53.386,
             "min": 0,
             "max": 100,
             "count": 36
           },
           "Intellect_Exper": {
-            "avg": 41.044,
+            "avg": 40.281,
             "min": 0,
             "max": 100,
             "count": 26
@@ -23829,7 +23829,7 @@
           "Literal_Crit": 36.726,
           "Intellect_Exper": 32.436
         },
-        "toleranceScore": 21.795,
+        "toleranceScore": 16.349,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 13.369,
@@ -23921,7 +23921,7 @@
           "Literal_Crit": 36.793,
           "Intellect_Exper": 32.436
         },
-        "toleranceScore": 22.246,
+        "toleranceScore": 16.776,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 13.426,
@@ -24013,7 +24013,7 @@
           "Literal_Crit": 36.793,
           "Intellect_Exper": 32.436
         },
-        "toleranceScore": 22.246,
+        "toleranceScore": 16.776,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 13.426,
@@ -26673,7 +26673,7 @@
         "qid": "ETH_05",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -27274,23 +27274,23 @@
     "modes": {
       "quick": {
         "dimCoords": {
-          "Theol_Cons_Lib": 13.508,
+          "Theol_Cons_Lib": 12.776,
           "Social_Cons_Lib": 23.702,
-          "Counter_Pro_Modern": 8.851,
-          "Super_Nat": 28.677,
-          "Cult_Sep_Eng": 57.961,
+          "Counter_Pro_Modern": 7.848,
+          "Super_Nat": 27.964,
+          "Cult_Sep_Eng": 57.23,
           "Cleric_Egal": 9.179,
           "Div_Hum_Agency": 29.488,
           "Commun_Indiv": 6.829,
           "Liturg_Spont": 5.099,
           "Sacram_Funct": 6.353,
-          "Literal_Crit": 37.777,
+          "Literal_Crit": 37.026,
           "Intellect_Exper": 32.1
         },
-        "toleranceScore": 37.374,
+        "toleranceScore": 35.413,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 13.508,
+            "avg": 12.776,
             "min": 0,
             "max": 70,
             "count": 34
@@ -27302,19 +27302,19 @@
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 8.851,
+            "avg": 7.848,
             "min": 0,
             "max": 80,
             "count": 36
           },
           "Super_Nat": {
-            "avg": 28.677,
+            "avg": 27.964,
             "min": 0,
             "max": 100,
             "count": 32
           },
           "Cult_Sep_Eng": {
-            "avg": 57.961,
+            "avg": 57.23,
             "min": 0,
             "max": 90,
             "count": 11
@@ -27350,7 +27350,7 @@
             "count": 18
           },
           "Literal_Crit": {
-            "avg": 37.777,
+            "avg": 37.026,
             "min": 0,
             "max": 100,
             "count": 35
@@ -27366,23 +27366,23 @@
       },
       "standard": {
         "dimCoords": {
-          "Theol_Cons_Lib": 13.693,
+          "Theol_Cons_Lib": 12.986,
           "Social_Cons_Lib": 23.702,
-          "Counter_Pro_Modern": 9.145,
-          "Super_Nat": 29.194,
-          "Cult_Sep_Eng": 57.961,
+          "Counter_Pro_Modern": 8.175,
+          "Super_Nat": 28.515,
+          "Cult_Sep_Eng": 57.23,
           "Cleric_Egal": 9.179,
           "Div_Hum_Agency": 31.012,
           "Commun_Indiv": 6.829,
           "Liturg_Spont": 5.099,
           "Sacram_Funct": 6.353,
-          "Literal_Crit": 37.566,
+          "Literal_Crit": 36.833,
           "Intellect_Exper": 32.1
         },
-        "toleranceScore": 37.745,
+        "toleranceScore": 35.634,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 13.693,
+            "avg": 12.986,
             "min": 0,
             "max": 70,
             "count": 35
@@ -27394,19 +27394,19 @@
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 9.145,
+            "avg": 8.175,
             "min": 0,
             "max": 80,
             "count": 37
           },
           "Super_Nat": {
-            "avg": 29.194,
+            "avg": 28.515,
             "min": 0,
             "max": 100,
             "count": 33
           },
           "Cult_Sep_Eng": {
-            "avg": 57.961,
+            "avg": 57.23,
             "min": 0,
             "max": 90,
             "count": 11
@@ -27442,7 +27442,7 @@
             "count": 18
           },
           "Literal_Crit": {
-            "avg": 37.566,
+            "avg": 36.833,
             "min": 0,
             "max": 100,
             "count": 36
@@ -27458,23 +27458,23 @@
       },
       "deep": {
         "dimCoords": {
-          "Theol_Cons_Lib": 13.693,
+          "Theol_Cons_Lib": 12.986,
           "Social_Cons_Lib": 23.702,
-          "Counter_Pro_Modern": 9.145,
-          "Super_Nat": 29.194,
-          "Cult_Sep_Eng": 57.961,
+          "Counter_Pro_Modern": 8.175,
+          "Super_Nat": 28.515,
+          "Cult_Sep_Eng": 57.23,
           "Cleric_Egal": 9.179,
           "Div_Hum_Agency": 31.012,
           "Commun_Indiv": 6.829,
           "Liturg_Spont": 5.099,
           "Sacram_Funct": 6.353,
-          "Literal_Crit": 37.566,
+          "Literal_Crit": 36.833,
           "Intellect_Exper": 32.1
         },
-        "toleranceScore": 37.745,
+        "toleranceScore": 35.634,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 13.693,
+            "avg": 12.986,
             "min": 0,
             "max": 70,
             "count": 35
@@ -27486,19 +27486,19 @@
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 9.145,
+            "avg": 8.175,
             "min": 0,
             "max": 80,
             "count": 37
           },
           "Super_Nat": {
-            "avg": 29.194,
+            "avg": 28.515,
             "min": 0,
             "max": 100,
             "count": 33
           },
           "Cult_Sep_Eng": {
-            "avg": 57.961,
+            "avg": 57.23,
             "min": 0,
             "max": 90,
             "count": 11
@@ -27534,7 +27534,7 @@
             "count": 18
           },
           "Literal_Crit": {
-            "avg": 37.566,
+            "avg": 36.833,
             "min": 0,
             "max": 100,
             "count": 36
@@ -30708,7 +30708,7 @@
           "Literal_Crit": 21.965,
           "Intellect_Exper": 11.867
         },
-        "toleranceScore": 22.269,
+        "toleranceScore": 16.594,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 9.871,
@@ -30800,7 +30800,7 @@
           "Literal_Crit": 22.542,
           "Intellect_Exper": 11.867
         },
-        "toleranceScore": 22.358,
+        "toleranceScore": 16.832,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 9.875,
@@ -30892,7 +30892,7 @@
           "Literal_Crit": 22.542,
           "Intellect_Exper": 11.867
         },
-        "toleranceScore": 22.358,
+        "toleranceScore": 16.832,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 9.875,
@@ -34124,7 +34124,7 @@
           "Literal_Crit": 17.163,
           "Intellect_Exper": 22.278
         },
-        "toleranceScore": 30.046,
+        "toleranceScore": 21.205,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 13.011,
@@ -34216,7 +34216,7 @@
           "Literal_Crit": 17.594,
           "Intellect_Exper": 22.278
         },
-        "toleranceScore": 30.405,
+        "toleranceScore": 21.471,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 12.95,
@@ -34308,7 +34308,7 @@
           "Literal_Crit": 17.594,
           "Intellect_Exper": 22.278
         },
-        "toleranceScore": 30.405,
+        "toleranceScore": 21.471,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 12.95,
@@ -37556,7 +37556,7 @@
           "Literal_Crit": 21.938,
           "Intellect_Exper": 10.03
         },
-        "toleranceScore": 30.882,
+        "toleranceScore": 23.436,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 11.184,
@@ -37648,7 +37648,7 @@
           "Literal_Crit": 22.577,
           "Intellect_Exper": 10.03
         },
-        "toleranceScore": 30.691,
+        "toleranceScore": 23.484,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 11.14,
@@ -37740,7 +37740,7 @@
           "Literal_Crit": 22.577,
           "Intellect_Exper": 10.03
         },
-        "toleranceScore": 30.691,
+        "toleranceScore": 23.484,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 11.14,
@@ -40972,7 +40972,7 @@
           "Literal_Crit": 30.853,
           "Intellect_Exper": 22.761
         },
-        "toleranceScore": 50.258,
+        "toleranceScore": 47.993,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 18.889,
@@ -41064,7 +41064,7 @@
           "Literal_Crit": 30.809,
           "Intellect_Exper": 22.761
         },
-        "toleranceScore": 49.257,
+        "toleranceScore": 46.881,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 18.951,
@@ -41156,7 +41156,7 @@
           "Literal_Crit": 30.809,
           "Intellect_Exper": 22.761
         },
-        "toleranceScore": 49.257,
+        "toleranceScore": 46.881,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 18.951,
@@ -44419,7 +44419,7 @@
           "Literal_Crit": 31.529,
           "Intellect_Exper": 16.677
         },
-        "toleranceScore": 42.361,
+        "toleranceScore": 36.59,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 16.296,
@@ -44511,7 +44511,7 @@
           "Literal_Crit": 31.623,
           "Intellect_Exper": 16.677
         },
-        "toleranceScore": 42.568,
+        "toleranceScore": 36.853,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 16.257,
@@ -44603,7 +44603,7 @@
           "Literal_Crit": 31.623,
           "Intellect_Exper": 16.677
         },
-        "toleranceScore": 42.568,
+        "toleranceScore": 36.853,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 16.257,
@@ -47887,7 +47887,7 @@
           "Literal_Crit": 31.321,
           "Intellect_Exper": 51.256
         },
-        "toleranceScore": 40.657,
+        "toleranceScore": 33.978,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.891,
@@ -47979,7 +47979,7 @@
           "Literal_Crit": 31.297,
           "Intellect_Exper": 51.256
         },
-        "toleranceScore": 41.667,
+        "toleranceScore": 35.274,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.531,
@@ -48071,7 +48071,7 @@
           "Literal_Crit": 31.297,
           "Intellect_Exper": 51.256
         },
-        "toleranceScore": 41.667,
+        "toleranceScore": 35.274,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.531,
@@ -51331,7 +51331,7 @@
           "Literal_Crit": 18.752,
           "Intellect_Exper": 34.658
         },
-        "toleranceScore": 33.85,
+        "toleranceScore": 31.002,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 22.196,
@@ -51423,7 +51423,7 @@
           "Literal_Crit": 19.042,
           "Intellect_Exper": 34.658
         },
-        "toleranceScore": 35.256,
+        "toleranceScore": 32.477,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 22.057,
@@ -51515,7 +51515,7 @@
           "Literal_Crit": 19.042,
           "Intellect_Exper": 34.658
         },
-        "toleranceScore": 35.256,
+        "toleranceScore": 32.477,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 22.057,
@@ -54754,7 +54754,7 @@
           "Literal_Crit": 16.156,
           "Intellect_Exper": 28.097
         },
-        "toleranceScore": 18.64,
+        "toleranceScore": 11.793,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 18.18,
@@ -54846,7 +54846,7 @@
           "Literal_Crit": 16.33,
           "Intellect_Exper": 28.097
         },
-        "toleranceScore": 20.085,
+        "toleranceScore": 12.919,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 18.204,
@@ -54938,7 +54938,7 @@
           "Literal_Crit": 16.33,
           "Intellect_Exper": 28.097
         },
-        "toleranceScore": 20.085,
+        "toleranceScore": 12.919,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 18.204,
@@ -55254,7 +55254,7 @@
         "qid": "SCR_02",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -55524,7 +55524,7 @@
         "qid": "SAL_03",
         "answered": true,
         "C": 0,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -55915,7 +55915,7 @@
         "qid": "SAL_14",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -56889,7 +56889,7 @@
         "qid": "WOR_08",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -57433,7 +57433,7 @@
         "qid": "ESC_07",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -57968,7 +57968,7 @@
         "qid": "MET_03",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -58230,23 +58230,23 @@
     "modes": {
       "quick": {
         "dimCoords": {
-          "Theol_Cons_Lib": 40.442,
+          "Theol_Cons_Lib": 39.638,
           "Social_Cons_Lib": 80.642,
-          "Counter_Pro_Modern": 49.484,
-          "Super_Nat": 47.988,
-          "Cult_Sep_Eng": 79.618,
-          "Cleric_Egal": 70.039,
-          "Div_Hum_Agency": 31.434,
-          "Commun_Indiv": 55.88,
-          "Liturg_Spont": 44.789,
+          "Counter_Pro_Modern": 49.397,
+          "Super_Nat": 48.193,
+          "Cult_Sep_Eng": 84.594,
+          "Cleric_Egal": 71.476,
+          "Div_Hum_Agency": 28.74,
+          "Commun_Indiv": 55.074,
+          "Liturg_Spont": 45.741,
           "Sacram_Funct": 67.796,
-          "Literal_Crit": 50.697,
-          "Intellect_Exper": 34.64
+          "Literal_Crit": 50.772,
+          "Intellect_Exper": 33.372
         },
-        "toleranceScore": 49.752,
+        "toleranceScore": 60.943,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 40.442,
+            "avg": 39.638,
             "min": 0,
             "max": 100,
             "count": 37
@@ -58258,43 +58258,43 @@
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 49.484,
+            "avg": 49.397,
             "min": 0,
             "max": 100,
             "count": 40
           },
           "Super_Nat": {
-            "avg": 47.988,
+            "avg": 48.193,
             "min": 0,
             "max": 100,
             "count": 36
           },
           "Cult_Sep_Eng": {
-            "avg": 79.618,
+            "avg": 84.594,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Cleric_Egal": {
-            "avg": 70.039,
+            "avg": 71.476,
             "min": 30,
             "max": 100,
             "count": 16
           },
           "Div_Hum_Agency": {
-            "avg": 31.434,
+            "avg": 28.74,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Commun_Indiv": {
-            "avg": 55.88,
+            "avg": 55.074,
             "min": 0,
             "max": 100,
             "count": 22
           },
           "Liturg_Spont": {
-            "avg": 44.789,
+            "avg": 45.741,
             "min": 15,
             "max": 85,
             "count": 10
@@ -58306,13 +58306,13 @@
             "count": 16
           },
           "Literal_Crit": {
-            "avg": 50.697,
+            "avg": 50.772,
             "min": 0,
             "max": 100,
             "count": 39
           },
           "Intellect_Exper": {
-            "avg": 34.64,
+            "avg": 33.372,
             "min": 0,
             "max": 100,
             "count": 28
@@ -58322,23 +58322,23 @@
       },
       "standard": {
         "dimCoords": {
-          "Theol_Cons_Lib": 39.921,
+          "Theol_Cons_Lib": 39.061,
           "Social_Cons_Lib": 80.642,
-          "Counter_Pro_Modern": 48.774,
-          "Super_Nat": 47.901,
-          "Cult_Sep_Eng": 79.618,
-          "Cleric_Egal": 70.039,
-          "Div_Hum_Agency": 32.86,
-          "Commun_Indiv": 55.88,
-          "Liturg_Spont": 44.789,
+          "Counter_Pro_Modern": 48.581,
+          "Super_Nat": 48.083,
+          "Cult_Sep_Eng": 84.594,
+          "Cleric_Egal": 71.476,
+          "Div_Hum_Agency": 30.659,
+          "Commun_Indiv": 55.074,
+          "Liturg_Spont": 45.741,
           "Sacram_Funct": 67.796,
-          "Literal_Crit": 50.196,
-          "Intellect_Exper": 34.64
+          "Literal_Crit": 50.184,
+          "Intellect_Exper": 33.372
         },
-        "toleranceScore": 50.714,
+        "toleranceScore": 61.466,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 39.921,
+            "avg": 39.061,
             "min": 0,
             "max": 100,
             "count": 38
@@ -58350,43 +58350,43 @@
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 48.774,
+            "avg": 48.581,
             "min": 0,
             "max": 100,
             "count": 41
           },
           "Super_Nat": {
-            "avg": 47.901,
+            "avg": 48.083,
             "min": 0,
             "max": 100,
             "count": 37
           },
           "Cult_Sep_Eng": {
-            "avg": 79.618,
+            "avg": 84.594,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Cleric_Egal": {
-            "avg": 70.039,
+            "avg": 71.476,
             "min": 30,
             "max": 100,
             "count": 16
           },
           "Div_Hum_Agency": {
-            "avg": 32.86,
+            "avg": 30.659,
             "min": 0,
             "max": 100,
             "count": 15
           },
           "Commun_Indiv": {
-            "avg": 55.88,
+            "avg": 55.074,
             "min": 0,
             "max": 100,
             "count": 22
           },
           "Liturg_Spont": {
-            "avg": 44.789,
+            "avg": 45.741,
             "min": 15,
             "max": 85,
             "count": 10
@@ -58398,13 +58398,13 @@
             "count": 16
           },
           "Literal_Crit": {
-            "avg": 50.196,
+            "avg": 50.184,
             "min": 0,
             "max": 100,
             "count": 40
           },
           "Intellect_Exper": {
-            "avg": 34.64,
+            "avg": 33.372,
             "min": 0,
             "max": 100,
             "count": 28
@@ -58414,23 +58414,23 @@
       },
       "deep": {
         "dimCoords": {
-          "Theol_Cons_Lib": 39.921,
+          "Theol_Cons_Lib": 39.061,
           "Social_Cons_Lib": 80.642,
-          "Counter_Pro_Modern": 48.774,
-          "Super_Nat": 47.901,
-          "Cult_Sep_Eng": 79.618,
-          "Cleric_Egal": 70.039,
-          "Div_Hum_Agency": 32.86,
-          "Commun_Indiv": 55.88,
-          "Liturg_Spont": 44.789,
+          "Counter_Pro_Modern": 48.581,
+          "Super_Nat": 48.083,
+          "Cult_Sep_Eng": 84.594,
+          "Cleric_Egal": 71.476,
+          "Div_Hum_Agency": 30.659,
+          "Commun_Indiv": 55.074,
+          "Liturg_Spont": 45.741,
           "Sacram_Funct": 67.796,
-          "Literal_Crit": 50.196,
-          "Intellect_Exper": 34.64
+          "Literal_Crit": 50.184,
+          "Intellect_Exper": 33.372
         },
-        "toleranceScore": 50.714,
+        "toleranceScore": 61.466,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 39.921,
+            "avg": 39.061,
             "min": 0,
             "max": 100,
             "count": 38
@@ -58442,43 +58442,43 @@
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 48.774,
+            "avg": 48.581,
             "min": 0,
             "max": 100,
             "count": 41
           },
           "Super_Nat": {
-            "avg": 47.901,
+            "avg": 48.083,
             "min": 0,
             "max": 100,
             "count": 37
           },
           "Cult_Sep_Eng": {
-            "avg": 79.618,
+            "avg": 84.594,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Cleric_Egal": {
-            "avg": 70.039,
+            "avg": 71.476,
             "min": 30,
             "max": 100,
             "count": 16
           },
           "Div_Hum_Agency": {
-            "avg": 32.86,
+            "avg": 30.659,
             "min": 0,
             "max": 100,
             "count": 15
           },
           "Commun_Indiv": {
-            "avg": 55.88,
+            "avg": 55.074,
             "min": 0,
             "max": 100,
             "count": 22
           },
           "Liturg_Spont": {
-            "avg": 44.789,
+            "avg": 45.741,
             "min": 15,
             "max": 85,
             "count": 10
@@ -58490,13 +58490,13 @@
             "count": 16
           },
           "Literal_Crit": {
-            "avg": 50.196,
+            "avg": 50.184,
             "min": 0,
             "max": 100,
             "count": 40
           },
           "Intellect_Exper": {
-            "avg": 34.64,
+            "avg": 33.372,
             "min": 0,
             "max": 100,
             "count": 28
@@ -61117,7 +61117,7 @@
         "qid": "ETH_06",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -61652,19 +61652,19 @@
       "quick": {
         "dimCoords": {
           "Theol_Cons_Lib": 27.814,
-          "Social_Cons_Lib": 40.417,
-          "Counter_Pro_Modern": 43.02,
+          "Social_Cons_Lib": 37.04,
+          "Counter_Pro_Modern": 42.2,
           "Super_Nat": 32.082,
-          "Cult_Sep_Eng": 29.79,
+          "Cult_Sep_Eng": 28.549,
           "Cleric_Egal": 86.03,
           "Div_Hum_Agency": 36.365,
-          "Commun_Indiv": 83.619,
+          "Commun_Indiv": 83.192,
           "Liturg_Spont": 84.913,
           "Sacram_Funct": 79.229,
-          "Literal_Crit": 17.939,
+          "Literal_Crit": 17.6,
           "Intellect_Exper": 46.043
         },
-        "toleranceScore": 35.841,
+        "toleranceScore": 33.034,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 27.814,
@@ -61673,13 +61673,13 @@
             "count": 29
           },
           "Social_Cons_Lib": {
-            "avg": 40.417,
+            "avg": 37.04,
             "min": 0,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 43.02,
+            "avg": 42.2,
             "min": 0,
             "max": 100,
             "count": 30
@@ -61691,7 +61691,7 @@
             "count": 27
           },
           "Cult_Sep_Eng": {
-            "avg": 29.79,
+            "avg": 28.549,
             "min": 0,
             "max": 100,
             "count": 10
@@ -61709,7 +61709,7 @@
             "count": 10
           },
           "Commun_Indiv": {
-            "avg": 83.619,
+            "avg": 83.192,
             "min": 60,
             "max": 100,
             "count": 17
@@ -61727,7 +61727,7 @@
             "count": 14
           },
           "Literal_Crit": {
-            "avg": 17.939,
+            "avg": 17.6,
             "min": 0,
             "max": 100,
             "count": 29
@@ -61744,19 +61744,19 @@
       "standard": {
         "dimCoords": {
           "Theol_Cons_Lib": 27.614,
-          "Social_Cons_Lib": 40.417,
-          "Counter_Pro_Modern": 42.471,
+          "Social_Cons_Lib": 37.04,
+          "Counter_Pro_Modern": 41.663,
           "Super_Nat": 32.437,
-          "Cult_Sep_Eng": 29.79,
+          "Cult_Sep_Eng": 28.549,
           "Cleric_Egal": 86.03,
           "Div_Hum_Agency": 37.307,
-          "Commun_Indiv": 83.619,
+          "Commun_Indiv": 83.192,
           "Liturg_Spont": 84.913,
           "Sacram_Funct": 79.229,
-          "Literal_Crit": 18.226,
+          "Literal_Crit": 17.9,
           "Intellect_Exper": 46.043
         },
-        "toleranceScore": 36.207,
+        "toleranceScore": 33.263,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 27.614,
@@ -61765,13 +61765,13 @@
             "count": 30
           },
           "Social_Cons_Lib": {
-            "avg": 40.417,
+            "avg": 37.04,
             "min": 0,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 42.471,
+            "avg": 41.663,
             "min": 0,
             "max": 100,
             "count": 31
@@ -61783,7 +61783,7 @@
             "count": 28
           },
           "Cult_Sep_Eng": {
-            "avg": 29.79,
+            "avg": 28.549,
             "min": 0,
             "max": 100,
             "count": 10
@@ -61801,7 +61801,7 @@
             "count": 11
           },
           "Commun_Indiv": {
-            "avg": 83.619,
+            "avg": 83.192,
             "min": 60,
             "max": 100,
             "count": 17
@@ -61819,7 +61819,7 @@
             "count": 14
           },
           "Literal_Crit": {
-            "avg": 18.226,
+            "avg": 17.9,
             "min": 0,
             "max": 100,
             "count": 30
@@ -61836,19 +61836,19 @@
       "deep": {
         "dimCoords": {
           "Theol_Cons_Lib": 27.614,
-          "Social_Cons_Lib": 40.417,
-          "Counter_Pro_Modern": 42.471,
+          "Social_Cons_Lib": 37.04,
+          "Counter_Pro_Modern": 41.663,
           "Super_Nat": 32.437,
-          "Cult_Sep_Eng": 29.79,
+          "Cult_Sep_Eng": 28.549,
           "Cleric_Egal": 86.03,
           "Div_Hum_Agency": 37.307,
-          "Commun_Indiv": 83.619,
+          "Commun_Indiv": 83.192,
           "Liturg_Spont": 84.913,
           "Sacram_Funct": 79.229,
-          "Literal_Crit": 18.226,
+          "Literal_Crit": 17.9,
           "Intellect_Exper": 46.043
         },
-        "toleranceScore": 36.207,
+        "toleranceScore": 33.263,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 27.614,
@@ -61857,13 +61857,13 @@
             "count": 30
           },
           "Social_Cons_Lib": {
-            "avg": 40.417,
+            "avg": 37.04,
             "min": 0,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 42.471,
+            "avg": 41.663,
             "min": 0,
             "max": 100,
             "count": 31
@@ -61875,7 +61875,7 @@
             "count": 28
           },
           "Cult_Sep_Eng": {
-            "avg": 29.79,
+            "avg": 28.549,
             "min": 0,
             "max": 100,
             "count": 10
@@ -61893,7 +61893,7 @@
             "count": 11
           },
           "Commun_Indiv": {
-            "avg": 83.619,
+            "avg": 83.192,
             "min": 60,
             "max": 100,
             "count": 17
@@ -61911,7 +61911,7 @@
             "count": 14
           },
           "Literal_Crit": {
-            "avg": 18.226,
+            "avg": 17.9,
             "min": 0,
             "max": 100,
             "count": 30
@@ -65080,7 +65080,7 @@
           "Literal_Crit": 18.353,
           "Intellect_Exper": 56.936
         },
-        "toleranceScore": 34.375,
+        "toleranceScore": 31.481,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 38.118,
@@ -65172,7 +65172,7 @@
           "Literal_Crit": 18.549,
           "Intellect_Exper": 56.936
         },
-        "toleranceScore": 34.536,
+        "toleranceScore": 31.595,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.805,
@@ -65264,7 +65264,7 @@
           "Literal_Crit": 18.549,
           "Intellect_Exper": 56.936
         },
-        "toleranceScore": 34.536,
+        "toleranceScore": 31.595,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.805,
@@ -68496,7 +68496,7 @@
           "Literal_Crit": 23.743,
           "Intellect_Exper": 22.797
         },
-        "toleranceScore": 16.087,
+        "toleranceScore": 11.547,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 33.368,
@@ -68588,7 +68588,7 @@
           "Literal_Crit": 23.841,
           "Intellect_Exper": 22.797
         },
-        "toleranceScore": 16.667,
+        "toleranceScore": 11.795,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 33.144,
@@ -68680,7 +68680,7 @@
           "Literal_Crit": 23.841,
           "Intellect_Exper": 22.797
         },
-        "toleranceScore": 16.667,
+        "toleranceScore": 11.795,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 33.144,
@@ -71912,7 +71912,7 @@
           "Literal_Crit": 22.011,
           "Intellect_Exper": 27.578
         },
-        "toleranceScore": 23.451,
+        "toleranceScore": 18.591,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 25.507,
@@ -72004,7 +72004,7 @@
           "Literal_Crit": 22.285,
           "Intellect_Exper": 27.578
         },
-        "toleranceScore": 23.504,
+        "toleranceScore": 18.781,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 25.308,
@@ -72096,7 +72096,7 @@
           "Literal_Crit": 22.285,
           "Intellect_Exper": 27.578
         },
-        "toleranceScore": 23.504,
+        "toleranceScore": 18.781,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 25.308,
@@ -75340,7 +75340,7 @@
           "Literal_Crit": 35.447,
           "Intellect_Exper": 52.255
         },
-        "toleranceScore": 38.377,
+        "toleranceScore": 37.073,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 52.836,
@@ -75432,7 +75432,7 @@
           "Literal_Crit": 35.283,
           "Intellect_Exper": 52.255
         },
-        "toleranceScore": 38.771,
+        "toleranceScore": 37.321,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 51.802,
@@ -75524,7 +75524,7 @@
           "Literal_Crit": 35.283,
           "Intellect_Exper": 52.255
         },
-        "toleranceScore": 38.771,
+        "toleranceScore": 37.321,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 51.802,
@@ -78756,7 +78756,7 @@
           "Literal_Crit": 30.882,
           "Intellect_Exper": 31.803
         },
-        "toleranceScore": 14.381,
+        "toleranceScore": 10.358,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 38.594,
@@ -78848,7 +78848,7 @@
           "Literal_Crit": 30.854,
           "Intellect_Exper": 31.803
         },
-        "toleranceScore": 14.744,
+        "toleranceScore": 10.722,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.956,
@@ -78940,7 +78940,7 @@
           "Literal_Crit": 30.854,
           "Intellect_Exper": 31.803
         },
-        "toleranceScore": 14.744,
+        "toleranceScore": 10.722,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.956,
@@ -82172,7 +82172,7 @@
           "Literal_Crit": 29.915,
           "Intellect_Exper": 44.699
         },
-        "toleranceScore": 29.204,
+        "toleranceScore": 22.287,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 34.155,
@@ -82264,7 +82264,7 @@
           "Literal_Crit": 29.918,
           "Intellect_Exper": 44.699
         },
-        "toleranceScore": 29.06,
+        "toleranceScore": 22.376,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 33.61,
@@ -82356,7 +82356,7 @@
           "Literal_Crit": 29.918,
           "Intellect_Exper": 44.699
         },
-        "toleranceScore": 29.06,
+        "toleranceScore": 22.376,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 33.61,
@@ -82580,7 +82580,7 @@
         "qid": "SCR_01",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -82789,7 +82789,7 @@
         "qid": "SCR_09",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -83093,7 +83093,7 @@
         "qid": "SAL_08",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -83235,7 +83235,7 @@
         "qid": "SAL_14",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -83765,7 +83765,7 @@
         "qid": "SAC_02",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -84825,7 +84825,7 @@
         "qid": "ETH_06",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -85347,53 +85347,53 @@
     "modes": {
       "quick": {
         "dimCoords": {
-          "Theol_Cons_Lib": 99.247,
-          "Social_Cons_Lib": 95.965,
-          "Counter_Pro_Modern": 99.556,
-          "Super_Nat": 99.156,
-          "Cult_Sep_Eng": 92.321,
-          "Cleric_Egal": 94.812,
+          "Theol_Cons_Lib": 99.688,
+          "Social_Cons_Lib": 98.725,
+          "Counter_Pro_Modern": 99.812,
+          "Super_Nat": 99.605,
+          "Cult_Sep_Eng": 97.167,
+          "Cleric_Egal": 94.035,
           "Div_Hum_Agency": 100,
-          "Commun_Indiv": 83.862,
-          "Liturg_Spont": 91.294,
-          "Sacram_Funct": 97.454,
-          "Literal_Crit": 95.223,
-          "Intellect_Exper": 61.354
+          "Commun_Indiv": 76.24,
+          "Liturg_Spont": 91.537,
+          "Sacram_Funct": 98.059,
+          "Literal_Crit": 97.945,
+          "Intellect_Exper": 64.939
         },
-        "toleranceScore": 40.761,
+        "toleranceScore": 76.502,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 99.247,
+            "avg": 99.688,
             "min": 85,
             "max": 100,
             "count": 12
           },
           "Social_Cons_Lib": {
-            "avg": 95.965,
+            "avg": 98.725,
             "min": 70,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 99.556,
+            "avg": 99.812,
             "min": 90,
             "max": 100,
             "count": 13
           },
           "Super_Nat": {
-            "avg": 99.156,
+            "avg": 99.605,
             "min": 85,
             "max": 100,
             "count": 10
           },
           "Cult_Sep_Eng": {
-            "avg": 92.321,
+            "avg": 97.167,
             "min": 50,
             "max": 100,
             "count": 7
           },
           "Cleric_Egal": {
-            "avg": 94.812,
+            "avg": 94.035,
             "min": 90,
             "max": 100,
             "count": 8
@@ -85405,31 +85405,31 @@
             "count": 3
           },
           "Commun_Indiv": {
-            "avg": 83.862,
+            "avg": 76.24,
             "min": 30,
             "max": 100,
             "count": 9
           },
           "Liturg_Spont": {
-            "avg": 91.294,
+            "avg": 91.537,
             "min": 85,
             "max": 100,
             "count": 4
           },
           "Sacram_Funct": {
-            "avg": 97.454,
+            "avg": 98.059,
             "min": 90,
             "max": 100,
             "count": 7
           },
           "Literal_Crit": {
-            "avg": 95.223,
+            "avg": 97.945,
             "min": 40,
             "max": 100,
             "count": 13
           },
           "Intellect_Exper": {
-            "avg": 61.354,
+            "avg": 64.939,
             "min": 0,
             "max": 100,
             "count": 9
@@ -85439,53 +85439,53 @@
       },
       "standard": {
         "dimCoords": {
-          "Theol_Cons_Lib": 99.247,
-          "Social_Cons_Lib": 95.965,
-          "Counter_Pro_Modern": 99.556,
-          "Super_Nat": 99.156,
-          "Cult_Sep_Eng": 92.321,
-          "Cleric_Egal": 94.812,
+          "Theol_Cons_Lib": 99.688,
+          "Social_Cons_Lib": 98.725,
+          "Counter_Pro_Modern": 99.812,
+          "Super_Nat": 99.605,
+          "Cult_Sep_Eng": 97.167,
+          "Cleric_Egal": 94.035,
           "Div_Hum_Agency": 100,
-          "Commun_Indiv": 83.862,
-          "Liturg_Spont": 91.294,
-          "Sacram_Funct": 97.454,
-          "Literal_Crit": 95.223,
-          "Intellect_Exper": 61.354
+          "Commun_Indiv": 76.24,
+          "Liturg_Spont": 91.537,
+          "Sacram_Funct": 98.059,
+          "Literal_Crit": 97.945,
+          "Intellect_Exper": 64.939
         },
-        "toleranceScore": 40.761,
+        "toleranceScore": 76.502,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 99.247,
+            "avg": 99.688,
             "min": 85,
             "max": 100,
             "count": 12
           },
           "Social_Cons_Lib": {
-            "avg": 95.965,
+            "avg": 98.725,
             "min": 70,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 99.556,
+            "avg": 99.812,
             "min": 90,
             "max": 100,
             "count": 13
           },
           "Super_Nat": {
-            "avg": 99.156,
+            "avg": 99.605,
             "min": 85,
             "max": 100,
             "count": 10
           },
           "Cult_Sep_Eng": {
-            "avg": 92.321,
+            "avg": 97.167,
             "min": 50,
             "max": 100,
             "count": 7
           },
           "Cleric_Egal": {
-            "avg": 94.812,
+            "avg": 94.035,
             "min": 90,
             "max": 100,
             "count": 8
@@ -85497,31 +85497,31 @@
             "count": 3
           },
           "Commun_Indiv": {
-            "avg": 83.862,
+            "avg": 76.24,
             "min": 30,
             "max": 100,
             "count": 9
           },
           "Liturg_Spont": {
-            "avg": 91.294,
+            "avg": 91.537,
             "min": 85,
             "max": 100,
             "count": 4
           },
           "Sacram_Funct": {
-            "avg": 97.454,
+            "avg": 98.059,
             "min": 90,
             "max": 100,
             "count": 7
           },
           "Literal_Crit": {
-            "avg": 95.223,
+            "avg": 97.945,
             "min": 40,
             "max": 100,
             "count": 13
           },
           "Intellect_Exper": {
-            "avg": 61.354,
+            "avg": 64.939,
             "min": 0,
             "max": 100,
             "count": 9
@@ -85531,53 +85531,53 @@
       },
       "deep": {
         "dimCoords": {
-          "Theol_Cons_Lib": 99.247,
-          "Social_Cons_Lib": 95.965,
-          "Counter_Pro_Modern": 99.556,
-          "Super_Nat": 99.156,
-          "Cult_Sep_Eng": 92.321,
-          "Cleric_Egal": 94.812,
+          "Theol_Cons_Lib": 99.688,
+          "Social_Cons_Lib": 98.725,
+          "Counter_Pro_Modern": 99.812,
+          "Super_Nat": 99.605,
+          "Cult_Sep_Eng": 97.167,
+          "Cleric_Egal": 94.035,
           "Div_Hum_Agency": 100,
-          "Commun_Indiv": 83.862,
-          "Liturg_Spont": 91.294,
-          "Sacram_Funct": 97.454,
-          "Literal_Crit": 95.223,
-          "Intellect_Exper": 61.354
+          "Commun_Indiv": 76.24,
+          "Liturg_Spont": 91.537,
+          "Sacram_Funct": 98.059,
+          "Literal_Crit": 97.945,
+          "Intellect_Exper": 64.939
         },
-        "toleranceScore": 40.761,
+        "toleranceScore": 76.502,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 99.247,
+            "avg": 99.688,
             "min": 85,
             "max": 100,
             "count": 12
           },
           "Social_Cons_Lib": {
-            "avg": 95.965,
+            "avg": 98.725,
             "min": 70,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 99.556,
+            "avg": 99.812,
             "min": 90,
             "max": 100,
             "count": 13
           },
           "Super_Nat": {
-            "avg": 99.156,
+            "avg": 99.605,
             "min": 85,
             "max": 100,
             "count": 10
           },
           "Cult_Sep_Eng": {
-            "avg": 92.321,
+            "avg": 97.167,
             "min": 50,
             "max": 100,
             "count": 7
           },
           "Cleric_Egal": {
-            "avg": 94.812,
+            "avg": 94.035,
             "min": 90,
             "max": 100,
             "count": 8
@@ -85589,31 +85589,31 @@
             "count": 3
           },
           "Commun_Indiv": {
-            "avg": 83.862,
+            "avg": 76.24,
             "min": 30,
             "max": 100,
             "count": 9
           },
           "Liturg_Spont": {
-            "avg": 91.294,
+            "avg": 91.537,
             "min": 85,
             "max": 100,
             "count": 4
           },
           "Sacram_Funct": {
-            "avg": 97.454,
+            "avg": 98.059,
             "min": 90,
             "max": 100,
             "count": 7
           },
           "Literal_Crit": {
-            "avg": 95.223,
+            "avg": 97.945,
             "min": 40,
             "max": 100,
             "count": 13
           },
           "Intellect_Exper": {
-            "avg": 61.354,
+            "avg": 64.939,
             "min": 0,
             "max": 100,
             "count": 9
@@ -85692,7 +85692,7 @@
         "qid": "GOD_04",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -85957,7 +85957,7 @@
         "qid": "SCR_07",
         "answered": true,
         "C": 0,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -86109,7 +86109,7 @@
         "qid": "SAL_03",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -86210,7 +86210,7 @@
         "qid": "SAL_06",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -86266,7 +86266,7 @@
         "qid": "SAL_07",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -86358,7 +86358,7 @@
         "qid": "SAL_08",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -86500,7 +86500,7 @@
         "qid": "SAL_14",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -86733,7 +86733,7 @@
         "qid": "CHR_09",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -86816,7 +86816,7 @@
         "qid": "CHR_10",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -87044,7 +87044,7 @@
         "qid": "SAC_02",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -87136,7 +87136,7 @@
         "qid": "SAC_03",
         "answered": true,
         "C": 0,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -87327,7 +87327,7 @@
         "qid": "WOR_05",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -87401,7 +87401,7 @@
         "qid": "WOR_06",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -87476,7 +87476,7 @@
         "qid": "WOR_08",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -87630,7 +87630,7 @@
         "qid": "WOR_17",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -87686,7 +87686,7 @@
         "qid": "WOR_18",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -87915,7 +87915,7 @@
         "qid": "ESC_06",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -88191,7 +88191,7 @@
         "qid": "ETH_05",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -88252,7 +88252,7 @@
         "qid": "ETH_06",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -88792,89 +88792,89 @@
     "modes": {
       "quick": {
         "dimCoords": {
-          "Theol_Cons_Lib": 87.017,
-          "Social_Cons_Lib": 95.628,
-          "Counter_Pro_Modern": 86.716,
-          "Super_Nat": 86.838,
-          "Cult_Sep_Eng": 90.744,
-          "Cleric_Egal": 88.233,
-          "Div_Hum_Agency": 90.252,
-          "Commun_Indiv": 82.736,
-          "Liturg_Spont": 71.07,
-          "Sacram_Funct": 92.312,
-          "Literal_Crit": 87.954,
-          "Intellect_Exper": 56.735
+          "Theol_Cons_Lib": 92.083,
+          "Social_Cons_Lib": 98.606,
+          "Counter_Pro_Modern": 90.924,
+          "Super_Nat": 89.657,
+          "Cult_Sep_Eng": 95.932,
+          "Cleric_Egal": 90.394,
+          "Div_Hum_Agency": 88.422,
+          "Commun_Indiv": 81.242,
+          "Liturg_Spont": 77.833,
+          "Sacram_Funct": 94.592,
+          "Literal_Crit": 92.033,
+          "Intellect_Exper": 54.647
         },
-        "toleranceScore": 59.94,
+        "toleranceScore": 91.269,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 87.017,
+            "avg": 92.083,
             "min": 0,
             "max": 100,
             "count": 33
           },
           "Social_Cons_Lib": {
-            "avg": 95.628,
+            "avg": 98.606,
             "min": 70,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 86.716,
+            "avg": 90.924,
             "min": 0,
             "max": 100,
             "count": 34
           },
           "Super_Nat": {
-            "avg": 86.838,
+            "avg": 89.657,
             "min": 0,
             "max": 100,
             "count": 31
           },
           "Cult_Sep_Eng": {
-            "avg": 90.744,
+            "avg": 95.932,
             "min": 50,
             "max": 100,
             "count": 12
           },
           "Cleric_Egal": {
-            "avg": 88.233,
+            "avg": 90.394,
             "min": 30,
             "max": 100,
             "count": 13
           },
           "Div_Hum_Agency": {
-            "avg": 90.252,
+            "avg": 88.422,
             "min": 0,
             "max": 100,
             "count": 13
           },
           "Commun_Indiv": {
-            "avg": 82.736,
+            "avg": 81.242,
             "min": 0,
             "max": 100,
             "count": 19
           },
           "Liturg_Spont": {
-            "avg": 71.07,
+            "avg": 77.833,
             "min": 20,
             "max": 100,
             "count": 7
           },
           "Sacram_Funct": {
-            "avg": 92.312,
+            "avg": 94.592,
             "min": 0,
             "max": 100,
             "count": 15
           },
           "Literal_Crit": {
-            "avg": 87.954,
+            "avg": 92.033,
             "min": 0,
             "max": 100,
             "count": 33
           },
           "Intellect_Exper": {
-            "avg": 56.735,
+            "avg": 54.647,
             "min": 0,
             "max": 100,
             "count": 24
@@ -88884,89 +88884,89 @@
       },
       "standard": {
         "dimCoords": {
-          "Theol_Cons_Lib": 87.123,
-          "Social_Cons_Lib": 95.628,
-          "Counter_Pro_Modern": 87.14,
-          "Super_Nat": 86.376,
-          "Cult_Sep_Eng": 90.744,
-          "Cleric_Egal": 88.233,
-          "Div_Hum_Agency": 89.258,
-          "Commun_Indiv": 82.736,
-          "Liturg_Spont": 71.07,
-          "Sacram_Funct": 92.312,
-          "Literal_Crit": 88.02,
-          "Intellect_Exper": 56.735
+          "Theol_Cons_Lib": 92.045,
+          "Social_Cons_Lib": 98.606,
+          "Counter_Pro_Modern": 91.073,
+          "Super_Nat": 89.334,
+          "Cult_Sep_Eng": 95.932,
+          "Cleric_Egal": 90.394,
+          "Div_Hum_Agency": 87.903,
+          "Commun_Indiv": 81.242,
+          "Liturg_Spont": 77.833,
+          "Sacram_Funct": 94.592,
+          "Literal_Crit": 92,
+          "Intellect_Exper": 54.647
         },
-        "toleranceScore": 59.706,
+        "toleranceScore": 91.545,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 87.123,
+            "avg": 92.045,
             "min": 0,
             "max": 100,
             "count": 34
           },
           "Social_Cons_Lib": {
-            "avg": 95.628,
+            "avg": 98.606,
             "min": 70,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 87.14,
+            "avg": 91.073,
             "min": 0,
             "max": 100,
             "count": 35
           },
           "Super_Nat": {
-            "avg": 86.376,
+            "avg": 89.334,
             "min": 0,
             "max": 100,
             "count": 32
           },
           "Cult_Sep_Eng": {
-            "avg": 90.744,
+            "avg": 95.932,
             "min": 50,
             "max": 100,
             "count": 12
           },
           "Cleric_Egal": {
-            "avg": 88.233,
+            "avg": 90.394,
             "min": 30,
             "max": 100,
             "count": 13
           },
           "Div_Hum_Agency": {
-            "avg": 89.258,
+            "avg": 87.903,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Commun_Indiv": {
-            "avg": 82.736,
+            "avg": 81.242,
             "min": 0,
             "max": 100,
             "count": 19
           },
           "Liturg_Spont": {
-            "avg": 71.07,
+            "avg": 77.833,
             "min": 20,
             "max": 100,
             "count": 7
           },
           "Sacram_Funct": {
-            "avg": 92.312,
+            "avg": 94.592,
             "min": 0,
             "max": 100,
             "count": 15
           },
           "Literal_Crit": {
-            "avg": 88.02,
+            "avg": 92,
             "min": 0,
             "max": 100,
             "count": 34
           },
           "Intellect_Exper": {
-            "avg": 56.735,
+            "avg": 54.647,
             "min": 0,
             "max": 100,
             "count": 24
@@ -88976,89 +88976,89 @@
       },
       "deep": {
         "dimCoords": {
-          "Theol_Cons_Lib": 87.123,
-          "Social_Cons_Lib": 95.628,
-          "Counter_Pro_Modern": 87.14,
-          "Super_Nat": 86.376,
-          "Cult_Sep_Eng": 90.744,
-          "Cleric_Egal": 88.233,
-          "Div_Hum_Agency": 89.258,
-          "Commun_Indiv": 82.736,
-          "Liturg_Spont": 71.07,
-          "Sacram_Funct": 92.312,
-          "Literal_Crit": 88.02,
-          "Intellect_Exper": 56.735
+          "Theol_Cons_Lib": 92.045,
+          "Social_Cons_Lib": 98.606,
+          "Counter_Pro_Modern": 91.073,
+          "Super_Nat": 89.334,
+          "Cult_Sep_Eng": 95.932,
+          "Cleric_Egal": 90.394,
+          "Div_Hum_Agency": 87.903,
+          "Commun_Indiv": 81.242,
+          "Liturg_Spont": 77.833,
+          "Sacram_Funct": 94.592,
+          "Literal_Crit": 92,
+          "Intellect_Exper": 54.647
         },
-        "toleranceScore": 59.706,
+        "toleranceScore": 91.545,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 87.123,
+            "avg": 92.045,
             "min": 0,
             "max": 100,
             "count": 34
           },
           "Social_Cons_Lib": {
-            "avg": 95.628,
+            "avg": 98.606,
             "min": 70,
             "max": 100,
             "count": 5
           },
           "Counter_Pro_Modern": {
-            "avg": 87.14,
+            "avg": 91.073,
             "min": 0,
             "max": 100,
             "count": 35
           },
           "Super_Nat": {
-            "avg": 86.376,
+            "avg": 89.334,
             "min": 0,
             "max": 100,
             "count": 32
           },
           "Cult_Sep_Eng": {
-            "avg": 90.744,
+            "avg": 95.932,
             "min": 50,
             "max": 100,
             "count": 12
           },
           "Cleric_Egal": {
-            "avg": 88.233,
+            "avg": 90.394,
             "min": 30,
             "max": 100,
             "count": 13
           },
           "Div_Hum_Agency": {
-            "avg": 89.258,
+            "avg": 87.903,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Commun_Indiv": {
-            "avg": 82.736,
+            "avg": 81.242,
             "min": 0,
             "max": 100,
             "count": 19
           },
           "Liturg_Spont": {
-            "avg": 71.07,
+            "avg": 77.833,
             "min": 20,
             "max": 100,
             "count": 7
           },
           "Sacram_Funct": {
-            "avg": 92.312,
+            "avg": 94.592,
             "min": 0,
             "max": 100,
             "count": 15
           },
           "Literal_Crit": {
-            "avg": 88.02,
+            "avg": 92,
             "min": 0,
             "max": 100,
             "count": 34
           },
           "Intellect_Exper": {
-            "avg": 56.735,
+            "avg": 54.647,
             "min": 0,
             "max": 100,
             "count": 24
@@ -92239,7 +92239,7 @@
           "Literal_Crit": 39.597,
           "Intellect_Exper": 47.055
         },
-        "toleranceScore": 37.25,
+        "toleranceScore": 31.098,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.855,
@@ -92331,7 +92331,7 @@
           "Literal_Crit": 39.346,
           "Intellect_Exper": 47.055
         },
-        "toleranceScore": 37.621,
+        "toleranceScore": 31.387,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.354,
@@ -92423,7 +92423,7 @@
           "Literal_Crit": 39.346,
           "Intellect_Exper": 47.055
         },
-        "toleranceScore": 37.621,
+        "toleranceScore": 31.387,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.354,
@@ -92647,7 +92647,7 @@
         "qid": "SCR_01",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -92721,7 +92721,7 @@
         "qid": "SCR_02",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -92832,7 +92832,7 @@
         "qid": "SCR_07",
         "answered": true,
         "C": 1,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -92984,7 +92984,7 @@
         "qid": "SAL_03",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -93205,7 +93205,7 @@
         "qid": "SAL_08",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -93347,7 +93347,7 @@
         "qid": "SAL_14",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -94630,7 +94630,7 @@
         "qid": "ESC_02",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 1,
         "labels": [],
@@ -94799,7 +94799,7 @@
         "qid": "ESC_07",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -94870,7 +94870,7 @@
         "qid": "ETH_01",
         "answered": true,
         "C": 3,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -94991,7 +94991,7 @@
         "qid": "ETH_05",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -95342,7 +95342,7 @@
         "qid": "MET_03",
         "answered": true,
         "C": 2,
-        "T": 2,
+        "T": 4,
         "posture": "affirmed",
         "splitCount": 2,
         "labels": [],
@@ -95604,65 +95604,65 @@
     "modes": {
       "quick": {
         "dimCoords": {
-          "Theol_Cons_Lib": 89.747,
-          "Social_Cons_Lib": 90.399,
-          "Counter_Pro_Modern": 88.224,
-          "Super_Nat": 73.951,
-          "Cult_Sep_Eng": 80.973,
-          "Cleric_Egal": 96.934,
-          "Div_Hum_Agency": 86.879,
-          "Commun_Indiv": 92.238,
+          "Theol_Cons_Lib": 89.937,
+          "Social_Cons_Lib": 90.462,
+          "Counter_Pro_Modern": 87.591,
+          "Super_Nat": 76.613,
+          "Cult_Sep_Eng": 73.427,
+          "Cleric_Egal": 96.485,
+          "Div_Hum_Agency": 89.355,
+          "Commun_Indiv": 91.285,
           "Liturg_Spont": 96.543,
-          "Sacram_Funct": 97.434,
-          "Literal_Crit": 85.156,
-          "Intellect_Exper": 88.179
+          "Sacram_Funct": 97.204,
+          "Literal_Crit": 82.794,
+          "Intellect_Exper": 89.157
         },
-        "toleranceScore": 47.289,
+        "toleranceScore": 79.263,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 89.747,
+            "avg": 89.937,
             "min": 50,
             "max": 100,
             "count": 30
           },
           "Social_Cons_Lib": {
-            "avg": 90.399,
+            "avg": 90.462,
             "min": 80,
             "max": 100,
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 88.224,
+            "avg": 87.591,
             "min": 30,
             "max": 100,
             "count": 31
           },
           "Super_Nat": {
-            "avg": 73.951,
+            "avg": 76.613,
             "min": 0,
             "max": 100,
             "count": 28
           },
           "Cult_Sep_Eng": {
-            "avg": 80.973,
+            "avg": 73.427,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Cleric_Egal": {
-            "avg": 96.934,
+            "avg": 96.485,
             "min": 75,
             "max": 100,
             "count": 13
           },
           "Div_Hum_Agency": {
-            "avg": 86.879,
+            "avg": 89.355,
             "min": 30,
             "max": 100,
             "count": 11
           },
           "Commun_Indiv": {
-            "avg": 92.238,
+            "avg": 91.285,
             "min": 30,
             "max": 100,
             "count": 18
@@ -95674,19 +95674,19 @@
             "count": 8
           },
           "Sacram_Funct": {
-            "avg": 97.434,
+            "avg": 97.204,
             "min": 60,
             "max": 100,
             "count": 12
           },
           "Literal_Crit": {
-            "avg": 85.156,
+            "avg": 82.794,
             "min": 0,
             "max": 100,
             "count": 30
           },
           "Intellect_Exper": {
-            "avg": 88.179,
+            "avg": 89.157,
             "min": 0,
             "max": 100,
             "count": 22
@@ -95696,65 +95696,65 @@
       },
       "standard": {
         "dimCoords": {
-          "Theol_Cons_Lib": 89.747,
-          "Social_Cons_Lib": 90.399,
-          "Counter_Pro_Modern": 88.224,
-          "Super_Nat": 73.951,
-          "Cult_Sep_Eng": 80.973,
-          "Cleric_Egal": 96.934,
-          "Div_Hum_Agency": 86.879,
-          "Commun_Indiv": 92.238,
+          "Theol_Cons_Lib": 89.937,
+          "Social_Cons_Lib": 90.462,
+          "Counter_Pro_Modern": 87.591,
+          "Super_Nat": 76.613,
+          "Cult_Sep_Eng": 73.427,
+          "Cleric_Egal": 96.485,
+          "Div_Hum_Agency": 89.355,
+          "Commun_Indiv": 91.285,
           "Liturg_Spont": 96.543,
-          "Sacram_Funct": 97.434,
-          "Literal_Crit": 85.156,
-          "Intellect_Exper": 88.179
+          "Sacram_Funct": 97.204,
+          "Literal_Crit": 82.794,
+          "Intellect_Exper": 89.157
         },
-        "toleranceScore": 47.289,
+        "toleranceScore": 79.263,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 89.747,
+            "avg": 89.937,
             "min": 50,
             "max": 100,
             "count": 30
           },
           "Social_Cons_Lib": {
-            "avg": 90.399,
+            "avg": 90.462,
             "min": 80,
             "max": 100,
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 88.224,
+            "avg": 87.591,
             "min": 30,
             "max": 100,
             "count": 31
           },
           "Super_Nat": {
-            "avg": 73.951,
+            "avg": 76.613,
             "min": 0,
             "max": 100,
             "count": 28
           },
           "Cult_Sep_Eng": {
-            "avg": 80.973,
+            "avg": 73.427,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Cleric_Egal": {
-            "avg": 96.934,
+            "avg": 96.485,
             "min": 75,
             "max": 100,
             "count": 13
           },
           "Div_Hum_Agency": {
-            "avg": 86.879,
+            "avg": 89.355,
             "min": 30,
             "max": 100,
             "count": 11
           },
           "Commun_Indiv": {
-            "avg": 92.238,
+            "avg": 91.285,
             "min": 30,
             "max": 100,
             "count": 18
@@ -95766,19 +95766,19 @@
             "count": 8
           },
           "Sacram_Funct": {
-            "avg": 97.434,
+            "avg": 97.204,
             "min": 60,
             "max": 100,
             "count": 12
           },
           "Literal_Crit": {
-            "avg": 85.156,
+            "avg": 82.794,
             "min": 0,
             "max": 100,
             "count": 30
           },
           "Intellect_Exper": {
-            "avg": 88.179,
+            "avg": 89.157,
             "min": 0,
             "max": 100,
             "count": 22
@@ -95788,65 +95788,65 @@
       },
       "deep": {
         "dimCoords": {
-          "Theol_Cons_Lib": 89.747,
-          "Social_Cons_Lib": 90.399,
-          "Counter_Pro_Modern": 88.224,
-          "Super_Nat": 73.951,
-          "Cult_Sep_Eng": 80.973,
-          "Cleric_Egal": 96.934,
-          "Div_Hum_Agency": 86.879,
-          "Commun_Indiv": 92.238,
+          "Theol_Cons_Lib": 89.937,
+          "Social_Cons_Lib": 90.462,
+          "Counter_Pro_Modern": 87.591,
+          "Super_Nat": 76.613,
+          "Cult_Sep_Eng": 73.427,
+          "Cleric_Egal": 96.485,
+          "Div_Hum_Agency": 89.355,
+          "Commun_Indiv": 91.285,
           "Liturg_Spont": 96.543,
-          "Sacram_Funct": 97.434,
-          "Literal_Crit": 85.156,
-          "Intellect_Exper": 88.179
+          "Sacram_Funct": 97.204,
+          "Literal_Crit": 82.794,
+          "Intellect_Exper": 89.157
         },
-        "toleranceScore": 47.289,
+        "toleranceScore": 79.263,
         "dimensionStats": {
           "Theol_Cons_Lib": {
-            "avg": 89.747,
+            "avg": 89.937,
             "min": 50,
             "max": 100,
             "count": 30
           },
           "Social_Cons_Lib": {
-            "avg": 90.399,
+            "avg": 90.462,
             "min": 80,
             "max": 100,
             "count": 7
           },
           "Counter_Pro_Modern": {
-            "avg": 88.224,
+            "avg": 87.591,
             "min": 30,
             "max": 100,
             "count": 31
           },
           "Super_Nat": {
-            "avg": 73.951,
+            "avg": 76.613,
             "min": 0,
             "max": 100,
             "count": 28
           },
           "Cult_Sep_Eng": {
-            "avg": 80.973,
+            "avg": 73.427,
             "min": 0,
             "max": 100,
             "count": 14
           },
           "Cleric_Egal": {
-            "avg": 96.934,
+            "avg": 96.485,
             "min": 75,
             "max": 100,
             "count": 13
           },
           "Div_Hum_Agency": {
-            "avg": 86.879,
+            "avg": 89.355,
             "min": 30,
             "max": 100,
             "count": 11
           },
           "Commun_Indiv": {
-            "avg": 92.238,
+            "avg": 91.285,
             "min": 30,
             "max": 100,
             "count": 18
@@ -95858,19 +95858,19 @@
             "count": 8
           },
           "Sacram_Funct": {
-            "avg": 97.434,
+            "avg": 97.204,
             "min": 60,
             "max": 100,
             "count": 12
           },
           "Literal_Crit": {
-            "avg": 85.156,
+            "avg": 82.794,
             "min": 0,
             "max": 100,
             "count": 30
           },
           "Intellect_Exper": {
-            "avg": 88.179,
+            "avg": 89.157,
             "min": 0,
             "max": 100,
             "count": 22
@@ -99023,7 +99023,7 @@
           "Literal_Crit": 28.808,
           "Intellect_Exper": 39.134
         },
-        "toleranceScore": 24.296,
+        "toleranceScore": 15.23,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 37.932,
@@ -99115,7 +99115,7 @@
           "Literal_Crit": 32.849,
           "Intellect_Exper": 39.134
         },
-        "toleranceScore": 23,
+        "toleranceScore": 13.977,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 41.726,
@@ -99207,7 +99207,7 @@
           "Literal_Crit": 32.849,
           "Intellect_Exper": 39.134
         },
-        "toleranceScore": 23,
+        "toleranceScore": 13.977,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 41.726,
@@ -102497,7 +102497,7 @@
           "Literal_Crit": 19.152,
           "Intellect_Exper": 39.044
         },
-        "toleranceScore": 35.88,
+        "toleranceScore": 30.229,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 24.774,
@@ -102589,7 +102589,7 @@
           "Literal_Crit": 19.401,
           "Intellect_Exper": 39.044
         },
-        "toleranceScore": 36.937,
+        "toleranceScore": 31.376,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 24.607,
@@ -102681,7 +102681,7 @@
           "Literal_Crit": 19.401,
           "Intellect_Exper": 39.044
         },
-        "toleranceScore": 36.937,
+        "toleranceScore": 31.376,
         "dimensionStats": {
           "Theol_Cons_Lib": {
             "avg": 24.607,

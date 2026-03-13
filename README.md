@@ -54,6 +54,8 @@ npx wrangler d1 execute theocompass-db --remote --file=./reset.sql
 npx wrangler d1 execute theocompass-db --remote --file=./seed.sql
 ```
 *(Note: Use `--local` instead of `--remote` if you are just testing on your local machine).*
+npx wrangler d1 execute theocompass-db --local --file=./reset.sql
+npx wrangler d1 execute theocompass-db --local --file=./seed.sql
 
 🎉 **Boom. Your frontend API instantly reflects the new theological data. No frontend redeploy required.**
 
