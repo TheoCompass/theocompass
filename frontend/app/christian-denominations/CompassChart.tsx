@@ -223,15 +223,15 @@ return (
       ) : (
         // PNG EXPORT: Static text (no cutoff, perfect rendering)
         <div className="flex flex-col gap-3 w-full md:w-auto">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <span className="font-bold text-slate-700 text-sm w-20">Y-Axis:</span>
-            <span className="font-semibold text-slate-900 px-4 py-2.5 bg-white border-2 border-slate-400 rounded-lg shadow-md text-sm max-w-[280px] truncate bg-gradient-to-r from-slate-50 to-white">
+            <span className="w-full font-semibold text-slate-900 px-4 py-2.5 bg-white border-2 border-slate-400 rounded-lg shadow-md text-sm max-w-[280px] truncate bg-gradient-to-r from-slate-50 to-white">
               {AXIS_OPTIONS.find(o => o.key === yAxis)?.label || 'Loading...'}
             </span>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <span className="font-bold text-slate-700 text-sm w-20">X-Axis:</span>
-            <span className="font-semibold text-slate-900 px-4 py-2.5 bg-white border-2 border-slate-400 rounded-lg shadow-md text-sm max-w-[280px] truncate bg-gradient-to-r from-slate-50 to-white">
+            <span className="w-full font-semibold text-slate-900 px-4 py-2.5 bg-white border-2 border-slate-400 rounded-lg shadow-md text-sm max-w-[280px] truncate bg-gradient-to-r from-slate-50 to-white">
               {AXIS_OPTIONS.find(o => o.key === xAxis)?.label || 'Loading...'}
             </span>
           </div>
@@ -239,7 +239,7 @@ return (
       )}
     </div>
 
-      <div className="h-[400px] md:h-[500px] w-full border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
+      <div className="h-[600px] md:h-[500px] w-full border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 40, right: 30, bottom: 30, left: 40 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />

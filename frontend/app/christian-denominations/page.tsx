@@ -661,7 +661,7 @@ export default function QuizPage() {
           {/* Header Banner */}
           <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-12 py-8 flex justify-between items-center border-b-4 border-blue-600/40">
             <div>
-              <div className="text-4xl font-bold font-serif tracking-tight">TheoCompass</div>
+              <div className="text-4xl font-bold font-serif tracking-tight">TheoCompass v2.0 Pre-Demo</div>
               <div className="text-blue-300 text-lg font-bold tracking-widest uppercase mt-2">Theological Alignment Report</div>
             </div>
             <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg border-2 border-slate-700 overflow-hidden p-1.5">
@@ -718,7 +718,7 @@ export default function QuizPage() {
 
                   return (
                     <div key={key} className="flex items-center gap-3">
-                      <div className="w-[100px] text-[10px] font-medium text-slate-500 uppercase tracking-wider text-right truncate">{labels.left}</div>
+                      <div className="w-[125px] text-[10px] font-medium text-slate-500 uppercase tracking-wider text-right truncate">{labels.left}</div>
                       
                       {/* Fixed Diverging Bar Structure */}
                       <div className="flex-grow h-2.5 bg-slate-100 rounded-full relative">
@@ -733,7 +733,7 @@ export default function QuizPage() {
                         </div>
                       </div>
                       
-                      <div className="w-[100px] text-[10px] font-medium text-slate-500 uppercase tracking-wider text-left truncate">{labels.right}</div>
+                      <div className="w-[125px] text-[10px] font-medium text-slate-500 uppercase tracking-wider text-left truncate">{labels.right}</div>
                     </div>
                   );
                 })}
@@ -759,17 +759,12 @@ export default function QuizPage() {
           </div>
 
           {/* Compass Chart Section */}
-          <div className="px-8 pb-8">
-             <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 flex flex-col">
-               <div className="text-lg font-bold text-slate-400 uppercase tracking-widest mb-6 text-center border-b border-slate-100 pb-3">Theological Compass Landscape</div>
-               <div className=" bg-slate-50/50 rounded-xl border border-slate-100 flex items-center justify-center overflow-hidden">
-                  <CompassChart 
-                    userCoords={userCoords} 
-                    userTolerance={userTolerance} 
-                    isExport={true}  // NEW: trigger PNG styles
-                  />
-               </div>
-             </div>
+          <div className="h-full bg-white rounded-2xl p-8 shadow-sm border border-slate-200 flex flex-col">
+              <CompassChart 
+                userCoords={userCoords} 
+                userTolerance={userTolerance} 
+                isExport={true}  // NEW: trigger PNG styles
+              />
           </div>
 
           {/* Footer */}

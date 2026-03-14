@@ -76,12 +76,12 @@ During development or testing, you might want to skip the quiz and generate rand
 
 How to Unlock Dev Mode: 
 
-    Navigate to the Quiz page (**`/christian-denominations`**). 
-    Click the "Restart" button located in the top-right header. 
-    In the confirmation modal, type the secret code: **mod**. 
-    A "🚀 Unlock Dev Tools" button will appear. Click it to auto-fill the quiz with random answers and jump to the results page. 
+Navigate to the Quiz page (**`/christian-denominations`**). 
+Click the "Restart" button located in the top-right header. 
+In the confirmation modal, type the secret code: **mod**. 
+A "🚀 Unlock Dev Tools" button will appear. Click it to auto-fill the quiz with random answers and jump to the results page. 
 
-*Note: This feature is intended for testing purposes only. *
+*Note: This feature is intended for testing purposes only.*
 
 ---
 

@@ -1,11 +1,17 @@
+"use client"; // 1. Required for interactivity
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react"; // 2. Import useState
 
 export default function Home() {
+  // 3. State to track if mobile menu is open
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900">
       
-      {/* 1. Header - Added Sticky and Backdrop Blur for premium feel */}
+      {/* 1. Header */}
       <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 py-4 px-6 md:px-12 flex justify-between items-center">
         <Link href="/" className="flex items-center gap-3 group">
           <Image 
@@ -25,15 +31,38 @@ export default function Home() {
           <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="hover:text-pink-500 transition-colors">Support</a>
         </nav>
 
-        {/* Mobile Menu Button (Visual Only - requires state to function) */}
+        {/* 4. Mobile Menu Button (Functional Now) */}
         <div className="md:hidden">
-           <button className="text-slate-600 p-2">
-             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
+           <button 
+             onClick={() => setIsMenuOpen(!isMenuOpen)} 
+             className="text-slate-600 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+             aria-label="Toggle Menu"
+           >
+             {isMenuOpen ? (
+               // "X" Icon when open
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+               </svg>
+             ) : (
+               // "Hamburger" Icon when closed
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+               </svg>
+             )}
            </button>
         </div>
       </header>
+
+      {/* 5. Mobile Dropdown Menu (Renders below header) */}
+      {isMenuOpen && (
+        <div className="md:hidden bg-white border-b border-slate-200 shadow-sm z-40">
+          <nav className="flex flex-col gap-4 p-6 text-base font-medium text-slate-700">
+            <Link href="#about" onClick={() => setIsMenuOpen(false)} className="hover:text-blue-700 transition-colors">About the Project</Link>
+            <a href="https://www.reddit.com/r/TheoCompass" target="_blank" rel="noopener noreferrer" className="hover:text-orange-500 transition-colors">Community</a>
+            <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="hover:text-pink-500 transition-colors">Support</a>
+          </nav>
+        </div>
+      )}
 
       {/* 2. Hero Section - With Background Image */}
       <main className="relative min-h-[90vh] flex flex-col items-center justify-center w-full overflow-hidden">
