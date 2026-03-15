@@ -241,7 +241,7 @@ export default function QuizPage() {
     setError(null);
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
       const response = await fetch(`${apiUrl}/api/questions?mode=${mode}`);
 
 
