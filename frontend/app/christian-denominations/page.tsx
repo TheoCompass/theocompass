@@ -463,7 +463,7 @@ export default function QuizPage() {
   // --- RENDER HELPERS ---
   // Header component reused multiple times
   const PageHeader = ({ showRestart = false }: { showRestart?: boolean }) => (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
       <div className="p-4 flex items-center justify-center relative border-b border-slate-100">
         <button 
           onClick={() => setShowBackModal(true)}
@@ -592,6 +592,7 @@ export default function QuizPage() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
         <PageHeader />
+
         <Modals />
         <main className="flex-grow flex flex-col items-center justify-center p-6 max-w-4xl mx-auto">
           <h1 className="font-serif text-3xl md:text-5xl font-bold mb-4 text-center">Select Quiz Mode</h1>
@@ -1130,6 +1131,7 @@ return (
   <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
     <PageHeader showRestart={true} />
     
+    
       {/* --- ALL MODALS DEFINED DIRECTLY BELOW HEADER --- */}
 
       {/* 1. Back Modal */}
@@ -1222,13 +1224,31 @@ return (
         </div>
       )}
 
-      <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8 md:py-12 flex flex-col">
-        <div className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3">
-          Category: {QUIZ_CATEGORY_LABELS[currentQuestion.category] || currentQuestion.category}
+             {/* --- NEW PROGRESS BAR --- */}
+        <div className="w-full bg-slate-200 h-1.5 z-10 sticky top-[73px]">
+          <div 
+            className="bg-blue-600 h-1.5 transition-all duration-300 ease-out" 
+            style={{ width: `${progressPercentage}%` }}
+          ></div>
         </div>
-        <h1 className="font-serif text-2xl md:text-3xl font-bold text-slate-900 mb-8 leading-snug">
-          {currentQuestion.question}
-        </h1>
+        {/* --- END PROGRESS BAR --- */}
+
+        <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8 md:py-12 flex flex-col">
+          <div className="flex justify-between items-center mb-3">
+            <div className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+              {/* Category */}
+              {QUIZ_CATEGORY_LABELS[currentQuestion.category] || currentQuestion.category}
+            </div>
+            
+            {/* ---> NEW QUESTION COUNTER <--- */}
+            <div className="text-xs font-bold text-slate-400">
+              Question {currentQuestionIndex + 1} of {totalQuestions}
+            </div>
+          </div>
+          
+          <h1 className="font-serif text-2xl md:text-3xl font-bold text-slate-900 mb-8 leading-snug">
+            {currentQuestion.question}
+          </h1>
 
         {/* ANSWERS */}
         <div className="flex flex-col gap-3 mb-6">
