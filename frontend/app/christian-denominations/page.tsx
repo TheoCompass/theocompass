@@ -308,7 +308,8 @@ export default function QuizPage() {
       // END OF QUIZ
       setIsCalculating(true);
       setCurrentView("results");
-      
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
       try {
         const res = await fetch(`${apiUrl}/api/calculate`, {
           method: "POST",
@@ -353,6 +354,7 @@ export default function QuizPage() {
     setIsCalculating(true);
     setCurrentView("results");
     
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
     try {
       const res = await fetch(`${apiUrl}/api/calculate`, {
         method: "POST",
