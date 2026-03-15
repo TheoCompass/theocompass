@@ -162,8 +162,26 @@ export default function QuizPage() {
   // LOCAL STORAGE LOGIC
   // ==========================================
 
-  // 1. LOAD PROGRESS ON MOUNT
+  // 1. LOAD PROGRESS OR RESULTS ON MOUNT
   useEffect(() => {
+    // ---> ADD THIS NEW CODE HERE <---
+    // Check if they already finished the quiz
+    const savedResults = localStorage.getItem('theocompass_final_results');
+    if (savedResults) {
+      try {
+        const data = JSON.parse(savedResults);
+        setResults(data.matches);
+        setUserCoords(data.userDimCoords);
+        setUserTolerance(data.userTolerance);
+        setUserLabels(data.userLabels);
+        setCurrentView("results"); // Jump straight to results dashboard!
+        setIsLoaded(true);
+        return; // Exit early so we don't load the quiz progress
+      } catch (e) {
+        console.error("Failed to load saved results", e);
+      }
+    }
+    // ---> END OF NEW CODE <---
     const savedData = localStorage.getItem('theocompass_quiz_progress');
     if (savedData) {
       try {
@@ -226,6 +244,7 @@ export default function QuizPage() {
 
   const handleConfirmRestart = () => {
     localStorage.removeItem('theocompass_quiz_progress');
+    localStorage.removeItem('theocompass_final_results');
     setCurrentView("mode-select");
     resetQuestionState();
     setUserAnswers({});
@@ -324,6 +343,18 @@ export default function QuizPage() {
           setUserCoords(data.userDimCoords || {});
           setUserTolerance(data.userTolerance ?? 50);
           setUserLabels(data.userLabels || []);
+
+                    // ---> ADD THIS NEW CODE HERE <---
+          // Save final results to local storage so a refresh doesn't lose them
+          localStorage.setItem("theocompass_final_results", JSON.stringify({
+             matches: data.matches,
+             userDimCoords: data.userDimCoords,
+             userTolerance: data.userTolerance ?? 50,
+             userLabels: data.userLabels,
+             timestamp: new Date().getTime() // Optional versioning
+          }));
+          // ---> END OF NEW CODE <---
+
         } else {
           console.error("Calculation failed");
         }

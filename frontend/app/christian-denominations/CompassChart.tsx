@@ -241,8 +241,8 @@ return (
       )}
     </div>
 
-      <div className="w-full border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
-        <ResponsiveContainer width="100%" aspect={1.2} minHeight={400}>
+      <div className=" border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
+        <ResponsiveContainer width="100%" aspect={1} minHeight={0}>
           <ScatterChart margin={{ top: 40, right: 30, bottom: 30, left: 40 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             
