@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Merriweather } from "next/font/google";
 import "./globals.css";
+import ClientLayout from './ClientLayout';
 
 // Configure our modern UI font
 const inter = Inter({ 
@@ -30,7 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${merriweather.variable}`}>
       <head>
-        {/* Google Analytics - Pre-Demo Tracking */}
+        {/* GA4 - Safe in Server Component */}
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-4S4RJ1Y66Z" />
         <script
           dangerouslySetInnerHTML={{
@@ -42,14 +43,11 @@ export default function RootLayout({
             `,
           }}
         />
-        
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/icon.png" type="image/png" sizes="any" />
-        <title>TheoCompass - Theological Alignment Quiz</title>
-        <meta name="description" content="Discover your theological alignment across 13 doctrinal dimensions. Built for informed decision, not persuasion." />
       </head>
       <body className="font-sans antialiased">
-        {children}
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );
