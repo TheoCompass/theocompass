@@ -628,11 +628,11 @@ export default function QuizPage() {
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
         <PageHeader />
         <Modals />
-        <main className="flex-grow p-6 max-w-2xl mx-auto w-full flex flex-col">
+       <main className="flex-grow p-6 max-w-2xl mx-auto w-full flex flex-col">
           <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm mt-8">
             <h1 className="font-serif text-3xl font-bold mb-6 text-blue-900">How to navigate the quiz</h1>
             <div className="space-y-6 text-slate-600 mb-8">
-              <p>TheoCompass measures not just <em>what</em> you believe, but <em>how</em> you hold those beliefs.</p>
+              <p>TheoCompass measures not just <em>what</em> you believe, but <em>how</em> you hold those beliefs. For each question:</p>
               
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-slate-800 mb-2">1. Select your Stance</h3>
@@ -641,17 +641,21 @@ export default function QuizPage() {
               
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-blue-700 mb-2">2. Set your Certainty</h3>
-                <p className="text-sm">How confident are you in this specific belief?</p>
+                <p className="text-sm">How confident are you in this specific belief? (Not Sure → Certain)</p>
               </div>
               
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-red-600 mb-2">3. Set your Tolerance</h3>
-                <p className="text-sm">What is your posture toward Christians who disagree with you?</p>
+                <p className="text-sm">What is your posture toward other Christians who disagree with you? Is it a "Salvation Issue", or are you "Accepting"?</p>
               </div>
 
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-slate-800 mb-2">4. Or, Choose Silence</h3>
                 <p className="text-sm mb-2">If a question does not fit your theology, you can bypass the sliders entirely:</p>
+                <ul className="text-sm space-y-2">
+                  <li><span className="font-medium text-slate-700">Apathetic Silence:</span> The topic isn't relevant to you. This creates a soft, neutral stance (low certainty, medium tolerance).</li>
+                  <li><span className="font-medium text-slate-700">Hostile Silence:</span> You fundamentally reject the question's premise. This creates a strong penalty against denominations that affirm it (high certainty, low tolerance).</li>
+                </ul>
               </div>
             </div>
 
@@ -1283,7 +1287,7 @@ return (
           })}
         </div>
 
-        {/* SILENCE OPTIONS */}
+        {/* --- SILENCE OPTIONS --- */}
         <div className="flex flex-col sm:flex-row gap-3 mb-10">
           <button 
             onClick={() => handleSilenceClick("apathetic")}
@@ -1292,7 +1296,9 @@ return (
             }`}
           >
             Apathetic Silence
+            <span className="block text-xs font-normal opacity-70 mt-1">Not theologically relevant to me.</span>
           </button>
+
           <button 
             onClick={() => handleSilenceClick("hostile")}
             className={`flex-1 p-3 rounded-lg border text-sm font-medium transition-all ${
@@ -1300,10 +1306,11 @@ return (
             }`}
           >
             Hostile Silence
+            <span className="block text-xs font-normal opacity-70 mt-1">I reject this question's framing.</span>
           </button>
         </div>
 
-        {/* SLIDERS */}
+         {/* --- CERTAINTY / TOLERANCE SLIDERS --- */}
         {selectedAnswer && !isSilenceSelected && (
           <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm mb-8 animate-fade-in-up">
             <div className="mb-10">
@@ -1313,16 +1320,21 @@ return (
                 <span className={`font-bold ${certaintyTextColors[certainty]}`}>{certaintyLabels[certainty]}</span>
               </div>
               <input type="range" min="0" max="3" step="1" value={certainty} onChange={(e) => setCertainty(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1"><span>Not Sure</span><span>Leaning</span><span>Pretty Sure</span><span>Certain</span></div>
             </div>
             <div>
-              <p className="text-sm text-slate-500 italic mb-3">What posture do you have toward Christians who disagree?</p>
+              <p className="text-sm text-slate-500 italic mb-3">{hasPrimaryKeyword ? "What posture do you have toward Christians who disagree that your view should be primary?" : "What posture do you have toward Christians who disagree with you?"}</p>
               <div className="flex justify-between text-sm mb-2 font-medium">
                 <span className="text-slate-800 font-bold">Tolerance</span>
                 <span className={`font-bold ${
-                  tolerance === 0 ? "text-red-600" : tolerance === 1 ? "text-orange-500" : tolerance === 2 ? "text-yellow-600" : tolerance === 3 ? "text-green-500" : "text-emerald-600"
+                  tolerance === 0 ? "text-red-600" : 
+                  tolerance === 1 ? "text-orange-500" : 
+                  tolerance === 2 ? "text-yellow-600" : 
+                  tolerance === 3 ? "text-green-500" : "text-emerald-600"
                 }`}>{toleranceLabels[tolerance]}</span>
               </div>
               <input type="range" min="0" max="4" step="1" value={tolerance} onChange={(e) => setTolerance(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" />
+              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1"><span>Issue</span><span>Opposed</span><span>Discern</span><span>Charity</span><span>Accept</span></div>
             </div>
           </div>
         )}
