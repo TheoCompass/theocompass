@@ -7,6 +7,7 @@ import html2canvas from "html2canvas-pro";
 import CompassChart from "./CompassChart"; 
 import TheologicalLabelCloud from "./TheologicalLabelCloud"; 
 import { useRouter } from 'next/navigation';
+import { trackEvent } from '../../lib/gtag';
 
 // --- TYPES ---
 interface Answer {
@@ -321,20 +322,6 @@ export default function QuizPage() {
       setIsCalculating(true);
       setCurrentView("results");
 
-      // Track quiz completion (add to handleNext after setCurrentView('results'))
-      gtag('event', 'quiz_complete', {
-        quiz_mode: selectedMode, // 'quick'
-        questions_answered: Object.keys(userAnswers).length,
-        top_match: results[0]?.name || 'unknown',
-        top_match_score: results[0]?.matchPercentage || 0
-      });
-
-      // Track image download (add to handleDownloadImage)
-      gtag('event', 'download_results_image', {
-        top_match: results[0]?.name,
-        top_match_score: results[0]?.matchPercentage
-      });
-
       const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
       try {
         const res = await fetch(`${apiUrl}/api/calculate`, {
@@ -351,7 +338,17 @@ export default function QuizPage() {
           setUserTolerance(data.userTolerance ?? 50);
           setUserLabels(data.userLabels || []);
 
-                    // ---> ADD THIS NEW CODE HERE <---
+            // ✅ CLEAN TRACKING
+            trackEvent('quiz_complete', {
+              quiz_mode: selectedMode || 'quick',
+              questions_answered: Object.keys(newAnswers).length,
+              top_match: data.matches[0]?.name || 'unknown',
+              top_match_score: data.matches[0]?.matchPercentage || 0,
+              user_tolerance: data.userTolerance ?? 50
+            });
+          
+
+          // ---> ADD THIS NEW CODE HERE <---
           // Save final results to local storage so a refresh doesn't lose them
           localStorage.setItem("theocompass_final_results", JSON.stringify({
              matches: data.matches,
@@ -463,6 +460,14 @@ export default function QuizPage() {
       link.download = "TheoCompass-Results.png";
       link.href = dataURL;
       link.click();
+
+      // Inside your try block AFTER canvas success:
+      trackEvent('download_results_image', {
+        top_match: results[0]?.name || 'unknown',
+        top_match_score: results[0]?.matchPercentage || 0,
+        quiz_mode: selectedMode || 'quick'
+      });
+
     } catch (err) {
       console.error("Failed to generate image", err);
     } finally {
