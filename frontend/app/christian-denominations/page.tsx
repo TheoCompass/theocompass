@@ -716,11 +716,11 @@ export default function QuizPage() {
           {/* Header Banner */}
           <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-12 py-8 flex justify-between items-center border-b-4 border-blue-600/40">
             <div>
-              <div className="text-4xl font-bold font-serif tracking-tight">TheoCompass v2.0 Pre-Demo</div>
+              <div className="text-4xl font-bold font-serif tracking-tight">TheoCompass Denomination Alignment Quiz v2.0 Public Alpha</div>
               <div className="text-blue-300 text-lg font-bold tracking-widest uppercase mt-2">Theological Alignment Report</div>
             </div>
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-lg border-2 border-slate-700 overflow-hidden p-1.5">
-               <Image src="/logo.png" alt="Logo" width={56} height={56} className="object-contain" />
+            <div className="w-20 h-20 bg-white rounded-full flex-shrink-0 flex items-center justify-center shadow-lg border-2 border-slate-700 overflow-hidden">
+               <Image src="/logo.png" alt="Logo" width={70} height={70} className="object-contain p-1.5" />
             </div>
           </div>
 

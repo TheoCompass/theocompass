@@ -38,6 +38,37 @@ const getFamilyColor = (family: string) => {
   return "#64748b"; 
 };
 
+// Custom shape renderer for the scatter plot
+const CustomDot = (props: any) => {
+  const { cx, cy, payload } = props;
+  
+  if (!cx || !cy) return null;
+
+  // Make the user dot much bigger (radius 10) compared to denominations (radius 5)
+  const isUser = payload.isUser;
+  const r = isUser ? 8 : 5; 
+  
+  // You already have your family color logic
+  const fill = isUser ? "#ef4444" : getFamilyColor(payload.family);
+  const stroke = isUser ? "#7f1d1d" : "#ffffff";
+  const strokeWidth = isUser ? 3 : 1;
+  const opacity = isUser ? 1 : 0.7;
+
+  return (
+    <circle 
+      cx={cx} 
+      cy={cy} 
+      r={r} 
+      fill={fill} 
+      stroke={stroke} 
+      strokeWidth={strokeWidth}
+      fillOpacity={opacity}
+      className={isUser ? "drop-shadow-lg" : ""}
+      style={{ transition: 'all 0.3s ease' }} // smooth animation when axis changes
+    />
+  );
+};
+
 interface CustomTooltipProps {
   active?: boolean;
   payload?: any[];
@@ -150,15 +181,18 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
           // Cleanup temporary grouping properties
           delete averagedItem.sums;
           delete averagedItem.count;
+          // Add a standard 'z' size for regular dots
+          averagedItem.z = 100; // Normal size
           return averagedItem;
         });
 
-        // 4. Build the User Point (Your exact original logic)
+        // 4. Build the User Point
         const userPoint = {
           id: "USER",
           name: "You Are Here",
           family: "Your Profile",
           isUser: true,
+          z: 200, // Make the user dot HUGE (experiment with 400-800)
           ...AXIS_OPTIONS.reduce((acc, opt) => {
             const rawKey = opt.key.replace(/_avg/g, "").replace(/_/g, "");
             acc[opt.key] = rawKey === "tolerancescore" ? userTolerance : (userCoords[rawKey] || 50);
@@ -249,36 +283,20 @@ return (
             {/* Note: reversed={true} is kept per your previous request to match standard mental models */}
             <XAxis type="number" dataKey={xAxis} domain={[0, 100]} reversed={true} hide />
             <YAxis type="number" dataKey={yAxis} domain={[0, 100]} reversed={true} hide />
-            <ZAxis type="number" range={[100, 300]} /> 
+            <ZAxis type="number" dataKey="z" range={[60, 400]} /> 
             
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
             
             <ReferenceLine x={50} stroke="#94a3b8" strokeWidth={2} opacity={0.5} />
             <ReferenceLine y={50} stroke="#94a3b8" strokeWidth={2} opacity={0.5} />
 
-            <Scatter data={chartData} shape="circle">
-              {chartData.map((entry, index) => {
-                if (entry.isUser) {
-                  return (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill="#ef4444" 
-                      stroke="#7f1d1d" 
-                      strokeWidth={3} 
-                    />
-                  );
-                }
-                return (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={getFamilyColor(entry.family)} 
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    fillOpacity={0.7}
-                  />
-                );
-              })}
-            </Scatter>
+            {/* THIS ONE LINE REPLACES ALL YOUR PREVIOUS <Cell> LOGIC */}
+            <Scatter 
+              data={chartData} 
+              shape={<CustomDot />} 
+              isAnimationActive={false} 
+            />
+
           </ScatterChart>
         </ResponsiveContainer>
 
@@ -306,7 +324,7 @@ return (
       
       {/* Legend below chart */}
       <div className="mt-4 flex flex-wrap gap-2 text-xs justify-center text-slate-600">
-        <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#ef4444] border border-[#7f1d1d]"></div> You</span>
+        <span className="flex items-center gap-1"><div className="w-5 h-5 rounded-full bg-[#ef4444] border-4 border-[#7f1d1d]"></div> You</span>
         <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#eab308]"></div> Catholic/Orthodox</span>
         <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#3b82f6]"></div> Reformed</span>
         <span className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#10b981]"></div> Baptist/Evang.</span>

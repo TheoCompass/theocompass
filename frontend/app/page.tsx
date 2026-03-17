@@ -89,7 +89,7 @@ export default function Home() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </span>
-            v2.0 Pre-Demo Live
+            v2.0 Public Alpha Live
           </div>
 
           {/* Changed Text to White for contrast */}
@@ -150,7 +150,7 @@ export default function Home() {
             <div className="bg-white rounded-2xl shadow-xl border-2 border-blue-600 p-8 flex flex-col relative overflow-hidden transform hover:scale-[1.02] transition-transform">
               <div className="absolute top-0 left-0 w-full h-2 bg-blue-600"></div>
               <span className="bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full w-max mb-4 border border-blue-200">Active Module</span>
-              <h3 className="font-serif font-bold text-2xl mb-2 text-slate-900">Denomination Alignment</h3>
+              <h3 className="font-serif font-bold text-2xl mb-2 text-slate-900">Denomination Alignment Quiz v2.0 Public Alpha</h3>
               <p className="text-slate-500 text-sm mb-6 flex-grow leading-relaxed">
                 Match your beliefs to over 30 different Christian denominations and movements across history using our 12-axis scoring model.
               </p>
