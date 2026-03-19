@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import html2canvas from "html2canvas-pro";
@@ -109,6 +109,7 @@ export default function QuizPage() {
   // --- APP STATE ---
   const [currentView, setCurrentView] = useState<"mode-select" | "instructions" | "quiz" | "results">("mode-select");
   const [selectedMode, setSelectedMode] = useState<"quick" | "standard" | "deep" | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   // --- DATA STATE ---
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -602,6 +603,32 @@ export default function QuizPage() {
       )}
     </>
   );
+
+  // 1. Prevent Next.js hydration mismatch by confirming the client has mounted
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // 2. Memoize the shuffle so it doesn't re-run when the user selects an answer
+  const shuffledAnswers = useMemo(() => {
+    if (!currentQuestion || !currentQuestion.answers) return [];
+    
+    // Create a shallow copy to avoid mutating the original data
+    const shuffled = [...currentQuestion.answers];
+    
+    // Fisher-Yates algorithm for an academically unbiased shuffle
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    return shuffled;
+  }, [currentQuestion?.id]); // Only re-shuffles when the question ID changes
+
+  // 3. Add optional chaining and an empty array fallback so .map() doesn't break
+  const displayAnswers = isMounted && currentQuestion 
+    ? shuffledAnswers 
+    : (currentQuestion?.answers || []);
 
 
   // ==========================================
@@ -1275,9 +1302,10 @@ return (
 
         {/* ANSWERS */}
         <div className="flex flex-col gap-3 mb-6">
-          {currentQuestion.answers.map((ans) => {
+          {displayAnswers.map((ans) => {
             const isSelected = selectedAnswer === ans.id;
             const isInfoOpen = expandedInfo === ans.id;
+            
             return (
               <div key={ans.id} className="flex flex-col">
                 <button
@@ -1286,7 +1314,9 @@ return (
                     isSelected ? "border-blue-600 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
-                  <span className={`font-medium pr-4 ${isSelected ? "text-blue-800" : "text-slate-700"}`}>{ans.text}</span>
+                  <span className={`font-medium pr-4 ${isSelected ? "text-blue-800" : "text-slate-700"}`}>
+                    {ans.text}
+                  </span>
                   <div 
                     onClick={(e) => toggleInfo(e, ans.id)}
                     className={`min-w-8 min-h-8 w-8 h-8 rounded-full flex items-center justify-center border transition-colors ${
