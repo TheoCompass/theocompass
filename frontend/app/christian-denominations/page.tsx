@@ -159,11 +159,11 @@ export default function QuizPage() {
   const certaintyLabels = ["Not Sure", "Leaning", "Pretty Sure", "Certain"];
   const certaintyTextColors = ["text-slate-400", "text-sky-500", "text-blue-600", "text-brand-dark"];
   const toleranceLabels = [
-    "None Valid (Core Dogma)",
-    "None for Fellowship (Primary)",
-    "A Few Valid (Secondary)",
-    "Most Valid (Tertiary)",
-    "All Valid (Open)"
+    "None Valid",
+    "None for Fellowship",
+    "A Few Valid",
+    "Most Valid",
+    "All Valid"
   ];
   const toleranceDescriptions = [
     "No other option is valid; this is required for the Christian faith.",
@@ -706,7 +706,7 @@ export default function QuizPage() {
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <h3 className="font-bold text-red-600 mb-2">3. Set Tolerance</h3>
                 <p className="text-sm">
-                  How exclusive is your stance? Are none of the other options valid (Core Dogma), or are they all acceptable (Open)?
+                  How exclusive is your stance? Are none of the other options valid, or are they all acceptable?
                 </p>
               </div>
 
@@ -1396,48 +1396,56 @@ return (
               </div>
             </div>
             
-            {/* Tolerance Slider */}
+            {/* Exclusivity Slider */}
             <div>
-              <p className="text-sm text-slate-500 italic mb-3">
+              <p className="text-sm text-slate-500 italic mb-4">
                 {hasPrimaryKeyword 
                   ? "How many of the other options are acceptable alternatives to your primary view?" 
                   : "How many of the other options listed do you consider valid?"}
               </p>
               
-              <div className="flex flex-col mb-3">
-                <div className="flex justify-between text-sm mb-1 font-medium">
-                  <span className="text-slate-800 font-bold">Tolerance</span>
-                  <span className={`font-bold ${
-                    tolerance === 0 ? "text-red-600" : 
-                    tolerance === 1 ? "text-orange-500" : 
-                    tolerance === 2 ? "text-yellow-600" : 
-                    tolerance === 3 ? "text-green-500" : "text-emerald-600"
-                  }`}>{toleranceLabels[tolerance]}</span>
+              <div className="mb-4">
+                <div className="flex justify-between items-end mb-1">
+                  <span className="text-slate-800 text-sm font-bold">Valid Alternatives</span>
+                  <div className="flex flex-col items-end">
+                    <span className={`text-sm font-bold leading-tight ${
+                      tolerance === 0 ? "text-red-600" : 
+                      tolerance === 1 ? "text-orange-500" : 
+                      tolerance === 2 ? "text-yellow-600" : 
+                      tolerance === 3 ? "text-green-500" : "text-emerald-600"
+                    }`}>
+                      {toleranceLabels[tolerance]}
+                    </span>
+                  </div>
                 </div>
-                {/* Dynamic Explanatory Text */}
-                <div className="text-right">
-                  <span className="text-xs text-slate-500 italic min-h-[2.5rem] sm:min-h-[1.5rem] inline-block">
+                
+                <div className="text-right h-8 sm:h-5">
+                  <span className="text-xs text-slate-500 italic">
                     {toleranceDescriptions[tolerance]}
                   </span>
                 </div>
               </div>
 
+              {/* Slider Track */}
               <input 
                 type="range" min="0" max="4" step="1" 
                 value={tolerance} 
                 onChange={(e) => setTolerance(Number(e.target.value))} 
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer" 
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer relative z-10" 
               />
-              <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
-                <span>Core</span>
-                <span>Primary</span>
-                <span>Secondary</span>
-                <span>Tertiary</span>
-                <span>Open</span>
+              
+              {/* MATHEMATICALLY ALIGNED MINI-MARKERS */}
+              <div className="relative w-full h-6 mt-2 text-xs text-slate-400">
+                <span className="absolute left-[0%] -translate-x-[0%]">None</span>
+                <span className="absolute left-[23%] -translate-x-[25%]">None for Fellowship</span>
+                <span className="absolute left-[50%] -translate-x-[50%]">A Few</span>
+                <span className="absolute left-[75%] -translate-x-[75%]">Most</span>
+                <span className="absolute left-[100%] -translate-x-[100%]">All</span>
               </div>
             </div>
           </div>
         )}
+
 
 
 
