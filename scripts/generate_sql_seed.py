@@ -16,12 +16,12 @@ PRECOMP_DIR = os.path.join(ROOT_DIR, 'precomputed')
 
 # Build the absolute paths for every required file
 FILES = {
-    'denominations': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Pre-demo_Denominations.csv'),
     'questions': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - QUESTION_MASTER.csv'),
     'answers': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv'),
     'doctrines': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.csv'),
     'hidden_dims': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - Hidden Dimensions.csv'), # Fixed filename spacing
     'sequence': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - QUIZ_SEQUENCE.csv'),
+    'families': os.path.join(DATA_DIR, 'TheoCompass (v2.0) - FAMILIES.csv'),
     
     # This one comes from the Node.js output!
     'mode_summary': os.path.join(PRECOMP_DIR, 'denomination_mode_summary.csv')
@@ -99,7 +99,7 @@ def main():
     
     sql_statements.append(schema_sql)
 
-    # 1. Denominations
+    # 1. Denominations & Families
     print("Processing Denominations...")
     df_denoms = pd.read_csv(FILES['doctrines'])
     sql_statements.append("-- ==========================================")
@@ -114,6 +114,32 @@ def main():
         desc = clean_str(row.get('Description'))
         
         sql = f"INSERT OR REPLACE INTO denominations (id, name, family, founded_year, region_origin, description) VALUES ({d_id}, {name}, {family}, {year}, {region}, {desc});"
+        sql_statements.append(sql)
+
+    print("Processing Families...")
+    # Add to file paths at the top: 'families': os.path.join(DATA_DIR, 'TheoCompass v2.0 - FAMILIES.csv')
+    df_families = pd.read_csv(FILES['families'])
+    
+    sql_statements.append("-- TABLE denomination_families")
+    sql_statements.append("DROP TABLE IF EXISTS denomination_families;")
+    sql_statements.append("""
+    CREATE TABLE denomination_families (
+        name TEXT PRIMARY KEY,
+        founded_century TEXT,
+        region_origin TEXT,
+        est_members TEXT,
+        description TEXT
+    );
+    """)
+    
+    for _, row in df_families.iterrows():
+        name = clean_str(row['Family_Name'])
+        century = clean_str(row.get('Founded_Century'))
+        region = clean_str(row.get('Region_Origin'))
+        members = clean_str(row.get('Est_Members_Global'))
+        desc = clean_str(row.get('Description'))
+        
+        sql = f"INSERT OR REPLACE INTO denomination_families (name, founded_century, region_origin, est_members, description) VALUES ({name}, {century}, {region}, {members}, {desc});"
         sql_statements.append(sql)
 
     # 2. Questions (Merged with Sequence)

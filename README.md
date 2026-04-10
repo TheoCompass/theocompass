@@ -1,9 +1,9 @@
 # TheoCompass Data Architecture & Workflow 
 
-Welcome to the data management hub for TheoCompass. This architecture has been upgraded to a **Cloudflare D1 Relational Database**, meaning static `.js` monoliths are a thing of the past. 
+Welcome to the data management hub for TheoCompass. This architecture is powered by a hybrid **Cloudflare D1 Relational Database** and **Cloudflare KV Cache**, ensuring massive multi-dimensional theological calculations run instantly at the edge.
 
 **👋 Are you a developer contributing to the project?**
-Start by reading our [Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md) to understand the tech stack, data flow, and current state of the backend. Then, read the [Methodology Guide](./docs/METHODOLOGY_GUIDE.md) to understand the 12-dimensional scoring algorithm that powers the quiz results.
+Start by reading our [Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md) to understand the tech stack, data flow, and current state of the backend. Then, read the [Methodology Guide](./docs/METHODOLOGY_GUIDE.md) to understand the 13-dimensional scoring algorithm that powers the quiz results.
 
 This document outlines the streamlined, 4-step workflow to push theological data updates from your raw CSV spreadsheets directly to the live production database.
 
@@ -14,48 +14,53 @@ This document outlines the streamlined, 4-step workflow to push theological data
 Whenever you make theological tweaks, correct typos, or add new denominations to the master CSVs, follow this exact workflow to push those changes live.
 
 ### Step 1: Update the Raw CSVs (Source of Truth)
-Edit your master Google Sheets and export/overwrite the CSV files in this `Data` folder. 
+Edit your master Google Sheets and export/overwrite the CSV files in the `/data` folder. 
+
 **Required Files:**
-- `TheoCompass-v2.0-QUESTION_MASTER.csv`
-- `TheoCompass-v2.0-Pre-demo_Denominations.csv`
-- `TheoCompass-v2.0-Hidden-Dimensions.csv`
-- `TheoCompass-v2.0-Unified-Answer-Scoring-Matrix.csv`
-- `TheoCompass-Doctrines-CLEAN.csv` (or your raw export)
-- `TheoCompass-v2.0-QUIZ_SEQUENCE.csv`
+- `TheoCompass (v2.0) - QUESTION_MASTER.csv`
+- `TheoCompass (v2.0) - Hidden Dimensions.csv`
+- `TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv`
+- `TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.csv`
+- `TheoCompass (v2.0) - QUIZ_SEQUENCE.csv`
 
 ### Step 2: Run the Math Precompute Engine
-Because the multi-dimensional alignment math is too complex for real-time SQL generation, we run a Node.js script to calculate the scattermap coordinates and pairwise alignments.
+Because the multi-dimensional alignment math is too complex for real-time SQL generation and requires strict Euclidean distance mapping, we run a Node.js script to calculate the baselines and format the JSON objects.
 
 ```bash
-node build_precomputed.js
+node scripts/build_precomputed.js
 ```
 **What this does:** 
 - Reads the raw CSVs.
-- Calculates theological distances (accounting for certainty/tolerance).
-- Outputs the results into the `/precomputed` folder (importantly, `denomination_mode_summary.csv`).
+- Calculates theological distances (accounting for certainty/tolerance/silence mechanics).
+- Outputs the results into the `/precomputed` folder (importantly, `denomination_profiles.json` and `denomination_mode_summary.csv`).
 
 ### Step 3: Generate the SQL Seed File
-Now we convert the raw CSVs and the precomputed math into a massive list of database commands.
+Next, we convert the raw CSVs and the precomputed math into a massive list of relational database commands.
 
 ```bash
-python generate_sql_seed.py
+python scripts/generate_sql_seed.py
 ```
 **What this does:**
 - Drops existing tables to prevent schema mismatch errors.
-- Rebuilds the tables, parsing formatting (like boolean integers for the Quiz Modes).
-- Generates an 800KB+ `seed.sql` file that drops **directly into the `theocompass-api` folder**.
+- Rebuilds the tables, parsing formatting and handling split answers (`denomination_selected_options`).
+- Generates a massive `seed.sql` file that drops **directly into the `theocompass-api` folder**.
 
 ### Step 4: Push the Update Live!
-Finally, you execute the generated SQL file against your production Cloudflare D1 database.
+Finally, you execute the generated SQL file against your Cloudflare D1 database and upload the JSON profiles to the KV Cache.
 
+**For Local Testing:**
 ```bash
 cd theocompass-api
-npx wrangler d1 execute theocompass-db --remote --file=./reset.sql
-npx wrangler d1 execute theocompass-db --remote --file=./seed.sql
-```
-*(Note: Use `--local` instead of `--remote` if you are just testing on your local machine).*
-npx wrangler d1 execute theocompass-db --local --file=./reset.sql
 npx wrangler d1 execute theocompass-db --local --file=./seed.sql
+npm run kv:update-local
+```
+
+**For Production (Live Website):**
+```bash
+cd theocompass-api
+npx wrangler d1 execute theocompass-db --remote --file=./seed.sql
+npm run kv:update-remote
+```
 
 🎉 **Boom. Your frontend API instantly reflects the new theological data. No frontend redeploy required.**
 
@@ -64,22 +69,23 @@ npx wrangler d1 execute theocompass-db --local --file=./seed.sql
 ## Folder Architecture
 
 - **`/docs`**: Contains developer onboarding and architecture documentation.
-- **`/Data` (Root)**: Contains raw CSVs and build scripts.
+- **`/data`**: Contains the raw, source-of-truth CSV files.
+- **`/scripts`**: Contains the Node.js and Python ETL pipeline scripts.
 - **`/precomputed`**: Temporary cache folder generated by Step 2.
-- **`/theocompass-api`**: The Cloudflare Worker codebase. This serves endpoints like `/api/questions` and `/api/coordinates` directly to the Next.js frontend by querying the D1 database.
+- **`/theocompass-api`**: The Cloudflare Worker codebase. This serves endpoints like `/api/calculate` and `/api/dev/profile` directly to the Next.js frontend by querying D1 and KV.
 
 ---
 
 ## Dev Tools & Shortcuts 
 
-During development or testing, you might want to skip the quiz and generate random results immediately. The "Dev Auto-Finish" button is hidden in the UI to keep it clean for users. 
+During development or testing, you might want to skip the 30-120 question quiz and generate results immediately. The developer tool modal is hidden in the UI to keep it clean for users. 
 
-How to Unlock Dev Mode: 
-
-Navigate to the Quiz page (**`/christian-denominations`**). 
-Click the "Restart" button located in the top-right header. 
-In the confirmation modal, type the secret code: **mod**. 
-A "🚀 Unlock Dev Tools" button will appear. Click it to auto-fill the quiz with random answers and jump to the results page. 
+**How to Unlock Dev Mode:** 
+1. Navigate to the Quiz page (`/christian-denominations`). 
+2. Click the **"Restart"** button located in the top-right header. 
+3. In the confirmation modal, type the secret code: **`mod`**. 
+4. A **"🚀 Unlock Dev Tools"** button will appear. 
+5. Click it to open a menu where you can instantly generate random answers, or dynamically pull a specific denomination's perfect answers (e.g., `DENOM_032`) directly from the D1 database to test the 100% match accuracy.
 
 *Note: This feature is intended for testing purposes only.*
 

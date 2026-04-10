@@ -62,23 +62,32 @@ const QUIZ_CATEGORY_LABELS: Record<string, string> = {
 };
 
 // --- COMPONENT: Expandable Denomination Card ---
-export function DenominationCard({ denom, rank }: { denom: any, rank: number }) {
+export function DenominationCard({
+  denom,
+  rank,
+}: {
+  denom: any;
+  rank: number;
+}) {
   const [isOpen, setIsOpen] = useState(false);
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300">
-      <div 
-        className="p-4 flex justify-between items-center cursor-pointer select-none bg-white hover:bg-slate-50"
+      <button
+        type="button"
+        className="w-full p-4 flex justify-between items-center cursor-pointer select-none bg-white hover:bg-slate-50 text-left"
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex items-center gap-4">
           <div className="text-slate-300 font-bold w-4">{rank}.</div>
           <div>
-            <h4 className={`font-bold text-slate-800 transition-colors ${isOpen ? "text-blue-700" : "group-hover:text-blue-700"}`}>
+            <h4 className={`font-bold transition-colors ${isOpen ? "text-blue-700" : "text-slate-800"}`}>
               {denom.name}
             </h4>
-            <div className="text-xs text-slate-500">{denom.family}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{denom.family}</div>
           </div>
         </div>
+
         <div className="flex items-center gap-4">
           <div className="font-bold text-lg text-slate-700 bg-slate-50 px-3 py-1 rounded-lg">
             {denom.matchPercentage}%
@@ -89,16 +98,66 @@ export function DenominationCard({ denom, rank }: { denom: any, rank: number }) 
             </svg>
           </div>
         </div>
-      </div>
+      </button>
+
       {isOpen && (
         <div className="p-4 pt-0 border-t border-slate-100 bg-slate-50">
-          <div className="flex gap-4 mt-3 mb-3 text-xs text-slate-500 font-mono">
-            {denom.founded_year && <span>🗓 Founded: {denom.founded_year}</span>}
-            {denom.region_origin && <span>🌍 Origin: {denom.region_origin}</span>}
+          <div className="flex flex-wrap gap-4 mt-3 mb-3 text-xs text-slate-500 font-mono">
+            {denom.foundedyear && <span>Founded {denom.foundedyear}</span>}
+            {denom.regionorigin && <span>Origin {denom.regionorigin}</span>}
           </div>
+
           <p className="text-sm text-slate-700 leading-relaxed">
             {denom.description || "No description available for this tradition."}
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function FamilyCard({ familyData, rank }: { familyData: any, rank: number }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-3 overflow-hidden transition-all duration-200 hover:border-slate-300">
+      <div 
+        className="p-4 flex justify-between items-center cursor-pointer select-none bg-white hover:bg-slate-50"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-4">
+          <div className="text-slate-300 font-bold w-4">{rank}.</div>
+          <div>
+            <h4 className={`font-bold text-slate-800 transition-colors ${isOpen ? 'text-blue-700' : 'group-hover:text-blue-700'}`}>
+              {familyData.family}
+            </h4>
+            <div className="text-xs text-slate-500 mt-0.5">
+              Closest Individual Match: <span className="font-semibold text-slate-700">{familyData.topDenomination?.name}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="font-bold text-lg text-slate-700 bg-slate-50 px-3 py-1 rounded-lg">
+            {familyData.matchPercentage}%
+          </div>
+          <div className={`text-slate-400 transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+            {/* Standard SVG chevron */}
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+          </div>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="p-4 pt-0 border-t border-slate-100 bg-slate-50">
+          <p className="text-xs text-slate-500 mb-3 mt-3 uppercase tracking-wider font-bold">Specific Denominations in Family</p>
+          <div className="flex flex-col gap-2">
+            {familyData.allDenominations.slice(0, 5).map((denom: any) => (
+              <div key={denom.id} className="flex justify-between items-center bg-white p-2.5 rounded border border-slate-100">
+                 <span className="text-sm font-medium text-slate-700">{denom.name}</span>
+                 <span className="text-sm font-bold text-blue-600">{denom.matchPercentage}%</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -125,7 +184,9 @@ export default function QuizPage() {
 
   // --- RESULTS STATE ---
   const [results, setResults] = useState<any[]>([]);
+  const [familyMatches, setFamilyMatches] = useState<any[]>([]);
   const [userCoords, setUserCoords] = useState<Record<string, number>>({});
+  const [showSpecific, setShowSpecific] = useState(false);
   const [userTolerance, setUserTolerance] = useState<number>(50);
   const [userLabels, setUserLabels] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -183,6 +244,7 @@ export default function QuizPage() {
       try {
         const data = JSON.parse(savedResults);
         setResults(data.matches);
+        setFamilyMatches(data.familyMatches || []);
         setUserCoords(data.userDimCoords);
         setUserTolerance(data.userTolerance);
         setUserLabels(data.userLabels);
@@ -366,6 +428,7 @@ export default function QuizPage() {
           // Save final results to local storage so a refresh doesn't lose them
           localStorage.setItem("theocompass_final_results", JSON.stringify({
              matches: data.matches,
+             familyMatches: data.familyMatches || [],
              userDimCoords: data.userDimCoords,
              userTolerance: data.userTolerance ?? 50,
              userLabels: data.userLabels,
@@ -388,13 +451,14 @@ export default function QuizPage() {
 
   const handleDevAutoFill = async () => {
     const dummyAnswers: Record<string, UserResponse> = {};
-    questions.forEach((q) => {
+    questions.forEach(q => {
       const randomAnswerIndex = Math.floor(Math.random() * q.answers.length);
       const randomCertainty = Math.floor(Math.random() * 4);
       const randomTolerance = Math.floor(Math.random() * 5);
+      
       dummyAnswers[q.id] = {
         questionId: q.id,
-        answerId: q.answers[randomAnswerIndex].id, 
+        answerId: q.answers[randomAnswerIndex].id,
         certainty: randomCertainty,
         tolerance: randomTolerance,
         isSilence: false
@@ -403,28 +467,88 @@ export default function QuizPage() {
 
     setUserAnswers(dummyAnswers);
     setIsCalculating(true);
-    setCurrentView("results");
-    
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
+    setCurrentView('results');
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787";
+
     try {
       const res = await fetch(`${apiUrl}/api/calculate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dummyAnswers)
       });
-      
       const data = await res.json();
       
-      if (data.status === "success") {
-        setResults(data.matches); 
-        setUserCoords(data.userDimCoords || {});
-        setUserTolerance(data.userTolerance || 50);
-        setUserLabels(data.userLabels || []);
+      if (data.status === 'success') {
+        setResults(data.matches);
+        setFamilyMatches(data.familyMatches || []);
+        setUserCoords(data.userDimCoords);
+        setUserTolerance(data.userTolerance ?? 50);
+        setUserLabels(data.userLabels);
       } else {
         console.error("Calculation failed:", data.error);
       }
     } catch (error) {
       console.error("Failed to calculate:", error);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  // NEW: Dynamic Dev Test directly from D1 Database
+  // Notice this is a completely separate function now, NOT nested inside handleDevAutoFill!
+  const handleDevDenomFill = async (denomId: string) => {
+    setIsCalculating(true);
+    setCurrentView('results');
+    setShowDevModal(false);
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787";
+
+    try {
+      const profileRes = await fetch(`${apiUrl}/api/dev/profile?id=${denomId}`);
+      const profileData = await profileRes.json(); // Read the JSON FIRST
+
+      // NOW check if the response failed
+      if (!profileRes.ok) {
+        alert(`API Error: ${profileData.error || profileRes.statusText}`);
+        throw new Error(profileData.error || "Failed to fetch dev profile");
+      }
+
+      if (profileData.error) {
+         console.error("API Error:", profileData.error);
+         alert("Error finding Denomination: " + profileData.error);
+         return;
+      }
+
+      // Filter answers to only include questions in the current quiz mode
+      const finalAnswers: Record<string, UserResponse> = {};
+      questions.forEach(q => {
+        if (profileData[q.id]) {
+          finalAnswers[q.id] = profileData[q.id];
+        }
+      });
+
+
+      setUserAnswers(finalAnswers);
+
+      const calcRes = await fetch(`${apiUrl}/api/calculate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalAnswers)
+      });
+      const data = await calcRes.json();
+      
+      if (data.status === 'success') {
+        setResults(data.matches);
+        setFamilyMatches(data.familyMatches || []);
+        setUserCoords(data.userDimCoords);
+        setUserTolerance(data.userTolerance ?? 50);
+        setUserLabels(data.userLabels);
+      } else {
+        console.error("Calculation failed:", data.error);
+      }
+    } catch (error) {
+      console.error("Failed to execute dev test:", error);
     } finally {
       setIsCalculating(false);
     }
@@ -550,19 +674,46 @@ export default function QuizPage() {
         </div>
       )}
       
-      {/* Dev Modal */}
-      {showDevModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Auto-Finish Quiz?</h3>
-            <p className="text-slate-600 mb-6">Are you sure? The results will be generated randomly.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowDevModal(false)} className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition">Cancel</button>
-              <button onClick={handleConfirmDev} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition">Yes, generate</button>
+        {/* 2. Dev Modal (Updated with API Testing) */}
+        {showDevModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Developer Tools</h3>
+              <p className="text-slate-600 mb-4 text-sm">Select how you want to auto-complete the quiz for testing.</p>
+              
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={handleConfirmDev}
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                >
+                  Generate Random Answers
+                </button>
+                <button 
+                  onClick={() => handleDevDenomFill('DENOM_032')} 
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition"
+                >
+                  Test: Perfect Catholic (DENOM_032)
+                </button>
+                <button 
+                  onClick={() => {
+                    const customId = prompt("Enter a Denomination ID (e.g., DENOM_001):", "DENOM_001");
+                    if (customId) handleDevDenomFill(customId.trim());
+                  }} 
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-slate-700 hover:bg-slate-800 rounded-md transition"
+                >
+                  Test: Custom Denomination ID
+                </button>
+                <button 
+                  onClick={() => setShowDevModal(false)}
+                  className="w-full px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition mt-2"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
 
       {/* Restart Modal */}
       {showRestartModal && (
@@ -573,10 +724,12 @@ export default function QuizPage() {
             {/* SECRET CODE INPUT */}
             <div className="mb-4 border-t pt-4 border-slate-100">
               <input 
-                type="password" 
-                placeholder="Enter code..." 
-                value={devCode}
-                onChange={(e) => setDevCode(e.target.value)}
+                  type="password" 
+                  autoComplete="new-password" 
+                  data-form-type="other"
+                  placeholder="Enter code..." 
+                  value={devCode} 
+                  onChange={(e) => setDevCode(e.target.value)}
                 className="w-full text-xs border border-slate-200 rounded px-2 py-1 text-slate-400 focus:outline-none focus:border-slate-400"
               />
               
@@ -745,11 +898,36 @@ export default function QuizPage() {
   // ==========================================
   // VIEW 4: RESULTS DASHBOARD
   // ==========================================
-  if (currentView === "results") {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 relative overflow-x-hidden">
-        
-        {/* --- UPDATED HIDDEN EXPORT CARD --- */}
+if (currentView === 'results') {
+  // Determine whether to show families or specific denominations
+  const displayFamilies = selectedMode === "quick" && !showSpecific && familyMatches.length > 0;
+
+  const topFamily = displayFamilies ? familyMatches?.[0] : null;
+  const topDenom = results?.[0] ?? null;
+
+  const topName = displayFamilies
+    ? topFamily?.family ?? "Calculating..."
+    : topDenom?.name ?? "Calculating...";
+
+  const topScore = displayFamilies
+    ? topFamily?.matchPercentage ?? 0
+    : topDenom?.matchPercentage ?? 0;
+
+  const topSubtitle = displayFamilies
+    ? "Closest Theological Family"
+    : "Closest Theological Alignment";
+
+  const topDescription = displayFamilies
+    ? topFamily?.description || "No description available for this family."
+    : topDenom?.description || "No description available for this tradition.";
+
+  const topMetaLabel = displayFamilies
+    ? `Closest Individual Match: ${topFamily?.topDenomination?.name ?? "Unknown"}`
+    : topDenom?.family ?? "Unknown Tradition";
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 relative overflow-x-hidden">
+      {/* ... hidden export card ... */}
         <div 
           ref={exportRef} 
           className="absolute w-[1000px] bg-slate-50 text-slate-900 overflow-hidden shadow-2xl ring-1 ring-slate-200 font-sans" 
@@ -770,12 +948,20 @@ export default function QuizPage() {
           <div className="relative bg-white text-center py-12 px-10 border-b border-slate-200 overflow-hidden">
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/50 via-white to-white pointer-events-none"></div>
             <div className="relative z-10">
-              <div className="text-lg font-bold text-slate-400 uppercase tracking-widest mb-3">Closest Theological Alignment</div>
+              <div className="text-lg font-bold text-slate-400 uppercase tracking-widest mb-3">
+                {displayFamilies ? "Closest Theological Family" : "Closest Theological Alignment"}
+              </div>
               <h1 className="text-5xl font-bold font-serif text-slate-900 leading-tight mb-6">
-                {results.length > 0 ? results[0].name : "Calculating..."}
+                {results.length > 0 
+                  ? (displayFamilies ? familyMatches[0].family : results[0].name) 
+                  : "Calculating..."}
               </h1>
               <div className="inline-flex items-center gap-4 bg-slate-900 px-8 py-3 rounded-full shadow-md border border-slate-800">
-                <span className="text-4xl font-bold text-white">{results.length > 0 ? results[0].matchPercentage : 0}%</span>
+                <span className="text-4xl font-bold text-white">
+                  {results.length > 0 
+                    ? (displayFamilies ? familyMatches[0].matchPercentage : results[0].matchPercentage) 
+                    : 0}%
+                </span>
                 <span className="text-sm font-bold text-blue-300 uppercase tracking-widest">Match</span>
               </div>
             </div>
@@ -857,11 +1043,14 @@ export default function QuizPage() {
 
           {/* Compass Chart Section */}
           <div className="h-full bg-white rounded-2xl p-8 shadow-sm border border-slate-200 flex flex-col">
-              <CompassChart 
-                userCoords={userCoords} 
-                userTolerance={userTolerance} 
-                isExport={true}  // NEW: trigger PNG styles
-              />
+            <CompassChart 
+              userCoords={userCoords} 
+              userTolerance={userTolerance} 
+              isExport={true} 
+              selectedMode={selectedMode}
+              familyMatches={familyMatches}
+              displayFamilies={displayFamilies}
+            />
           </div>
 
           {/* Footer */}
@@ -989,41 +1178,121 @@ export default function QuizPage() {
           ) : (
             <div className="animate-fade-in-up">
               <div className="text-center mb-10">
-                <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Your Results</span>
-                <h1 className="font-serif text-3xl md:text-5xl font-bold mt-4 mb-4 text-slate-900">Your Theological Matches</h1>
-                <p className="text-slate-600 max-w-xl mx-auto">Based on your stances, certainty, and tolerance, here are the traditions that most closely align with your framework.</p>
+                <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                  Your Results
+                </span>
+                <h1 className="font-serif text-3xl md:text-5xl font-bold mt-4 mb-4 text-slate-900">
+                  Your Theological Matches
+                </h1>
+                <p className="text-slate-600 max-w-xl mx-auto">
+                  Based on your stances, certainty, and tolerance, here are the traditions that most closely align with your framework.
+                </p>
               </div>
 
-              {/* TOP MATCH - Highlighted */}
-              {results.length > 0 && (
+              {/* NEW: Specific Denominations Toggle & Disclaimer */}
+              {selectedMode === 'quick' && (
+                <div className="mb-8 bg-blue-50/50 border border-blue-100 rounded-2xl p-5 shadow-sm">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="font-bold text-blue-900 text-lg">Viewing {showSpecific ? 'Specific Denominations' : 'Denomination Families'}</h4>
+                      <p className="text-sm text-blue-700 mt-1 max-w-md">
+                        {showSpecific 
+                          ? "Showing granular matches based on your 30 answers." 
+                          : "Quick Mode groups results into broad theological families for accuracy."}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowSpecific(!showSpecific)}
+                      className="bg-white border-2 border-blue-600 text-blue-700 hover:bg-blue-50 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm whitespace-nowrap"
+                    >
+                      {showSpecific ? '← Back to Families' : 'Show Specific Traditions'}
+                    </button>
+                  </div>
+                  
+                  {/* Disclaimer renders only when specific view is toggled ON */}
+                  {showSpecific && (
+                    <div className="mt-4 p-4 bg-white rounded-xl border border-amber-200 text-sm text-slate-700 shadow-sm flex gap-3">
+                      <span className="text-amber-500 text-xl leading-none">⚠️</span>
+                      <div>
+                        <span className="font-bold text-amber-700">Disclaimer: </span> 
+                        Because Quick Mode only asks 30 questions, it lacks the data to definitively distinguish between highly granular traditions. These specific matches carry a higher margin of error. We highly recommend taking the Standard or Deep Dive quiz for exact alignment.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* HERO / TOP RESULT */}
+              {(displayFamilies ? familyMatches.length > 0 : results.length > 0) && (
                 <div className="bg-white rounded-2xl border-2 border-blue-600 shadow-xl overflow-hidden mb-8 relative">
                   <div className="absolute top-0 right-0 bg-blue-600 text-white font-bold px-4 py-1 rounded-bl-lg text-sm shadow-sm">
                     #1 Match
                   </div>
+
                   <div className="p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 border-b border-slate-100">
                     <div>
-                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{results[0].family}</div>
-                      <h2 className="font-serif text-2xl md:text-4xl font-bold text-blue-900">{results[0].name}</h2>
+                      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        {topSubtitle}
+                      </div>
+                      <h2 className="font-serif text-2xl md:text-4xl font-bold text-blue-900">
+                        {topName}
+                      </h2>
+                      <div className="mt-2 text-sm text-slate-500 font-medium">
+                        {topMetaLabel}
+                      </div>
                     </div>
+
                     <div className="flex flex-col items-center justify-center bg-blue-50 rounded-full w-32 h-32 border-4 border-blue-100 shrink-0 shadow-inner">
-                      <span className="text-3xl font-bold text-blue-700">{results[0].matchPercentage}%</span>
-                      <span className="text-xs text-blue-500 uppercase font-bold tracking-widest mt-1">Match</span>
+                      <span className="text-3xl font-bold text-blue-700">{topScore}%</span>
+                      <span className="text-xs text-blue-500 uppercase font-bold tracking-widest mt-1">
+                        Match
+                      </span>
                     </div>
                   </div>
+
                   <div className="bg-slate-50 p-6 md:p-8">
                     <p className="text-slate-700 text-base md:text-lg leading-relaxed font-medium">
-                      {results[0].description || "No description available for this tradition."}
+                      {topDescription}
                     </p>
+
+                    {displayFamilies && topFamily?.topDenomination && (
+                      <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4">
+                        <div className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">
+                          Best specific denomination inside this family
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="font-semibold text-slate-800">
+                              {topFamily.topDenomination.name}
+                            </div>
+                            <div className="text-sm text-slate-500">
+                              {topFamily.family}
+                            </div>
+                          </div>
+                          <div className="font-bold text-blue-700">
+                            {topFamily.topDenomination.matchPercentage}%
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* RUNNER UPS */}
-              <h3 className="font-bold text-slate-800 mb-4 text-lg border-b pb-2">Runner-Up Traditions</h3>
+              <h3 className="font-bold text-slate-800 mb-4 text-lg border-b pb-2">
+                {displayFamilies ? 'Runner-Up Families' : 'Runner-Up Traditions'}
+              </h3>
               <div className="flex flex-col gap-2 mb-12">
-                {results.slice(1).map((denom: any, index: number) => (
-                  <DenominationCard key={denom.id} denom={denom} rank={index + 2} />
-                ))}
+                {displayFamilies ? (
+                  familyMatches.slice(1).map((fam: any, index: number) => (
+                    <FamilyCard key={fam.family} familyData={fam} rank={index + 2} />
+                  ))
+                ) : (
+                  results.slice(1).map((denom: any, index: number) => (
+                    <DenominationCard key={denom.id} denom={denom} rank={index + 2} />
+                  ))
+                )}
               </div>
 
               {/* THEOLOGICAL FINGERPRINT (13-AXIS CHART) */}
@@ -1213,29 +1482,46 @@ return (
         </div>
       )}
 
-      {/* 2. Dev Modal (The one that wasn't showing) */}
-      {showDevModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Auto-Finish Quiz?</h3>
-            <p className="text-slate-600 mb-6">Are you sure? The results will be generated randomly.</p>
-            <div className="flex justify-end gap-3">
-              <button 
-                onClick={() => setShowDevModal(false)} 
-                className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleConfirmDev} 
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
-              >
-                Yes, generate
-              </button>
+        {/* 2. Dev Modal (Updated with API Testing) */}
+        {showDevModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Developer Tools</h3>
+              <p className="text-slate-600 mb-4 text-sm">Select how you want to auto-complete the quiz for testing.</p>
+              
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={handleConfirmDev}
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition"
+                >
+                  Generate Random Answers
+                </button>
+                <button 
+                  onClick={() => handleDevDenomFill('DENOM_032')} 
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition"
+                >
+                  Test: Perfect Catholic (DENOM_032)
+                </button>
+                <button 
+                  onClick={() => {
+                    const customId = prompt("Enter a Denomination ID (e.g., DENOM_001):", "DENOM_001");
+                    if (customId) handleDevDenomFill(customId.trim());
+                  }} 
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-slate-700 hover:bg-slate-800 rounded-md transition"
+                >
+                  Test: Custom Denomination ID
+                </button>
+                <button 
+                  onClick={() => setShowDevModal(false)}
+                  className="w-full px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition mt-2"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
 
       {/* 3. Restart Modal (With Secret Code) */}
       {showRestartModal && (
@@ -1445,7 +1731,6 @@ return (
             </div>
           </div>
         )}
-
 
 
 

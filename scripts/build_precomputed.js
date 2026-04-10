@@ -30,11 +30,11 @@ function buildTheoDataFromCSVs() {
   
   // Note: Using the exact filenames from your upload
   const rawQuestions = readCSV('TheoCompass (v2.0) - QUESTION_MASTER.csv');
-  const rawDenominations = readCSV('TheoCompass (v2.0) - Pre-demo_Denominations.csv');
   const rawDimensions = readCSV('TheoCompass (v2.0) - Hidden Dimensions.csv');
   const rawAnswerScoring = readCSV('TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv');
   const rawDoctrines = readCSV('TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.csv');
   const rawSequences = readCSV('TheoCompass (v2.0) - QUIZ_SEQUENCE.csv');
+  const rawFamilies = readCSV('TheoCompass (v2.0) - FAMILIES.csv');
 
   const questionsMap = {};
   const denominationsMap = {};
@@ -42,7 +42,8 @@ function buildTheoDataFromCSVs() {
   const theoData = {
     hiddenDimensions: {},
     answerKey: {},
-    quizSequences: { quick: [], standard: [], deep: [] }
+    quizSequences: { quick: [], standard: [], deep: [] },
+    families: rawFamilies
   };
 
   // 1. Map Questions
@@ -50,14 +51,21 @@ function buildTheoDataFromCSVs() {
     questionsMap[q.Question_ID] = q;
   });
 
-  // 2. Map Denominations & prepare doctrine objects
-  rawDenominations.forEach(d => {
-    const denomId = d.Denomination_ID || d.Name; 
+// 2. Build the map directly from the doctrines export (around Line 44)
+rawDoctrines.forEach(row => {
+  const denomId = row.Denomination_ID || row.Name;
+  if (!denominationsMap[denomId]) {
     denominationsMap[denomId] = {
-      ...d,
-      doctrines: {} 
+      Denomination_ID: denomId,
+      Denomination_Name: row.Denomination_Name || row.Name,
+      Denomination_Family: row.Denomination_Family,
+      Founded_Year: row.Founded_Year,
+      Region_Origin: row.Region_Origin,
+      Description: row.Description,
+      doctrines: {}
     };
-  });
+  }
+});
 
   // 3. Map Hidden Dimensions (Translating verbose headers to short names)
   const dimMap = {
@@ -109,7 +117,7 @@ function buildTheoDataFromCSVs() {
 
   rawDoctrines.forEach(row => {
     const denomId = row.Denomination_ID;
-    if (!denomId || !denominationsMap[denomId]) return;
+    if (!denomId) return;
 
     rawQuestions.forEach(q => {
       const qid = q.Question_ID;
@@ -477,7 +485,8 @@ function buildProfiles() {
         name: denom.Denomination_Name || denom.Name,
         family: denom.Denomination_Family,
         founded: denom.Founded_Year,
-        region: denom.Region_Origin
+        region: denom.Region_Origin,
+        description: denom.Description
       },
       perQuestion,
       modes
@@ -546,14 +555,137 @@ function writeSummaryCsv(profiles, outPath) {
   fs.writeFileSync(outPath, lines.join('\n'));
 }
 
+// Notice we still accept rawFamilies as the second argument
+function buildFamilyProfiles(profiles, rawFamilies) {
+  const families = {};
+  
+  // Create a quick lookup map for the family metadata
+  const familyMetaMap = {};
+  if (rawFamilies) {
+    rawFamilies.forEach(row => {
+      // Use EXACT CSV column names (with underscores)
+      if (row.Family_Name) {
+        familyMetaMap[row.Family_Name.trim()] = {
+          founded: row.Founded_Century,
+          region: row.Region_Origin,
+          members: row.Est_Members_Global,
+          description: row.Description
+        };
+      }
+    });
+  }
+  
+  // Group denominations by family
+  for (const [denomId, obj] of Object.entries(profiles)) {
+    const family = obj.denomination.family;
+    if (!family || family === "Unknown") continue;
+    
+    if (!families[family]) {
+      families[family] = { 
+        family, 
+        metadata: familyMetaMap[family] || null, // Attach metadata here!
+        modes: {} 
+      };
+    }
+
+    // --- We also need to map the dimensions into modes ---
+    // (This was missing in your latest snippet!)
+    for (const [mode, modeData] of Object.entries(obj.modes)) {
+      if (!families[family].modes[mode]) {
+        families[family].modes[mode] = { dimensions: {} };
+      }
+      for (const [dim, stats] of Object.entries(modeData.dimensionStats)) {
+        if (!families[family].modes[mode].dimensions[dim]) {
+          families[family].modes[mode].dimensions[dim] = [];
+        }
+        if (stats && stats.avg !== null) {
+          families[family].modes[mode].dimensions[dim].push(stats.avg);
+        }
+      }
+    }
+  }
+
+  // Calculate Min, Max, Avg for the error bars
+  const result = {};
+  for (const [family, data] of Object.entries(families)) {
+    // Preserve the metadata in the final result!
+    result[family] = { 
+      family: data.family, 
+      metadata: data.metadata, 
+      coordinates: {} 
+    };
+    
+    for (const [mode, modeData] of Object.entries(data.modes)) {
+      result[family].coordinates[mode] = {};
+      for (const [dim, values] of Object.entries(modeData.dimensions)) {
+        if (values.length > 0) {
+          result[family].coordinates[mode][dim] = {
+            min: Number(Math.min(...values).toFixed(1)),
+            max: Number(Math.max(...values).toFixed(1)),
+            avg: Number((values.reduce((a,b) => a+b, 0) / values.length).toFixed(1))
+          };
+        } else {
+          result[family].coordinates[mode][dim] = { min: 50, max: 50, avg: 50 }; // Fallback
+        }
+      }
+    }
+  }
+  return result;
+}
+
 function main() {
   const profiles = buildProfiles();
   const pairwise = buildPairwise();
-  fs.writeFileSync(path.join(OUT_DIR, 'denomination_profiles.json'), JSON.stringify(profiles, null, 2));
-  fs.writeFileSync(path.join(OUT_DIR, 'pairwise_alignment.json'), JSON.stringify(pairwise, null, 2));
-  writeSummaryCsv(profiles, path.join(OUT_DIR, 'denomination_mode_summary.csv'));
-  for (const mode of Object.keys(pairwise)) writeOverallMatrixCsv(pairwise[mode], theoData.denominations, path.join(OUT_DIR, `pairwise_overall_${mode}.csv`));
+
+  // 1. Write denomination AND family profiles to a single KV file
+  // Pass theoData.families into the function
+  const familyProfiles = buildFamilyProfiles(profiles, theoData.families);
   
+  const exportData = {
+    denominations: profiles,
+    families: familyProfiles
+  };
+  
+  fs.writeFileSync(path.join(OUT_DIR, 'denomination_profiles.json'), JSON.stringify(exportData, null, 2));
+  
+  // 2. We skip writing pairwise_alignment.json as one massive string.
+  // We will stream it out instead, or you can just rely on the CSVs.
+  console.log("Writing pairwise JSON in chunks to avoid memory limits...");
+  const pairwisePath = path.join(OUT_DIR, 'pairwise_alignment.json');
+  const ws = fs.createWriteStream(pairwisePath);
+  
+  // Start the JSON object
+  ws.write('{\n');
+  const modes = Object.keys(pairwise);
+  
+  modes.forEach((mode, index) => {
+    ws.write(`  "${mode}": {\n`);
+    ws.write(`    "denominations": ${JSON.stringify(pairwise[mode].denominations)},\n`);
+    ws.write(`    "overall": ${JSON.stringify(pairwise[mode].overall)},\n`);
+    ws.write(`    "byQuestion": {\n`);
+    
+    const qKeys = Object.keys(pairwise[mode].byQuestion);
+    qKeys.forEach((qid, qIndex) => {
+      ws.write(`      "${qid}": ${JSON.stringify(pairwise[mode].byQuestion[qid])}`);
+      if (qIndex < qKeys.length - 1) ws.write(',');
+      ws.write('\n');
+    });
+    
+    ws.write('    }\n  }');
+    if (index < modes.length - 1) ws.write(',\n');
+    else ws.write('\n');
+  });
+  
+  ws.write('}\n');
+  ws.end();
+
+  // 3. Write Summary and Matrix CSVs
+  writeSummaryCsv(profiles, path.join(OUT_DIR, 'denomination_mode_summary.csv'));
+  for (const mode of Object.keys(pairwise)) {
+    writeOverallMatrixCsv(pairwise[mode], theoData.denominations, path.join(OUT_DIR, `pairwise_overall_${mode}.csv`));
+  }
+
+  // 4. Build manifest
   const manifest = {
     generatedAt: new Date().toISOString(),
     denominations: theoData.denominations.length,
@@ -562,8 +694,10 @@ function main() {
     files: ['denomination_profiles.json','pairwise_alignment.json','denomination_mode_summary.csv',...Object.keys(pairwise).map(mode => `pairwise_overall_${mode}.csv`)]
   };
   fs.writeFileSync(path.join(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  
   console.log('✅ Precomputed files written successfully to:', OUT_DIR);
   console.log(JSON.stringify(manifest, null, 2));
 }
+
 
 main();

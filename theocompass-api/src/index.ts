@@ -1,8 +1,9 @@
+// Add KV to your Env interface
 export interface Env {
   DB: D1Database;
+  THEOCOMPASS_CACHE: KVNamespace; // <-- ADD THIS
 }
 
-// Match the frontend interfaces
 export interface UserResponse {
   questionId: string;
   answerId: string;
@@ -11,6 +12,10 @@ export interface UserResponse {
   isSilence: boolean;
   silenceType?: "apathetic" | "hostile";
 }
+
+// <-- ADD THIS GLOBAL CACHE VARIABLE
+let cachedProfiles: any = null;
+let cachedScoringData: any = null; // We can cache the scoring/dimensions too!
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -43,7 +48,8 @@ export default {
             d.name, 
             d.family, 
             d.region_origin as origin, 
-            d.founded_year as year 
+            d.founded_year as year, 
+            d.description
           FROM denomination_compass_coordinates c
           LEFT JOIN denominations d ON c.denomination_id = d.id
         `).all();
@@ -157,6 +163,78 @@ export default {
         }), { headers: corsHeaders });
       }
 
+
+    // -----------------------------------------------------------------
+    // DEV ENDPOINT: Fetch a Denomination's Profile
+    // -----------------------------------------------------------------
+    if (url.pathname === '/api/dev/profile' && request.method === 'GET') {
+      const denomId = url.searchParams.get('id');
+      if (!denomId) return new Response(JSON.stringify({ error: "Missing id parameter" }), { status: 400, headers: corsHeaders });
+
+      try {
+        // Find all selected options for a specific denomination and get their AnswerIDs
+        const stmt = env.DB.prepare(`
+          SELECT 
+              dso.question_id as questionId,
+              ao.id as answerId,
+              da.certainty, 
+              da.tolerance
+          FROM denomination_selected_options dso
+          LEFT JOIN denomination_answers da 
+              ON dso.denomination_id = da.denomination_id AND dso.question_id = da.question_id
+          LEFT JOIN answer_options ao 
+              ON dso.question_id = ao.question_id AND dso.answer_text = ao.answer_text
+          WHERE dso.denomination_id = ?
+        `);
+        
+        const res = await stmt.bind(denomId).all();
+        
+        if (!res.results || res.results.length === 0) {
+           return new Response(JSON.stringify({ error: `No data found for ID: ${denomId}` }), { status: 404, headers: corsHeaders });
+        }
+
+        const parseCert = (c: any) => {
+          const s = String(c).toLowerCase();
+          if (s.includes('certain')) return 3;
+          if (s.includes('pretty')) return 2;
+          if (s.includes('leaning')) return 1;
+          return 0;
+        };
+        
+        const parseTol = (t: any) => {
+          const s = String(t).toLowerCase();
+          if (s.includes('accept')) return 4;
+          if (s.includes('charitable')) return 3;
+          if (s.includes('discern')) return 2;
+          if (s.includes('opposed')) return 1;
+          return 0;
+        };
+
+        const profile: Record<string, any> = {};
+        
+        res.results.forEach((row: any) => {
+          // If a denomination selected multiple options, grab the first one
+          if (!profile[row.questionId] && row.answerId) {
+            profile[row.questionId] = {
+              questionId: row.questionId,
+              answerId: row.answerId,
+              certainty: parseCert(row.certainty),
+              tolerance: parseTol(row.tolerance),
+              isSilence: false
+            };
+          }
+        });
+        
+        return new Response(JSON.stringify(profile), { status: 200, headers: corsHeaders });
+      } catch (e: any) {
+        console.error("DEV API SQL Error:", e.message);
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+      }
+    }
+
+
+
+
       // -----------------------------------------------------------------
       // ENDPOINT 5: Calculate Matches (POST)
       // The core engine for TheoCompass
@@ -198,49 +276,59 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
     const questionIds = userAnswersArray.map(a => a.questionId);
     const placeholders = questionIds.map(() => '?').join(',');
 
-    // Fetch required data from D1
-    // Query B has been massively upgraded to join the selected texts to their actual IDs and fetch the C/T strings
-    const [denomsRes, denomAnswersRes, scoringRes, dimensionsRes, questionsRes] = await env.DB.batch([
-      env.DB.prepare(`SELECT * FROM denominations`),
-      env.DB.prepare(`
-        SELECT 
-          dso.denomination_id,
-          dso.question_id,
-          ao.id as answer_id,
-          da.certainty,
-          da.tolerance
-        FROM denomination_selected_options dso
-        LEFT JOIN answer_options ao 
-          ON dso.question_id = ao.question_id AND dso.answer_text = ao.answer_text
-        LEFT JOIN denomination_answers da 
-          ON dso.denomination_id = da.denomination_id AND dso.question_id = da.question_id
-        WHERE dso.question_id IN (${placeholders})
-      `).bind(...questionIds),
-      env.DB.prepare(`SELECT * FROM answer_scoring`),
-      env.DB.prepare(`SELECT * FROM hidden_dimensions WHERE question_id IN (${placeholders})`).bind(...questionIds),
-      env.DB.prepare(`SELECT * FROM questions WHERE id IN (${placeholders})`).bind(...questionIds)
-    ]);
-
-    // ADD THIS BLOCK TO SUM THE D1 METRICS:
-    const allDbResponses = [denomsRes, denomAnswersRes, scoringRes, dimensionsRes, questionsRes];
-    const totalRowsRead = allDbResponses.reduce((sum, res) => sum + (res.meta?.rows_read || 0), 0);
-    const totalQueryTimeMs = allDbResponses.reduce((sum, res) => sum + (res.meta?.duration || 0), 0);
-
-    // --- BULLETPROOF DATA NORMALIZATION ---
-    const normalizeRow = (row: any) => {
-      const normalized: any = {};
-      for (const key in row) {
-        normalized[key.toLowerCase().replace(/_/g, "")] = row[key];
+    // ==========================================
+    // 1. FETCH BASELINES FROM MEMORY OR KV
+    // ==========================================
+    let totalD1RowsRead = 0;
+    let totalD1QueryTimeMs = 0;
+    
+    // Check if the precomputed profiles are already warm in V8 memory
+    if (!cachedProfiles) {
+      console.log("Cold start: Fetching denomination_profiles from KV...");
+      const kvData = await env.THEOCOMPASS_CACHE.get("denomination_profiles", "json");
+      if (!kvData) {
+        return new Response(JSON.stringify({ error: "Baseline data not found in KV. Run npm run kv:update-remote" }), { status: 500, headers: corsHeaders });
       }
-      return normalized;
-    };
+      cachedProfiles = kvData;
+    } else {
+      console.log("Warm start: Using in-memory denomination_profiles.");
+    }
 
-    // 1. Build lookup maps
-    const denominations = denomsRes.results.map(normalizeRow);
-    const denomAnswers = denomAnswersRes.results.map(normalizeRow);
-    const answerScoring = scoringRes.results.map(normalizeRow);
-    const hiddenDims = dimensionsRes.results.map(normalizeRow);
-    const questionData = questionsRes.results.map(normalizeRow);
+    // We still need the scoring math/dimensions for the user's side of the calculation.
+    // We will cache this in RAM too, but fetch it from D1 on cold starts.
+    if (!cachedScoringData) {
+      console.log("Cold start: Fetching scoring data from D1...");
+      const dbStartTime = performance.now();
+      
+      const placeholders = questionIds.map(() => '?').join(',');
+      const [scoringRes, dimensionsRes, questionsRes] = await env.DB.batch([
+        env.DB.prepare(`
+          SELECT s.*, a.answer_text as answertext, a.question_id as questionid 
+          FROM answer_scoring s 
+          LEFT JOIN answer_options a ON s.answer_id = a.id
+        `),
+        env.DB.prepare(`SELECT * FROM hidden_dimensions WHERE question_id IN (${placeholders})`).bind(...questionIds),
+        env.DB.prepare(`SELECT * FROM questions WHERE id IN (${placeholders})`).bind(...questionIds)
+      ]);
+      
+      totalD1RowsRead = (scoringRes.meta?.rows_read || 0) + (dimensionsRes.meta?.rows_read || 0) + (questionsRes.meta?.rows_read || 0);
+      totalD1QueryTimeMs = performance.now() - dbStartTime;
+
+      const normalizeRow = (row: any) => {
+        const normalized: any = {};
+        for (const key in row) normalized[key.toLowerCase().replace(/_/g, "")] = row[key];
+        return normalized;
+      };
+
+      cachedScoringData = {
+        answerScoring: scoringRes.results.map(normalizeRow),
+        hiddenDims: dimensionsRes.results.map(normalizeRow),
+        questionData: questionsRes.results.map(normalizeRow)
+      };
+    }
+
+    // Destructure our data for the calculation loop
+    const { answerScoring, hiddenDims, questionData } = cachedScoringData;
 
     const answerMap: Record<string, any> = {};
     answerScoring.forEach((score: any) => answerMap[score.answerid] = score);
@@ -283,144 +371,209 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
       return 0; // 'salvation issue'
     };
 
-    // Pre-Demo Filter
-    const PREDEMO_IDS = [
-      "DENOM_001", "DENOM_031", "DENOM_032", "DENOM_068", "DENOM_064",
-      "DENOM_047", "DENOM_052", "DENOM_124", "DENOM_102", "DENOM_087",
-      "DENOM_114", "DENOM_109", "DENOM_121", "DENOM_131", "DENOM_144",
-      "DENOM_148", "DENOM_153", "DENOM_167", "DENOM_176", "DENOM_195",
-      "DENOM_180", "DENOM_184", "DENOM_190", "DENOM_187", "DENOM_120",
-      "DENOM_229", "DENOM_157", "DENOM_221", "DENOM_013", "DENOM_230"
-    ];
+// USE ALL DENOMINATIONS FROM THE KV CACHE
+const activeDenominations = Object.values(cachedProfiles.denominations);
+const familyProfiles = cachedProfiles.families;
 
-    const activeDenominations = denominations.filter((d: any) => PREDEMO_IDS.includes(d.id || d.denominationid));
+const dimToCacheMap: Record<string, string> = {
+    "theolconslib": "Theol_Cons_Lib",
+    "socialconslib": "Social_Cons_Lib",
+    "counterpromodern": "Counter_Pro_Modern",
+    "supernat": "Super_Nat",
+    "cultsepeng": "Cult_Sep_Eng",
+    "clericegal": "Cleric_Egal",
+    "divhumagency": "Div_Hum_Agency",
+    "communindiv": "Commun_Indiv",
+    "liturgspont": "Liturg_Spont",
+    "sacramfunct": "Sacram_Funct",
+    "literalcrit": "Literal_Crit",
+    "intellectexper": "Intellect_Exper"
+};
 
-    // 2. Loop Denominations
-    const results = activeDenominations.map((denom: any) => {
-      let weightedSum = 0;
-      let totalWeight = 0;
-      const denomId = denom.id || denom.denominationid;
+// 1. PRE-CALCULATE USER PROFILE (OUTSIDE THE LOOP)
+const userProfile = new Map();
 
-      userAnswersArray.forEach((userAns) => {
-        const qid = userAns.questionId;
-        const qMeta = qMap[qid];
-        if (!qMeta) return;
+userAnswersArray.forEach((userAns) => {
+    const qid = userAns.questionId;
+    const qMeta = qMap[qid];
+    const qDims = dimMap[qid];
+    if (!qMeta || !qDims) return;
 
-        const priority = Number(qMeta.priorityscore || qMeta.priority_score || 5);
-        const bw = baseWeight(priority);
-        
-        // Find all answers the denom selected for this question
-        const dAnsList = denomAnswers.filter((da: any) => da.denominationid === denomId && da.questionid === qid);
-        const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
-        const dPosture = dAnsList.length > 0 ? 'affirmed' : 'apathetic';
+    const priority = Number(qMeta.priorityscore || qMeta.priority_score || 5);
+    const bw = baseWeight(priority);
+    const uPosture = getPosture(userAns.isSilence, userAns.silenceType);
+    
+    // Force strict silence injections
+    let uC = userAns.certainty;
+    let uT = userAns.tolerance;
+    if (uPosture === 'apathetic') { uC = 0; uT = 2; }
+    else if (uPosture === 'hostile') { uC = 3; uT = 1; }
 
-        // FORCE STRICT SILENCE INJECTIONS
-        let uC = userAns.certainty;
-        let uT = userAns.tolerance;
+    const uImp = importanceSide(uPosture, uC, uT);
 
-        if (uPosture === 'apathetic') {
-            uC = 0;
-            uT = 2;
-        } else if (uPosture === 'hostile') {
-            uC = 3;
-            uT = 1;
-        }
+    const relevantDims = TC_DIMS.filter(dim => {
+        const val = Number(qDims[dim]);
+        return !isNaN(val) && val >= 50;
+    });
+    if (relevantDims.length === 0) return;
 
-        // Parse the database strings back into 0-3 and 0-4 numbers
-        const dC = dAnsList.length > 0 ? parseCertainty(dAnsList[0].certainty) : 0;
-        const dT = dAnsList.length > 0 ? parseTolerance(dAnsList[0].tolerance) : 2;
+    // Pre-calculate user Z-values and dimension weights
+    const processedDims = relevantDims.map((dim) => {
+        const dimW = (Number(qDims[dim]) / 100) * bw;
+        const zA = (answerMap[userAns.answerId] && answerMap[userAns.answerId][dim] != null) 
+            ? Number(answerMap[userAns.answerId][dim]) 
+            : 50;
+        return { dim, dimW, cacheDimKey: dimToCacheMap[dim], zA: isNaN(zA) ? 50 : zA };
+    });
 
-        const uImp = importanceSide(uPosture, uC, uT);
+    userProfile.set(qid, { bw, uPosture, uC, uT, uImp, processedDims });
+});
+
+// 2. LOOP DENOMINATIONS (NOW LIGHTWEIGHT)
+const results = activeDenominations.map((denom: any) => {
+    let weightedSum = 0;
+    let totalWeight = 0;
+    
+    const denomId = denom.denomination.id;
+    const denomStats = denom.perQuestion || {};
+
+    // Loop directly over the pre-calculated user profile
+    for (const [qid, uData] of userProfile.entries()) {
+        const dStats = denomStats[qid] || {};
+        const dAnswered = dStats.answered || false;
+        const dPosture = dAnswered ? (dStats.posture || 'affirmed') : 'apathetic';
+
+        const dC = dAnswered ? (dStats.C || 0) : 0;
+        const dT = dAnswered ? (dStats.T || 2) : 2;
         const dImp = importanceSide(dPosture, dC, dT);
-        const effW = bw * ((uImp + dImp) / 2); 
-
-        const qDims = dimMap[qid];
-        if (!qDims) return; 
-
-        const relevantDims = TC_DIMS.filter(dim => {
-          const val = Number(qDims[dim]);
-          return !isNaN(val) && val >= 50;
-        });
-        
-        if (relevantDims.length === 0) return;
+        const effW = uData.bw * ((uData.uImp + dImp) / 2);
 
         let silenceCase = 0;
-        if (uPosture !== 'affirmed' && dPosture !== 'affirmed') silenceCase = 3;
-        else if (uPosture !== 'affirmed' || dPosture !== 'affirmed') {
-          const silentSide = uPosture !== 'affirmed' ? uPosture : dPosture;
-          silenceCase = silentSide === 'hostile' ? 2 : 1;
+        if (uData.uPosture !== 'affirmed' && dPosture !== 'affirmed') silenceCase = 3;
+        else if (uData.uPosture !== 'affirmed' || dPosture !== 'affirmed') {
+            const silentSide = uData.uPosture !== 'affirmed' ? uData.uPosture : dPosture;
+            silenceCase = silentSide === 'hostile' ? 2 : 1;
         }
 
-        const subScores: number[] = [];
-        const dListToLoop = dAnsList.length > 0 ? dAnsList : [null]; 
+        const splitCount = dAnswered ? (dStats.splitCount || 1) : 1;
+        const subScores = [];
 
-        dListToLoop.forEach((dAnsRow) => {
-          let dimWeightedSum = 0;
-          let dimTotalWeight = 0;
-
-          relevantDims.forEach(dim => {
-            const dimW = (Number(qDims[dim]) / 100) * bw;
+        for (let i = 0; i < splitCount; i++) {
+            let dimWeightedSum = 0;
+            let dimTotalWeight = 0;
             let dDim = 0;
             let rejectPenalty = 0;
 
             if (silenceCase === 3) dDim = 0;
             else if (silenceCase === 1) dDim = 50;
             else if (silenceCase === 2) {
-              dDim = 50;
-              rejectPenalty = 10 * ((uImp + dImp) / 2); 
-            } else {
-              const zA = answerMap[userAns.answerId] ? Number(answerMap[userAns.answerId][dim]) : 50;
-              const zB = dAnsRow && answerMap[dAnsRow.answerid] ? Number(answerMap[dAnsRow.answerid][dim]) : 50;
-              
-              const finalZA = isNaN(zA) ? 50 : zA;
-              const finalZB = isNaN(zB) ? 50 : zB;
-              
-              dDim = Math.abs(finalZA - finalZB);
+                dDim = 50;
+                rejectPenalty = 10 * ((uData.uImp + dImp) / 2);
             }
 
-            const cAmp = 1 + (uC + dC) / 6;
-            const tAmp = 0.5 + ((4 - uT) + (4 - dT)) / 2.5 + (Math.abs(uT - dT) / 8);
-            const dPost = 5 * (Math.abs(uC - dC) + Math.abs(uT - dT));
+            for (const pd of uData.processedDims) {
+                let zB = 50;
+                if (dAnswered && dStats.dimensions && dStats.dimensions[pd.cacheDimKey]) {
+                    zB = dStats.dimensions[pd.cacheDimKey].values[i];
+                }
+                const finalZB = (isNaN(zB) || zB === null || zB === undefined) ? 50 : zB;
+                
+                if (silenceCase === 0) dDim = Math.abs(pd.zA - finalZB);
 
-            const totalDist = (dDim * cAmp * tAmp) + dPost + rejectPenalty;
-            const ceiling = Math.max(dDim * 6.0 + 35, 215); 
-            
-            const sim = Math.max(0, Math.min(100, 100 * (1 - (totalDist / ceiling))));
+                const cAmp = 1 + ((uData.uC + dC) / 6);
+                
+                // FIX: Corrected tAmp formula according to Methodology Math
+                const tAmp = 0.5 + (((4 - uData.uT) + (4 - dT)) * 2.5 / 8) + (Math.abs(uData.uT - dT) / 8);
+                
+                const dPost = 5 * (Math.abs(uData.uC - dC) + Math.abs(uData.uT - dT));
+                
+                const totalDist = (dDim * cAmp * tAmp) + dPost + rejectPenalty;
+                const ceiling = Math.max(dDim * 6.0 + 35, 215);
+                const sim = Math.max(0, Math.min(100, 100 * (1 - (totalDist / ceiling))));
 
-            dimWeightedSum += (sim * dimW);
-            dimTotalWeight += dimW;
-          });
+                dimWeightedSum += sim * pd.dimW;
+                dimTotalWeight += pd.dimW;
+            }
 
-          if (dimTotalWeight > 0) subScores.push(dimWeightedSum / dimTotalWeight);
-        });
-
-        // Schism Interpolation
-        if (subScores.length > 0) {
-          const S_best = Math.max(...subScores);
-          const S_avg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
-          
-          const F_B = dAnsList.length > 1 ? ((4 - dT) / 4) * (dC / 3) : 0; 
-          const qSim = S_best - ((S_best - S_avg) * F_B);
-
-          weightedSum += (qSim * effW);
-          totalWeight += effW;
+            if (dimTotalWeight > 0) subScores.push(dimWeightedSum / dimTotalWeight);
         }
-      });
 
-      const matchPercentage = totalWeight > 0 ? (weightedSum / totalWeight) : 0;
+        if (subScores.length > 0) {
+            const Sbest = Math.max(...subScores);
+            const Savg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
+            
+            // FIX: Proper Schism Architecture
+            const F_A = 0; // The user provides 1 answer, so their internal schism is 0
+            const F_B = splitCount > 1 ? ((4 - dT) / 4) * (dC / 3) : 0;
+            const F_schism = Math.max(F_A, F_B);
+            
+            const qSim = Sbest - ((Sbest - Savg) * F_schism);
+            
+            weightedSum += qSim * effW;
+            totalWeight += effW;
+        }
+    }
+
+    const meta = denom.denomination;
+    return {
+        id: denomId,
+        name: meta.name || meta.denominationname || "Unknown Denomination",
+        family: meta.family || "Unknown",
+        matchPercentage: totalWeight > 0 ? Number((weightedSum / totalWeight).toFixed(2)) : 0,
+        description: meta.description || meta.shortdescription || "No description available for this tradition.",
+        foundedyear: meta.founded || meta.foundedyear || "",
+        regionorigin: meta.region || meta.regionorigin || ""
+    };
+});
+
+results.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
+
+    // --- 2.5 CALCULATE FAMILY MATCHES ---
+    const familyMap = new Map<string, any>();
+
+    results.forEach((denom: any) => {
+      const familyName = denom.family;
+      if (!familyName || familyName === "Unknown") return;
+      
+      if (!familyMap.has(familyName)) {
+        familyMap.set(familyName, {
+          family: familyName,
+          denominations: [],
+          totalScore: 0,
+          count: 0
+        });
+      }
+      const fData = familyMap.get(familyName);
+      fData.denominations.push(denom);
+      fData.totalScore += denom.matchPercentage;
+      fData.count += 1;
+    });
+
+    const familyMatches = Array.from(familyMap.values()).map(f => {
+      const avgMatch = f.totalScore / f.count;
+      f.denominations.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
+      
+      const fProfile = familyProfiles[f.family] || {};
+      const fCoords = fProfile.coordinates?.quick || {};
+      const fMeta = fProfile.metadata || {}; // Extract the metadata
 
       return {
-        id: denomId,
-        name: denom.name,
-        family: denom.family || "Unknown",
-        matchPercentage: Number(matchPercentage.toFixed(2)),
-        description: denom.description || "",
-        founded_year: denom.foundedyear || "",
-        region_origin: denom.regionorigin || ""
+        family: f.family,
+        matchPercentage: Number(avgMatch.toFixed(2)),
+        topDenomination: f.denominations[0],
+        allDenominations: f.denominations,
+        coordinates: fCoords,
+        // Pass metadata to frontend
+        description: fMeta.description || "No description available for this family.",
+        founded: fMeta.founded || "",
+        origin: fMeta.region || "",
+        members: fMeta.members || ""
       };
     });
 
-    results.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
+    // Sort families by highest average match
+    familyMatches.sort((a, b) => b.matchPercentage - a.matchPercentage);
+
     const topMatches = results.slice(0, 10);
 
     // ==========================================
@@ -543,41 +696,27 @@ if (affirmedAnswers.length === 0) {
 
 
   console.log("Valid labels found:", Object.keys(labelMap).length);
-
-  // Build final labels array
-  affirmedAnswers.forEach(userAns => {
-    const label = labelMap[userAns.answerId];
-    if (label) {
-      theologicalLabels.push({
-        label,
-        category: qMap[userAns.questionId]?.categorycode || "GEN",
-        certainty: Number(userAns.certainty ?? 2),
-        tolerance: Number(userAns.tolerance ?? 2),
-        questionId: userAns.questionId
-      });
-    }
-  });
-  
-  console.log("Final theologicalLabels count:", theologicalLabels.length);
 }
 
     // 4. Return the response
     const endTime = performance.now();
     const computeTimeMs = (endTime - startTime).toFixed(2);
-    
-    console.log(`[Metrics] Math CPU Time: ${computeTimeMs}ms | D1 Rows Read: ${totalRowsRead} | D1 Query Time: ${totalQueryTimeMs}ms`);
+
+    console.log(`[Metrics] Math CPU Time: ${computeTimeMs}ms | D1 Rows Read: ${totalD1RowsRead} | D1 Query Time: ${totalD1QueryTimeMs}ms`);
 
     // Merge the custom metrics into your existing corsHeaders for this specific response
     const responseHeaders = {
-      ...corsHeaders,
-      "X-Compute-Time-ms": computeTimeMs.toString(),
-      "X-D1-Rows-Read": totalRowsRead.toString(),
-      "X-D1-Query-Time-ms": totalQueryTimeMs.toString()
+    ...corsHeaders,
+    "X-Compute-Time-ms": computeTimeMs.toString(),
+    "X-D1-Rows-Read": totalD1RowsRead.toString(),
+    "X-D1-Query-Time-ms": totalD1QueryTimeMs.toString()
     };
+
 
     return new Response(JSON.stringify({
       status: "success",
       matches: topMatches,
+      familyMatches: familyMatches.slice(0, 10),
       userDimCoords: userDimCoords,
       userTolerance: userTolerance,
       userLabels: theologicalLabels
