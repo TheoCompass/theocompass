@@ -15,7 +15,7 @@
 		"db:migrate-local": "wrangler d1 migrations apply theocompass-db --local",
 		"db:migrate-remote": "wrangler d1 migrations apply theocompass-db --remote",
 		"kv:update-local": "wrangler kv key put --binding=\"THEOCOMPASS_CACHE\" \"denomination_profiles\" --path=\"../precomputed/denomination_profiles.json\" --local",
-		"kv:update-remote": "wrangler kv key put --binding=\"THEOCOMPASS_CACHE\" \"denomination_profiles\" --path=\"../precomputed/denomination_profiles.json\"",
+		"kv:update-remote": "wrangler kv key put --binding=\"THEOCOMPASS_CACHE\" \"denomination_profiles\" --path=\"../precomputed/denomination_profiles.json\" --remote",
 		"data:sync-local": "npm run db:migrate-local && npm run db:reset-local && npm run db:seed-local && npm run kv:update-local",
 		"data:sync-remote": "npm run db:migrate-remote && npm run db:reset-remote && npm run db:seed-remote && npm run kv:update-remote"
 	},
