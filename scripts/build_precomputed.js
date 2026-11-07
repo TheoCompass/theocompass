@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { parse } = require('csv-parse/sync'); 
 
 // Since the script is in /scripts, __dirname is the scripts folder. 
@@ -651,7 +652,32 @@ function buildFamilyProfiles(profiles, rawFamilies) {
   return result;
 }
 
+// 0.6: deterministic dataset version (date + short hash of raw source CSVs).
+// Order matches generate_sql_seed.py's fallback so the two agree even without the txt file.
+const DATA_FILES = [
+  'TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv',   // answers
+  'TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.tsv', // doctrines
+  'TheoCompass (v2.0) - FAMILIES.csv',                          // families
+  'TheoCompass (v2.0) - Hidden Dimensions.csv',                 // hidden_dims
+  'TheoCompass (v2.0) - QUESTION_MASTER.csv',                   // questions
+  'TheoCompass (v2.0) - QUIZ_SEQUENCE.csv',                     // sequence
+];
+function computeDataVersion() {
+  const h = crypto.createHash('sha256');
+  DATA_FILES.forEach(name => {
+    const p = path.join(DATA_DIR, name);
+    if (fs.existsSync(p)) h.update(fs.readFileSync(p));
+  });
+  const d = new Date();
+  const ymd = `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`;
+  return `${ymd}-${h.digest('hex').slice(0, 8)}`;
+}
+
 function main() {
+  const dataVersion = computeDataVersion();
+  // Persist so the Python seed generator stamps the identical version into D1 app_meta
+  fs.writeFileSync(path.join(OUT_DIR, 'dataset_version.txt'), dataVersion + '\n');
+
   const profiles = buildProfiles();
   const pairwise = buildPairwise();
 
@@ -661,7 +687,8 @@ function main() {
   
   const exportData = {
     denominations: profiles,
-    families: familyProfiles
+    families: familyProfiles,
+    meta: { dataVersion, generatedAt: new Date().toISOString() }
   };
   
   fs.writeFileSync(path.join(OUT_DIR, 'denomination_profiles.json'), JSON.stringify(exportData, null, 2));
@@ -706,6 +733,7 @@ function main() {
   // 4. Build manifest
   const manifest = {
     generatedAt: new Date().toISOString(),
+    dataVersion,
     denominations: theoData.denominations.length,
     questions: theoData.questions.length,
     modes: Object.fromEntries(Object.entries(theoData.quizSequences).map(([k, v]) => [k, v.length])),

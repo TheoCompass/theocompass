@@ -29,6 +29,8 @@ export interface DenominationMatch {
   foundedyear?: string;
   regionorigin?: string;
   dimCoords?: Record<string, number>;
+  isActive?: boolean;
+  estMembers?: number | null;
 }
 
 export interface FamilyMatch {
@@ -44,6 +46,7 @@ export interface FamilyMatch {
 
 export interface CalculateResponse {
   status: string;
+  dataVersion?: string;
   matches: DenominationMatch[];
   familyMatches?: FamilyMatch[];
   userDimCoords: Record<string, number>;

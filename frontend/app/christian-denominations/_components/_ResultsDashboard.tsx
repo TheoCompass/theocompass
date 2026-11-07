@@ -21,7 +21,7 @@ export interface ResultsDashboardProps {
   compareDenomId: string | null;
   expandedAxis: string | null;
   collapsedCategories: Record<string, boolean>;
-  allCoordinates: Map<string, { name: string; family: string; dimCoords: Record<string, number> }>;
+  allCoordinates: Map<string, { name: string; family: string; dimCoords: Record<string, number>; isActive?: boolean; estMembers?: number | null }>;
   isExporting: boolean;
   exportRef: React.RefObject<HTMLDivElement | null>;
   isExportingLabels: boolean;

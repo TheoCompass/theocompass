@@ -55,6 +55,8 @@ export default function QuizController() {
     name: string;
     family: string;
     dimCoords: Record<string, number>;
+    isActive?: boolean;
+    estMembers?: number | null;
   }>>(new Map());
 
   // --- SCREENSHOT REFS ---
@@ -115,6 +117,8 @@ export default function QuizController() {
           name: string;
           family: string;
           dimCoords: Record<string, number>;
+          isActive?: boolean;
+          estMembers?: number | null;
         }>();
 
         for (const row of rows) {
@@ -133,12 +137,17 @@ export default function QuizController() {
             if (key === "tolerance_score") {
               dimCoords["tolerance"] = row[key];
             }
+            if (key === "certainty_score") {
+              dimCoords["certainty"] = row[key];
+            }
           }
 
           map.set(denomId, {
             name: row.name || denomId,
             family: row.family || "",
             dimCoords,
+            isActive: row.is_active === 1 || row.is_active === true,
+            estMembers: row.est_members_global ?? null,
           });
         }
 

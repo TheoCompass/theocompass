@@ -16,6 +16,19 @@ export interface UserResponse {
 // <-- ADD THIS GLOBAL CACHE VARIABLE
 let cachedProfiles: any = null;
 let cachedScoringData: any = null; // We can cache the scoring/dimensions too!
+let cachedDataVersion: string | null = null;
+
+// 0.6: dataset version stamp, read once from app_meta and cached per isolate.
+async function getDataVersion(env: Env): Promise<string> {
+  if (cachedDataVersion) return cachedDataVersion;
+  try {
+    const row = await env.DB.prepare("SELECT value FROM app_meta WHERE key = 'dataset_version'").first();
+    cachedDataVersion = row && (row as any).value ? String((row as any).value) : "unknown";
+  } catch {
+    cachedDataVersion = "unknown";
+  }
+  return cachedDataVersion!;
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -49,6 +62,7 @@ export default {
             c.mode,
             c.family,
             c.tolerance_score,
+            c.certainty_score,
             c.theol_cons_lib_avg,
             c.social_cons_lib_avg,
             c.counter_pro_modern_avg,
@@ -65,7 +79,9 @@ export default {
             d.family,
             d.region_origin as origin, 
             d.founded_year as year, 
-            d.description
+            d.description,
+            d.is_active,
+            d.est_members_global
           FROM denomination_compass_coordinates c
           LEFT JOIN denominations d ON c.denomination_id = d.id
           WHERE c.mode = ?
@@ -264,6 +280,14 @@ export default {
       if (url.pathname === "/api/families") {
         const { results } = await env.DB.prepare("SELECT * FROM denomination_families").all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
+      }
+
+      // -----------------------------------------------------------------
+      // ENDPOINT: Dataset meta (version stamp)
+      // -----------------------------------------------------------------
+      if (url.pathname === "/api/meta") {
+        const dataVersion = await getDataVersion(env);
+        return new Response(JSON.stringify({ status: "success", dataVersion, apiVersion: "2.0" }), { headers: corsHeaders });
       }
 
       if (request.method === "POST" && url.pathname === "/api/calculate") {
@@ -742,6 +766,7 @@ if (affirmedAnswers.length === 0) {
 
     return new Response(JSON.stringify({
       status: "success",
+      dataVersion: await getDataVersion(env),
       matches: topMatches,
       familyMatches: familyMatches.slice(0, 10),
       userDimCoords: userDimCoords,

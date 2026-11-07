@@ -55,6 +55,21 @@ export async function fetchCoordinates(): Promise<CoordinateData[]> {
   return data;
 }
 
+export interface MetaResponse {
+  status: string;
+  dataVersion: string;
+  apiVersion: string;
+}
+
+export async function fetchMeta(): Promise<MetaResponse> {
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/api/meta`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch meta");
+  }
+  return (await res.json()) as MetaResponse;
+}
+
 export async function fetchDevProfile(
   denomId: string
 ): Promise<DevProfileResponse> {

@@ -28,6 +28,25 @@
 			"remote": true
 		}
 	]
+
+	// --- STAGING ENVIRONMENT (Phase 0) ---
+	// 1) npx wrangler d1 create theocompass-db-staging
+	// 2) npx wrangler kv namespace create THEOCOMPASS_CACHE --env staging
+	// 3) Uncomment the block below, paste the IDs, add a trailing comma after
+	//    the kv_namespaces array above, then: npx wrangler deploy --env staging
+	/*
+	"env": {
+		"staging": {
+			"name": "theocompass-api-staging",
+			"d1_databases": [
+				{ "binding": "DB", "database_name": "theocompass-db-staging", "database_id": "PASTE_STAGING_D1_ID" }
+			],
+			"kv_namespaces": [
+				{ "binding": "THEOCOMPASS_CACHE", "id": "PASTE_STAGING_KV_ID", "remote": true }
+			]
+		}
+	},
+	*/
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
