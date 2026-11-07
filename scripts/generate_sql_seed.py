@@ -46,6 +46,36 @@ def clean_num(val):
     except ValueError:
         return 'NULL'
 
+def parse_members(val):
+    """Parse textual membership estimates into a REAL for SQL.
+
+    Handles the formats present in the source TSV, e.g.:
+        '~600,000'        -> 600000.0
+        '~1.3 Billion'    -> 1300000000.0
+        '~4.5 Million'    -> 4500000.0
+        '~20,000 (Monks)' -> 20000.0   (parenthetical dropped)
+        '~2-6 Million'    -> 4000000.0 (range -> midpoint)
+        'Unknown'/blank   -> NULL
+    """
+    if pd.isna(val):
+        return 'NULL'
+    s = str(val).strip().lower().replace(',', '')
+    if s in ('', 'unknown', 'n/a', 'none', '-', '?'):
+        return 'NULL'
+    s = re.sub(r'\(.*?\)', '', s).strip()               # drop '(Monks)' etc.
+    s = s.replace('~', '').replace('+', '')
+    s = s.replace('\u2013', '-').replace('\u2014', '-').strip()  # en/em dash -> hyphen
+    m = re.match(r'^([0-9]*\.?[0-9]+)(?:\s*-\s*([0-9]*\.?[0-9]+))?\s*(thousand|million|billion|k|m|b)?$', s)
+    if not m:
+        return 'NULL'
+    mult = {'thousand': 1e3, 'k': 1e3, 'million': 1e6, 'm': 1e6, 'billion': 1e9, 'b': 1e9}.get(m.group(3), 1.0)
+    low = float(m.group(1))
+    if m.group(2):
+        value = (low + float(m.group(2))) / 2.0 * mult
+    else:
+        value = low * mult
+    return str(float(value))
+
 def parse_cert(val):
     """Map a textual Certainty value to the 0-3 scale used by the API engine."""
     if pd.isna(val):
@@ -169,7 +199,7 @@ def main():
         # 0.5: activity + membership (Est_Members_Global === 0 => inactive/unknown)
         active_raw = str(row.get('Is_Active', '')).strip().upper()
         is_active_sql = '1' if active_raw in ('TRUE', 'YES', '1') else '0'
-        members_sql = clean_num(row.get('Est_Members_Global'))
+        members_sql = parse_members(row.get('Est_Members_Global'))
         
         sql = f"INSERT OR REPLACE INTO denominations (id, name, family, founded_year, region_origin, description, is_active, est_members_global) VALUES ({d_id}, {name}, {family}, {year}, {region}, {desc}, {is_active_sql}, {members_sql});"
         sql_statements.append(sql)

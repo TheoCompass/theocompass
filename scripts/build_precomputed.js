@@ -574,6 +574,21 @@ function writeSummaryCsv(profiles, outPath) {
   fs.writeFileSync(outPath, lines.join('\n'));
 }
 
+// Parse textual membership estimates (e.g. '~1.3 Billion', '~600,000',
+// '~2-6 Million', 'N/A (Historic)') into a number. Returns null if unknown.
+function parseMembers(val) {
+  if (val === undefined || val === null) return null;
+  let s = String(val).trim().toLowerCase().replace(/,/g, '');
+  if (['', 'unknown', 'n/a', 'none', '-', '?'].includes(s)) return null;
+  s = s.replace(/\(.*?\)/g, '').trim().replace(/~/g, '').replace(/\+/g, '').replace(/[\u2013\u2014]/g, '-').trim();
+  const m = s.match(/^([0-9]*\.?[0-9]+)(?:\s*-\s*([0-9]*\.?[0-9]+))?\s*(thousand|million|billion|k|m|b)?$/);
+  if (!m) return null;
+  const mult = { thousand: 1e3, k: 1e3, million: 1e6, m: 1e6, billion: 1e9, b: 1e9 }[m[3]] || 1;
+  const low = parseFloat(m[1]);
+  if (m[2]) return ((low + parseFloat(m[2])) / 2) * mult;
+  return low * mult;
+}
+
 // Notice we still accept rawFamilies as the second argument
 function buildFamilyProfiles(profiles, rawFamilies) {
   const families = {};
@@ -587,7 +602,7 @@ function buildFamilyProfiles(profiles, rawFamilies) {
         familyMetaMap[row.Family_Name.trim()] = {
           founded: row.Founded_Century,
           region: row.Region_Origin,
-          members: row.Est_Members_Global,
+          members: parseMembers(row.Est_Members_Global),
           description: row.Description
         };
       }
