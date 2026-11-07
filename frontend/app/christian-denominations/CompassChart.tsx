@@ -17,7 +17,7 @@ const AXIS_OPTIONS = [
     { key: 'literal_crit_avg', label: 'Scripture: Critical ↔ Literal', minLabel: 'Critical', maxLabel: 'Literal' },
     { key: 'intellect_exper_avg', label: 'Practice: Experiential ↔ Intellectual', minLabel: 'Experiential', maxLabel: 'Intellectual' },
     { key: 'tolerance_score', label: 'Posture: Accepting ↔ Dogmatic', minLabel: 'Accepting', maxLabel: 'Dogmatic' },
-    { key: 'certainty_score', label: 'Conviction: Unsure ↔ Certain', minLabel: 'Unsure', maxLabel: 'Certain' },
+    { key: 'certainty_score', label: 'Conviction: Unsure ↔ Certain', minLabel: 'Unsure', maxLabel: 'Certain', invert: true },
 ];
 
 // Transitional shim: maps old D1 family_name values → new taxonomy keys
@@ -421,6 +421,14 @@ export default function CompassChart({ userCoords, userTolerance, userCertainty 
     const xObj = AXIS_OPTIONS.find(o => o.key === xAxis);
     const yObj = AXIS_OPTIONS.find(o => o.key === yAxis);
 
+    // Every axis is reversed so that a high value plots on the left, which is where
+    // minLabel is drawn (e.g. Theol 95 = Unitarian = "Progressive" on the left).
+    // Certainty is the exception: its affirmative pole ("Certain") is a HIGH value,
+    // so reversing it would strand the dots opposite their label. Axes flagged
+    // `invert` therefore plot unreversed, putting "Certain" and its dots on the right.
+    const xReversed = !xObj?.invert;
+    const yReversed = !yObj?.invert;
+
     const rawX = xAxis.replace('_avg', '');
     const rawY = yAxis.replace('_avg', '');
     const topFamily = familyMatches?.[0];
@@ -519,8 +527,8 @@ export default function CompassChart({ userCoords, userTolerance, userCertainty 
                         }}
                     >
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis type="number" dataKey={xAxis} domain={[0, 100]} reversed={true} hide />
-                        <YAxis type="number" dataKey={yAxis} domain={[0, 100]} reversed={true} hide />
+                        <XAxis type="number" dataKey={xAxis} domain={[0, 100]} reversed={xReversed} hide />
+                        <YAxis type="number" dataKey={yAxis} domain={[0, 100]} reversed={yReversed} hide />
                         <ZAxis type="number" dataKey="z" range={[60, 400]} />
                         <Tooltip content={(props) => <CustomTooltip {...props} familyMetaMap={familyMetaMap} />} cursor={{ strokeDasharray: '3 3' }} />
                         
