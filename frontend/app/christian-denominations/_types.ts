@@ -51,6 +51,7 @@ export interface CalculateResponse {
   familyMatches?: FamilyMatch[];
   userDimCoords: Record<string, number>;
   userTolerance: number;
+  userCertainty: number;
   userLabels: string[];
   error?: string;
 }

@@ -1,5 +1,5 @@
 // --- CHART CONFIGURATION ---
-export const AXIS_LABELS: Record<string, { left: string; right: string; desc: string }> = {
+export const AXIS_LABELS: Record<string, { left: string; right: string; desc: string; meta?: boolean; invert?: boolean }> = {
   theolconslib: { left: "Progressive", right: "Orthodox", desc: "View of scripture, tradition, and orthodoxy" },
   socialconslib: { left: "Liberal", right: "Conservative", desc: "Stance on ethics, gender, and society" },
   counterpromodern: { left: "Accommodating", right: "Counter-Cultural", desc: "Relationship to secular culture" },
@@ -12,10 +12,16 @@ export const AXIS_LABELS: Record<string, { left: string; right: string; desc: st
   sacramfunct: { left: "Functional/Symbolic", right: "Sacramental", desc: "Efficacy of Baptism and Communion" },
   literalcrit: { left: "Critical", right: "Literal", desc: "Method of reading the Bible" },
   intellectexper: { left: "Experiential", right: "Intellectual", desc: "Primary mode of knowing God" },
-  tolerance: { left: "Accepting", right: "Dogmatic", desc: "Openness to other Christian traditions as valid expressions of faith" },
+  // Meta-axes: how a belief is held, not what is believed.
+  tolerance: { left: "Accepting", right: "Dogmatic", desc: "Openness to other Christian traditions as valid expressions of faith", meta: true },
+  // Every other axis stores its affirmative pole as a LOW value, which renders on
+  // the RIGHT. Certainty is the inverse: 100 = maximally certain. `invert` keeps
+  // "Certain" on the right (and the dot with it) without changing the API contract.
+  certainty: { left: "Unsure", right: "Certain", desc: "How firmly a tradition asserts its doctrinal positions", meta: true, invert: true },
 };
 
 // --- FINGERPRINT CATEGORY GROUPING ---
+// 14 axes total: Theology 4 + Practice 3 + Posture 5 + Conviction 2.
 export const FINGERPRINT_CATEGORIES: Record<
   string,
   { axes: string[]; label: string; desc: string }
@@ -31,9 +37,14 @@ export const FINGERPRINT_CATEGORIES: Record<
     desc: "Worship style, sacraments, and spiritual life",
   },
   Posture: {
-    axes: ["socialconslib", "counterpromodern", "cultsepeng", "clericegal", "communindiv", "tolerance"] as string[],
+    axes: ["socialconslib", "counterpromodern", "cultsepeng", "clericegal", "communindiv"] as string[],
     label: "Posture",
-    desc: "Social ethics, culture, church governance, and theological openness",
+    desc: "Social ethics, culture, and church governance",
+  },
+  Conviction: {
+    axes: ["tolerance", "certainty"] as string[],
+    label: "Conviction",
+    desc: "How beliefs are held: openness to others, and confidence in one's own",
   },
 };
 

@@ -400,6 +400,35 @@ function computeToleranceScore(profileAnswers, activeQids = null) {
   return totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 25 * 1000) / 1000 : 50;
 }
 
+/**
+ * The 14th Axis: Certainty (0-3 scale mapped to 0-100).
+ *
+ * Mirrors computeToleranceScore's shape (affirmed-only weighted average), but
+ * weights each affirmed answer by the QUESTION's priority instead of by
+ * tolerance severity. Being certain about the Trinity should outweigh being
+ * certain about a minor question.
+ *
+ * Note: a denomination that answers "Certain" to every question will always
+ * score exactly 100, regardless of weights -- that is semantically correct,
+ * not a tie-break bug. Priority weighting only re-ranks traditions that are
+ * selectively certain.
+ */
+function computeCertaintyScore(profileAnswers, activeQids = null) {
+  let weightedSum = 0, totalWeight = 0;
+  for (const question of theoData.questions) {
+    if (activeQids && !activeQids.has(question.Question_ID)) continue;
+    const entry = profileAnswers[question.Question_ID];
+    if (!entry || entry.posture !== TC.POSTURE.AFFIRMED) continue;
+
+    const cVal = entry.C ?? 0;                            // 0 Not Sure -> 3 Certain
+    const wC = baseWeight(question.Priority_Score ?? 5);  // same baseWeight as the dims
+
+    weightedSum += cVal * wC;
+    totalWeight += wC;
+  }
+  return totalWeight > 0 ? Math.round((weightedSum / totalWeight) * (100 / 3) * 1000) / 1000 : 50;
+}
+
 
 function buildLabelProfile(profileAnswers, activeQids = null) {
   const labels = [];
@@ -494,6 +523,7 @@ function buildProfiles() {
       modes[mode] = {
         dimCoords: computeDimCoords(profile, activeQids),
         toleranceScore: computeToleranceScore(profile, activeQids),
+        certaintyScore: computeCertaintyScore(profile, activeQids),
         dimensionStats: aggregateDimensionStats(profile, activeQids),
         labels: buildLabelProfile(profile, activeQids)
       };
@@ -564,10 +594,10 @@ function writeOverallMatrixCsv(pairwiseMode, denoms, outPath) {
 }
 
 function writeSummaryCsv(profiles, outPath) {
-  const lines = [[ 'Denomination_ID','Denomination_Name','Mode','ToleranceScore', ...TC.DIMS.map(d => `${d}_avg`) ].join(',')];
+  const lines = [[ 'Denomination_ID','Denomination_Name','Mode','ToleranceScore','CertaintyScore', ...TC.DIMS.map(d => `${d}_avg`) ].join(',')];
   for (const [denomId, obj] of Object.entries(profiles)) {
     for (const [mode, modeData] of Object.entries(obj.modes)) {
-      const row = [csvEscape(denomId), csvEscape(obj.denomination.name), csvEscape(mode), csvEscape(modeData.toleranceScore), ...TC.DIMS.map(d => csvEscape(modeData.dimensionStats[d]?.avg))];
+      const row = [csvEscape(denomId), csvEscape(obj.denomination.name), csvEscape(mode), csvEscape(modeData.toleranceScore), csvEscape(modeData.certaintyScore), ...TC.DIMS.map(d => csvEscape(modeData.dimensionStats[d]?.avg))];
       lines.push(row.join(','));
     }
   }

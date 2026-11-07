@@ -14,6 +14,7 @@ export interface ResultsDashboardProps {
   familyMatches: any[];
   userCoords: Record<string, number>;
   userTolerance: number;
+  userCertainty: number;
   userLabels: any[];
   selectedMode: "quick" | "standard" | "deep" | null;
   isCalculating: boolean;
@@ -46,6 +47,7 @@ export function ResultsDashboard({
   familyMatches,
   userCoords,
   userTolerance,
+  userCertainty,
   userLabels,
   selectedMode,
   isCalculating,
@@ -73,9 +75,12 @@ export function ResultsDashboard({
   onDevMenu,
 }: ResultsDashboardProps) {
   // --- Derived values ---
-  const userCoordsWithTolerance: Record<string, number> = {
+  // The 12 survey dimensions come straight from the API; tolerance and certainty
+  // are separate meta-axes computed server-side and injected here.
+  const userCoordsWithDerived: Record<string, number> = {
     ...userCoords,
     tolerance: userTolerance,
+    certainty: userCertainty,
   };
   // 0.5: families filtered + recomputed for the active-only view (shared logic with export)
   const familyMatchesFiltered = useMemo(
@@ -356,11 +361,11 @@ export function ResultsDashboard({
             )}
           </div>
 
-          {/* THEOLOGICAL FINGERPRINT (13-AXIS CHART — OVERHAULED) */}
+          {/* THEOLOGICAL FINGERPRINT (14-AXIS CHART — OVERHAULED) */}
           <div className="mt-12 mb-8">
             <h3 className="font-serif text-2xl font-bold text-slate-800 mb-2">Your Theological Fingerprint</h3>
             <p className="text-slate-600 mb-6 text-sm">
-              Your positions on 13 bipolar dimensions of Christian theology, grouped by category.
+              Your positions on 14 bipolar dimensions of Christian theology, grouped by category.
               Click any axis or toggle compare to see how you line up with your top match.
             </p>
 
@@ -470,12 +475,15 @@ export function ResultsDashboard({
                       <div className="px-5 pb-4 pt-1 bg-slate-50/50">
                         {catData.axes.map((axis) => {
                           const labels = AXIS_LABELS[axis];
-                          const score = userCoordsWithTolerance[axis];
+                          const score = userCoordsWithDerived[axis];
                           if (score === undefined || score === null) return null;
 
-                          const isLeft = score > 50;
+                          const isInverted = labels.invert === true;
+                          // `invert` axes store their affirmative pole as a HIGH value
+                          // but still render it on the right, like every other axis.
+                          const isLeft = isInverted ? score < 50 : score > 50;
                           const intensity = Math.abs(score - 50) / 50;
-                          const dotPercent = 100 - score;
+                          const dotPercent = isInverted ? score : 100 - score;
                           const poleLabel = isLeft ? labels.left : labels.right;
                           const isZoomed = expandedAxis === axis;
 
@@ -483,6 +491,9 @@ export function ResultsDashboard({
                           const compareDenomCoord = compareDenomId !== null ? allCoordinates.get(compareDenomId) : undefined;
                           const compareScore = compareDenomCoord?.dimCoords?.[axis];
                           const hasCompare = compareDenomCoord !== undefined && compareScore !== undefined;
+                          const compareDotPercent = compareScore === undefined
+                            ? 0
+                            : (isInverted ? compareScore : 100 - compareScore);
 
                           return (
                             <div key={axis} className="mb-3 last:mb-0">
@@ -521,7 +532,7 @@ export function ResultsDashboard({
                                   {hasCompare && (
                                     <div
                                       className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-20"
-                                      style={{ left: `${100 - compareScore}%` }}
+                                      style={{ left: `${compareDotPercent}%` }}
                                       title={compareDenomCoord?.name}
                                     >
                                       <div className="w-2.5 h-2.5 bg-amber-500 border border-white rotate-45 shadow-sm" />
@@ -533,8 +544,8 @@ export function ResultsDashboard({
                                     <div
                                       className={`absolute top-1/2 h-1.5 -translate-y-0.75 z-10 rounded-full opacity-70 ${getGapStyle(Math.abs(score - compareScore)).lineColor}`}
                                       style={{
-                                        left: `${Math.min(dotPercent, 100 - compareScore)}%`,
-                                        width: `${Math.abs(dotPercent - (100 - compareScore))}%`,
+                                        left: `${Math.min(dotPercent, compareDotPercent)}%`,
+                                        width: `${Math.abs(dotPercent - compareDotPercent)}%`,
                                       }}
                                     />
                                   )}
@@ -596,6 +607,7 @@ export function ResultsDashboard({
               <CompassChart 
                 userCoords={userCoords} 
                 userTolerance={userTolerance} 
+                userCertainty={userCertainty}
                 hideInactive={activeOnly}
               />
             </div>

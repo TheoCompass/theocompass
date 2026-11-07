@@ -17,6 +17,7 @@ const AXIS_OPTIONS = [
     { key: 'literal_crit_avg', label: 'Scripture: Critical ↔ Literal', minLabel: 'Critical', maxLabel: 'Literal' },
     { key: 'intellect_exper_avg', label: 'Practice: Experiential ↔ Intellectual', minLabel: 'Experiential', maxLabel: 'Intellectual' },
     { key: 'tolerance_score', label: 'Posture: Accepting ↔ Dogmatic', minLabel: 'Accepting', maxLabel: 'Dogmatic' },
+    { key: 'certainty_score', label: 'Conviction: Unsure ↔ Certain', minLabel: 'Unsure', maxLabel: 'Certain' },
 ];
 
 // Transitional shim: maps old D1 family_name values → new taxonomy keys
@@ -186,6 +187,7 @@ const CustomTooltip = ({ active, payload, familyMetaMap }: { active?: boolean; p
 interface CompassProps {
     userCoords: Record<string, number>;
     userTolerance: number;
+    userCertainty?: number;
     isExport?: boolean;
     selectedMode?: string | null;
     familyMatches?: any[];
@@ -198,7 +200,7 @@ interface CompassProps {
     hideInactive?: boolean;
 }
 
-export default function CompassChart({ userCoords, userTolerance, isExport = false, selectedMode = 'quick', familyMatches = [], hideInactive = false }: CompassProps) {
+export default function CompassChart({ userCoords, userTolerance, userCertainty = 50, isExport = false, selectedMode = 'quick', familyMatches = [], hideInactive = false }: CompassProps) {
     const rawFamilyMetaMap = useFamilyMeta();
     const familyMetaMap = useMemo(() => rawFamilyMetaMap, [rawFamilyMetaMap]);
     const [rawMapData, setRawMapData] = useState<any[]>([]);
@@ -388,13 +390,19 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
             isUser: true,
             z: 200,
             ...AXIS_OPTIONS.reduce((acc, opt) => {
-                const chartKey = opt.key === 'tolerance_score'
-                    ? 'tolerance_score'
-                    : opt.key.replace(/_avg$/, '');
+                // Meta-axes (tolerance/certainty) are served as separate scalars and
+                // are not part of userCoords.
+                const metaAxisValues: Record<string, number> = {
+                    tolerance_score: userTolerance,
+                    certainty_score: userCertainty,
+                };
+                if (opt.key in metaAxisValues) {
+                    acc[opt.key] = metaAxisValues[opt.key];
+                    return acc;
+                }
+                const chartKey = opt.key.replace(/_avg$/, '');
                 // Try chart key directly first, then the API underscore-stripped version
-                const value = opt.key === 'tolerance_score'
-                    ? userTolerance
-                    : (userCoords[chartKey] ?? userCoords[CHART_KEY_TO_API_KEY[chartKey]] ?? 50);
+                const value = userCoords[chartKey] ?? userCoords[CHART_KEY_TO_API_KEY[chartKey]] ?? 50;
                 acc[opt.key] = value;
                 return acc;
             }, {} as Record<string, number>),
@@ -408,7 +416,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
         }
         return compiledData;
 
-    }, [rawMapData, viewMode, userCoords, userTolerance, selectedFamilies, hideInactive]);
+    }, [rawMapData, viewMode, userCoords, userTolerance, userCertainty, selectedFamilies, hideInactive]);
 
     const xObj = AXIS_OPTIONS.find(o => o.key === xAxis);
     const yObj = AXIS_OPTIONS.find(o => o.key === yAxis);

@@ -11,6 +11,7 @@ interface ExportCardProps {
   familyMatches: any[];
   userCoords: Record<string, number>;
   userTolerance: number;
+  userCertainty?: number;
   selectedMode: "quick" | "standard" | "deep" | null;
   showSpecific: boolean;
   displayFamilies: boolean;
@@ -26,6 +27,7 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
     familyMatches,
     userCoords,
     userTolerance,
+    userCertainty,
     selectedMode,
     showSpecific,
     displayFamilies,
@@ -208,6 +210,7 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
         <CompassChart
           userCoords={userCoords}
           userTolerance={userTolerance}
+          userCertainty={userCertainty}
           isExport={true}
           selectedMode={selectedMode}
           familyMatches={exportFamilies}

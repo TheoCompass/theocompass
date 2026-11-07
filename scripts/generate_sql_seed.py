@@ -371,7 +371,13 @@ def main():
         family = clean_str(family_lookup.get(raw_denom_id, 'Unknown'))
         
         tol_score = clean_num(row['ToleranceScore'])
-        cert_score = clean_num(certainty_lookup.get(raw_denom_id))
+        # 0.3: per-mode certainty comes from the precompute engine (priority-weighted),
+        # mirroring how ToleranceScore is sourced. Falls back to the legacy global
+        # plain-mean lookup only if an older mode_summary without the column is used.
+        if 'CertaintyScore' in df_mode.columns:
+            cert_score = clean_num(row['CertaintyScore'])
+        else:
+            cert_score = clean_num(certainty_lookup.get(raw_denom_id))
         
         # Dimensions
         tcl = clean_num(row['Theol_Cons_Lib_avg'])

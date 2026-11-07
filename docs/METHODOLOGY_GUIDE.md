@@ -60,3 +60,29 @@ When you build the `POST /api/calculate` endpoint, you will:
 2. Fetch the denomination baseline data from the D1 database.
 3. Run the distance algorithm outlined above.
 4. Return the Top 10 matches sorted by highest percentage.
+
+## 7. The Two Meta-Axes: Tolerance (13th) and Certainty (14th)
+
+The 12 dimensions above describe *what* a tradition believes. Two further axes describe *how firmly* it holds those beliefs. They are "meta-axes": they do not take part in the Euclidean distance calculation, they are reported alongside it.
+
+| Axis | Source value | Scale | Weighting | Range |
+| --- | --- | --- | --- | --- |
+| Tolerance | `tolerance` (T) | 0-4 | `wT = (1 + C) * (1 + abs(T - 2)^1.5)` | `avg * 25` |
+| Certainty | `certainty` (C) | 0-3 | `wC = priorityWeight(question)` | `avg * (100/3)` |
+
+Both are **affirmed-only averages**: silenced answers (apathetic or hostile) are skipped, because they make no epistemic claim. Both fall back to the neutral midpoint `50` when nothing is affirmed.
+
+**Tolerance** is severity-weighted: an answer far from the midpoint of the 0-4 scale counts for more, and it is amplified by how certain the user is. It answers "how open is this tradition to other traditions being valid?"
+
+**Certainty** is priority-weighted: being certain about a high-priority question (e.g. the Trinity) counts for more than being certain about a minor one. It answers "how firmly does this tradition assert its own doctrinal positions?"
+
+Both axes are computed in two places that must stay in agreement:
+- Denomination side: `computeToleranceScore` / `computeCertaintyScore` in `scripts/build_precomputed.js`, emitted per mode into `denomination_mode_summary.csv`, then seeded into D1 `denomination_compass_coordinates`.
+- User side: the "13th Axis" and "2b. 14th Axis" blocks in `handleCalculate` (`theocompass-api/src/index.ts`).
+
+### Interpretation notes
+
+- **Certainty is left-skewed by construction.** Roughly 70% of the source `_Certainty` cells are "Certain", so the median tradition scores ~89/100 and ~28 traditions pin at exactly 100. This is honest, not a bug: a body that asserts every position with certainty *is* maximally certain. Priority weighting re-ranks the *selectively* certain traditions (it raised the number of distinct values from 62 to ~148) but cannot move a uniformly-Certain tradition off 100.
+- **It is not fully independent.** Certainty correlates negatively with all 12 dimensions, most strongly with `Social_Cons_Lib` (r = -0.32) and `Theol_Cons_Lib` (r = -0.26). That is ~90% independent variance with a real directional tendency: progressive traditions report less doctrinal certainty. Do not describe the axis as unrelated to the others.
+- **Meta-axes are excluded from "Distinctive Views" and denomination trait tags** (`getDistinctiveAxes` / `getTraitTags`). Because they sit near an extreme for almost everyone, including them would crowd out genuinely distinctive traits such as "Liturgical" or "Egalitarian".
+- **Certainty renders inverted.** Every other axis stores its affirmative pole as a LOW numeric value (e.g. Orthodox = 16, Sacramental = 4), which the fingerprint draws on the RIGHT. Certainty is the opposite: `100 = maximally certain`. To keep "Certain" on the right — and the dot with it — the entry carries `invert: true` in `AXIS_LABELS`, which flips the dot position and pole highlighting in the renderers. The API and D1 values keep their natural meaning (`certainty_score` 100 = certain).

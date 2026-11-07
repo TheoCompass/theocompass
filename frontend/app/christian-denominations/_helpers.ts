@@ -93,9 +93,11 @@ export function getGapLegend(gap: number): { label: string; dotColor: string } {
 }
 
 // Compute which axes are most extreme (closest to 0 or 100)
+// Meta-axes (tolerance/certainty) are excluded: they sit near an extreme for
+// almost everyone, so they would crowd out genuinely distinctive traits.
 export function getDistinctiveAxes(userCoords: Record<string, number>, count: number = 3): string[] {
   return Object.entries(userCoords)
-    .filter(([key]) => AXIS_LABELS[key] !== undefined)
+    .filter(([key]) => AXIS_LABELS[key] !== undefined && !AXIS_LABELS[key].meta)
     .sort((a, b) => {
       const extremityA = Math.abs(a[1] - 50);
       const extremityB = Math.abs(b[1] - 50);
@@ -113,7 +115,7 @@ export function getTraitTags(
 ): { label: string; color: string }[] {
   if (!dimCoords || Object.keys(dimCoords).length === 0) return [];
   const axes = Object.entries(dimCoords)
-    .filter(([key]) => AXIS_LABELS[key])
+    .filter(([key]) => AXIS_LABELS[key] && !AXIS_LABELS[key].meta)
     .sort((a, b) => {
       const extremityA = Math.abs(a[1] - 50);
       const extremityB = Math.abs(b[1] - 50);

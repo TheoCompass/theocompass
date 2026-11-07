@@ -1,4 +1,6 @@
 // Add KV to your Env interface
+import { computeCertaintyAxis } from "./axis-scores";
+
 export interface Env {
   DB: D1Database;
   THEOCOMPASS_CACHE: KVNamespace; // <-- ADD THIS
@@ -701,6 +703,25 @@ if (tolTotalWeight > 0) {
   console.log(`FINAL TOLERANCE -> Sum: ${tolWeightedSum.toFixed(2)} | Weight: ${tolTotalWeight.toFixed(2)} | Score: ${userTolerance}`);
 }
 
+// 2b. Calculate the 14th Axis: Certainty Score (0-3 scale mapped to 0-100)
+//     Affirmed-only, priority-weighted mean of the user's C values -- the same
+//     shape the precompute engine uses for denominations (computeCertaintyScore
+//     in scripts/build_precomputed.js), so user and tradition are comparable.
+const certAxis = computeCertaintyAxis(
+  userAnswersArray.map(userAns => {
+    const qMeta = qMap[userAns.questionId];
+    const priority = Number(qMeta?.priorityscore || qMeta?.priority_score || 5);
+    return {
+      certainty: Number(userAns.certainty ?? 2),
+      weight: baseWeight(priority),
+      isSilence: userAns.isSilence,
+    };
+  })
+);
+
+const userCertainty = certAxis.score;
+console.log(`FINAL CERTAINTY -> Sum: ${certAxis.weightedSum.toFixed(2)} | Weight: ${certAxis.totalWeight.toFixed(2)} | Samples: ${certAxis.count} | Score: ${userCertainty}`);
+
 // ==========================================
 // 3. GENERATE USER THEOLOGICAL LABELS
 // ==========================================
@@ -774,6 +795,7 @@ if (affirmedAnswers.length === 0) {
       familyMatches: familyMatches,
       userDimCoords: userDimCoords,
       userTolerance: userTolerance,
+      userCertainty: userCertainty,
       userLabels: theologicalLabels
     }), {
       status: 200,

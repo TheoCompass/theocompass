@@ -3,7 +3,7 @@
 Welcome to the data management hub for TheoCompass. This architecture is powered by a hybrid **Cloudflare D1 Relational Database** and **Cloudflare KV Cache**, ensuring massive multi-dimensional theological calculations run instantly at the edge.
 
 **👋 Are you a developer contributing to the project?**
-Start by reading our [Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md) to understand the tech stack, data flow, and current state of the backend. Then, read the [Methodology Guide](./docs/METHODOLOGY_GUIDE.md) to understand the 13-dimensional scoring algorithm that powers the quiz results. For a high-level summary of the whole quiz (developer view + quiz-taker view), see the [Quiz Overview](./docs/QUIZ_OVERVIEW.md).
+Start by reading our [Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md) to understand the tech stack, data flow, and current state of the backend. Then, read the [Methodology Guide](./docs/METHODOLOGY_GUIDE.md) to understand the 14-axis scoring algorithm that powers the quiz results. For a high-level summary of the whole quiz (developer view + quiz-taker view), see the [Quiz Overview](./docs/QUIZ_OVERVIEW.md).
 
 This document outlines the streamlined, 4-step workflow to push theological data updates from your raw CSV spreadsheets directly to the live production database.
 

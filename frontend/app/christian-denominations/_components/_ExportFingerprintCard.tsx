@@ -7,6 +7,7 @@ import { getConvictionStyle } from "../_helpers";
 export interface ExportFingerprintCardProps {
   userCoords: Record<string, number>;
   userTolerance: number;
+  userCertainty: number;
   selectedMode: "quick" | "standard" | "deep" | null;
   questionCount: number;
   onRef: (el: HTMLDivElement | null) => void;
@@ -15,6 +16,7 @@ export interface ExportFingerprintCardProps {
 export default function ExportFingerprintCard({
   userCoords,
   userTolerance,
+  userCertainty,
   selectedMode,
   questionCount,
   onRef,
@@ -22,6 +24,7 @@ export default function ExportFingerprintCard({
   const exportCoords: Record<string, number> = {
     ...userCoords,
     tolerance: userTolerance,
+    certainty: userCertainty,
   };
 
   const modeLabel =
@@ -69,10 +72,10 @@ export default function ExportFingerprintCard({
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-50/50 via-white to-white pointer-events-none" />
         <div className="relative z-10">
           <div className="text-base font-bold text-slate-400 uppercase tracking-widest mb-2">
-            Your 13-Axis Theological Fingerprint
+            Your 14-Axis Theological Fingerprint
           </div>
           <p className="text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
-            Your positions on 13 bipolar dimensions of Christian theology. Dots are colored by conviction strength.
+            Your positions on 14 bipolar dimensions of Christian theology. Dots are colored by conviction strength.
           </p>
           {/* Conviction legend */}
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-1.5 mt-4 text-xs font-bold">
@@ -112,9 +115,11 @@ export default function ExportFingerprintCard({
                   const labels = AXIS_LABELS[axis];
                   const score = exportCoords[axis];
                   if (score === undefined || score === null) return null;
-                  const isLeft = score > 50;
+                  const isInverted = labels.invert === true;
+                  // `invert` axes keep their affirmative pole on the right.
+                  const isLeft = isInverted ? score < 50 : score > 50;
                   const conviction = getConvictionStyle(score);
-                  const dotPercent = 100 - score;
+                  const dotPercent = isInverted ? score : 100 - score;
                   return (
                     <div key={axis}>
                       {/* Pole labels */}

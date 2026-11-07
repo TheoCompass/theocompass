@@ -46,6 +46,8 @@ export default function QuizController() {
   // 0.5: global "active only" filter, shared by the results page AND the export image
   const [activeOnly, setActiveOnly] = useState(false);
   const [userTolerance, setUserTolerance] = useState<number>(50);
+  // 14th axis: separate meta-axis computed server-side (priority-weighted avg of C).
+  const [userCertainty, setUserCertainty] = useState<number>(50);
   const [userLabels, setUserLabels] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [compareDenomId, setCompareDenomId] = useState<string | null>(null);
@@ -183,6 +185,7 @@ export default function QuizController() {
         setFamilyMatches(data.familyMatches || []);
         setUserCoords(data.userDimCoords);
         setUserTolerance(data.userTolerance);
+        setUserCertainty(data.userCertainty ?? 50);
         setUserLabels(data.userLabels);
         setSelectedMode(data.selectedMode || null);
         setAnsweredQuestionCount(data.answeredCount || 0);
@@ -266,6 +269,7 @@ export default function QuizController() {
     setFamilyMatches([]);
     setUserCoords({});
     setUserTolerance(50);
+    setUserCertainty(50);
     setUserLabels([]);
     setShowSpecific(false);
     setShowTopFamilyDenoms(false);
@@ -388,6 +392,7 @@ export default function QuizController() {
           setFamilyMatches(data.familyMatches || []);
           setUserCoords(data.userDimCoords || {});
           setUserTolerance(data.userTolerance ?? 50);
+          setUserCertainty(data.userCertainty ?? 50);
           setUserLabels(data.userLabels || []);
           
           trackEvent('quiz_complete', {
@@ -395,7 +400,8 @@ export default function QuizController() {
             questions_answered: Object.keys(newAnswers).length,
             top_match: data.matches[0]?.name || 'unknown',
             top_match_score: data.matches[0]?.matchPercentage || 0,
-            user_tolerance: data.userTolerance ?? 50
+            user_tolerance: data.userTolerance ?? 50,
+            user_certainty: data.userCertainty ?? 50
           });
 
           const answerCount = Object.keys(newAnswers).length;
@@ -406,6 +412,7 @@ export default function QuizController() {
              familyMatches: data.familyMatches || [],
              userDimCoords: data.userDimCoords,
              userTolerance: data.userTolerance ?? 50,
+             userCertainty: data.userCertainty ?? 50,
              userLabels: data.userLabels,
              selectedMode: selectedMode,
              answeredCount: answerCount,
@@ -465,6 +472,7 @@ export default function QuizController() {
         setFamilyMatches(data.familyMatches || []);
         setUserCoords(data.userDimCoords);
         setUserTolerance(data.userTolerance ?? 50);
+        setUserCertainty(data.userCertainty ?? 50);
         setUserLabels(data.userLabels);
       } else {
         console.error("Calculation failed:", data.error);
@@ -519,6 +527,7 @@ export default function QuizController() {
         setFamilyMatches(data.familyMatches || []);
         setUserCoords(data.userDimCoords);
         setUserTolerance(data.userTolerance ?? 50);
+        setUserCertainty(data.userCertainty ?? 50);
         setUserLabels(data.userLabels);
       } else {
         console.error("Calculation failed:", data.error);
@@ -1060,6 +1069,7 @@ export default function QuizController() {
     const exportCoordsWithTolerance: Record<string, number> = {
       ...userCoords,
       tolerance: userTolerance,
+      certainty: userCertainty,
     };
 
     return (
@@ -1071,6 +1081,7 @@ export default function QuizController() {
           familyMatches={familyMatches}
           userCoords={userCoords}
           userTolerance={userTolerance}
+          userCertainty={userCertainty}
           selectedMode={selectedMode}
           showSpecific={showSpecific}
           displayFamilies={displayFamilies}
@@ -1090,6 +1101,7 @@ export default function QuizController() {
         <ExportFingerprintCard
           userCoords={userCoords}
           userTolerance={userTolerance}
+          userCertainty={userCertainty}
           selectedMode={selectedMode}
           questionCount={answeredQuestionCount || questions.length}
           onRef={(el: HTMLDivElement | null) => { exportFingerprintRef.current = el; }}
@@ -1123,6 +1135,7 @@ export default function QuizController() {
           familyMatches={familyMatches}
           userCoords={userCoords}
           userTolerance={userTolerance}
+          userCertainty={userCertainty}
           userLabels={userLabels}
           selectedMode={selectedMode}
           isCalculating={isCalculating}
