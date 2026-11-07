@@ -152,3 +152,12 @@ export function getTierStyle(percentage: number): {
   if (percentage >= 40) return { badge: "Moderate Resonance",    bg: "bg-slate-50/60",   barColor: "bg-slate-400",  borderColor: "border-slate-200",  textColor: "text-slate-600",  hex: "#94a3b8" };
   return                     { badge: "Light Alignment",         bg: "bg-stone-50/60",   barColor: "bg-stone-400",  borderColor: "border-stone-200",  textColor: "text-stone-600",  hex: "#a8a29e" };
 }
+
+// --- MEMBERSHIP FORMAT HELPER (est_members_global) ---
+export function formatMembers(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "";
+  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1).replace(/\.0$/, "") + "B";
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1_000) return Math.round(n / 1_000) + "K";
+  return String(n);
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import CompassChart from "../CompassChart";
 import TheologicalLabelCloud from "../TheologicalLabelCloud";
 import { FamilyCard } from "./_FamilyCard";
@@ -67,6 +68,9 @@ export function ResultsDashboard({
   onRetake,
   onDevMenu,
 }: ResultsDashboardProps) {
+  // 0.5: filter state for the ranked list (driven by live is_active)
+  const [activeOnly, setActiveOnly] = useState(false);
+
   // --- Derived values ---
   const userCoordsWithTolerance: Record<string, number> = {
     ...userCoords,
@@ -74,7 +78,15 @@ export function ResultsDashboard({
   };
   const displayFamilies = selectedMode === "quick" && !showSpecific && familyMatches.length > 0;
   const topFamily = displayFamilies ? familyMatches?.[0] : null;
-  const topDenom = results?.[0] ?? null;
+  // 0.5: enrich results with isActive/estMembers from the coordinates map
+  const enrichedResults = results.map((d: any) => {
+    const coord = allCoordinates.get(d.id);
+    return { ...d, isActive: d.isActive ?? coord?.isActive, estMembers: d.estMembers ?? coord?.estMembers };
+  });
+  const listResults = activeOnly
+    ? enrichedResults.filter((d: any) => d.isActive !== false)
+    : enrichedResults;
+  const topDenom = listResults[0] ?? results?.[0] ?? null;
 
   const topName = displayFamilies
     ? topFamily?.family ?? "Calculating..."
@@ -160,7 +172,7 @@ export function ResultsDashboard({
           )}
 
           {/* HERO / TOP RESULT */}
-          {(displayFamilies ? familyMatches.length > 0 : results.length > 0) && (() => {
+          {(displayFamilies ? familyMatches.length > 0 : listResults.length > 0) && (() => {
             const topPct = displayFamilies ? (topFamily?.matchPercentage ?? 0) : (topDenom?.matchPercentage ?? 0);
             const heroTier = getTierStyle(topPct);
             const isTopScore95 = topPct >= 95;
@@ -296,6 +308,21 @@ export function ResultsDashboard({
             </div>
           </div>
 
+          {/* 0.5: filter control (denominations / specific view only) */}
+          {!displayFamilies && (
+            <div className="flex items-center justify-end mb-3">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={activeOnly}
+                  onChange={(e) => setActiveOnly(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-emerald-600"
+                />
+                Active denominations only
+              </label>
+            </div>
+          )}
+
           {/* RUNNER UPS */}
           <h3 className="font-bold text-slate-800 mb-4 text-lg border-b pb-2">
             {displayFamilies ? 'Runner-Up Families' : 'Runner-Up Traditions'}
@@ -306,7 +333,7 @@ export function ResultsDashboard({
                 <FamilyCard key={fam.family} familyData={fam} rank={index + 2} />
               ))
             ) : (
-              results.slice(1).map((denom: any, index: number) => (
+              listResults.slice(1).map((denom: any, index: number) => (
                 <DenominationCard key={denom.id} denom={denom} rank={index + 2} />
               ))
             )}

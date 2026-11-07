@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getTraitTags, getTierStyle } from "../_helpers";
+import { getTraitTags, getTierStyle, formatMembers } from "../_helpers";
 
 export function DenominationCard({
   denom,
@@ -37,9 +37,22 @@ export function DenominationCard({
               <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${tier.textColor} ${tier.bg} ${tier.borderColor}`}>
                 {tier.badge}
               </span>
+              {denom.isActive === false && (
+                <span
+                  className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border bg-slate-100 text-slate-500 border-slate-200"
+                  title="Historical / no longer active tradition"
+                >
+                  Historical
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-xs text-slate-400">{denom.family}</span>
+              {typeof denom.estMembers === "number" && denom.estMembers > 0 && (
+                <span className="text-xs text-slate-400" title="Estimated global members">
+                  · ~{formatMembers(denom.estMembers)}
+                </span>
+              )}
               {tags.length > 0 && (
                 <span className="flex gap-1">
                   {tags.map((tag, i) => (
