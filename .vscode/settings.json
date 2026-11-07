@@ -1,0 +1,24 @@
+{
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/out": true,
+    "**/build": true,
+    "**/.wrangler": true,
+    "**/precomputed": true,
+    "**/output": true,
+    "**/seed.sql": true,
+    "**/*.tsbuildinfo": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/out/**": true,
+    "**/.wrangler/**": true,
+    "**/precomputed/**": true,
+    "**/output/**": true
+  },
+  "files.exclude": {
+    "**/*.tsbuildinfo": true
+  }
+}
