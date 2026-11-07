@@ -203,6 +203,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
     const [rawMapData, setRawMapData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState<'families' | 'denominations'>('families');
+    const [hideInactive, setHideInactive] = useState(false);
     
     const [xAxis, setXAxis] = useState('theol_cons_lib_avg');
     const [yAxis, setYAxis] = useState('liturg_spont_avg');
@@ -308,17 +309,22 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
             return averagedItem;
         });
 
+        // 0.5 Filter: optionally hide inactive / historical traditions from the map
+        const visibleData = hideInactive
+            ? cleanData.filter((d: any) => d.is_active === 1 || d.is_active === true)
+            : cleanData;
+
         if (process.env.NODE_ENV === 'development') {
             console.log(`[TheoCompass] cleanData: ${cleanData.length} denominations across ${new Set(cleanData.map((d: any) => d.family)).size} families`);
         }
 
         // Step 3: Build family centroids OR use individual dots
-        let finalBackgroundData = cleanData;
+        let finalBackgroundData = visibleData;
 
         if (viewMode === 'families') {
             const familyGroups = new Map<string, any>();
 
-            cleanData.forEach((item: any) => {
+            visibleData.forEach((item: any) => {
                 const fam = item.family ?? 'Unknown';
                 if (!familyGroups.has(fam)) {
                     familyGroups.set(fam, {
@@ -402,7 +408,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
         }
         return compiledData;
 
-    }, [rawMapData, viewMode, userCoords, userTolerance, selectedFamilies]);
+    }, [rawMapData, viewMode, userCoords, userTolerance, selectedFamilies, hideInactive]);
 
     const xObj = AXIS_OPTIONS.find(o => o.key === xAxis);
     const yObj = AXIS_OPTIONS.find(o => o.key === yAxis);
@@ -446,6 +452,15 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                                     Specific Traditions
                                 </button>
                             </div>
+                        )}
+                        {!isExport && (
+                            <button
+                                onClick={() => setHideInactive(v => !v)}
+                                title="Hide historical / inactive traditions on the map"
+                                className={`px-3 py-1.5 text-xs font-bold rounded-md border transition-all ${hideInactive ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'}`}
+                            >
+                                {hideInactive ? 'Showing active only' : 'Show active only'}
+                            </button>
                         )}
                     </div>
                     <p className="text-sm text-slate-500">
