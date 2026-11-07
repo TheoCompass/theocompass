@@ -1,0 +1,49 @@
+# ---------- dependencies ----------
+node_modules/
+.pnp
+.pnp.*
+.pnp.js
+
+# ---------- Next.js build output ----------
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# ---------- Cloudflare / Wrangler ----------
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# ---------- secrets ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---------- generated / regenerable artifacts (rebuild via scripts/) ----------
+precomputed/
+theocompass-api/seed.sql
+
+# ---------- scratch / diagnostic junk ----------
+tsc_*.txt
+*_extract.txt
+commits_full.txt
+*.log
+
+# ---------- local generated output ----------
+output/
+
+# ---------- editor / OS ----------
+.DS_Store
+Thumbs.db

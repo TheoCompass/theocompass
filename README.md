@@ -3,7 +3,7 @@
 Welcome to the data management hub for TheoCompass. This architecture is powered by a hybrid **Cloudflare D1 Relational Database** and **Cloudflare KV Cache**, ensuring massive multi-dimensional theological calculations run instantly at the edge.
 
 **👋 Are you a developer contributing to the project?**
-Start by reading our [Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md) to understand the tech stack, data flow, and current state of the backend. Then, read the [Methodology Guide](./docs/METHODOLOGY_GUIDE.md) to understand the 13-dimensional scoring algorithm that powers the quiz results.
+Start by reading our [Developer Architecture Guide](./docs/DEVELOPER_GUIDE.md) to understand the tech stack, data flow, and current state of the backend. Then, read the [Methodology Guide](./docs/METHODOLOGY_GUIDE.md) to understand the 13-dimensional scoring algorithm that powers the quiz results. For a high-level summary of the whole quiz (developer view + quiz-taker view), see the [Quiz Overview](./docs/QUIZ_OVERVIEW.md).
 
 This document outlines the streamlined, 4-step workflow to push theological data updates from your raw CSV spreadsheets directly to the live production database.
 
@@ -22,6 +22,7 @@ Edit your master Google Sheets and export/overwrite the CSV files in the `/data`
 - `TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv`
 - `TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.csv`
 - `TheoCompass (v2.0) - QUIZ_SEQUENCE.csv`
+- `TheoCompass (v2.0) - FAMILIES.csv`
 
 ### Step 2: Run the Math Precompute Engine
 Because the multi-dimensional alignment math is too complex for real-time SQL generation and requires strict Euclidean distance mapping, we run a Node.js script to calculate the baselines and format the JSON objects.
