@@ -138,6 +138,24 @@ export function ResultsDashboard({
             </p>
           </div>
 
+          {/* Unified results filter — drives the ranked list, comparison options, and compass together */}
+          <div className="flex items-center justify-center mb-8">
+            <div className="inline-flex items-center bg-slate-100 rounded-full p-1 border border-slate-200 shadow-sm">
+              <button
+                onClick={() => setActiveOnly(false)}
+                className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all ${!activeOnly ? 'bg-white text-blue-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                All traditions
+              </button>
+              <button
+                onClick={() => setActiveOnly(true)}
+                className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all ${activeOnly ? 'bg-emerald-600 text-white border border-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Active only
+              </button>
+            </div>
+          </div>
+
           {/* NEW: Specific Denominations Toggle & Disclaimer */}
           {selectedMode === 'quick' && (
             <div className="mb-8 bg-blue-50/50 border border-blue-100 rounded-2xl p-5 shadow-sm">
@@ -308,21 +326,6 @@ export function ResultsDashboard({
             </div>
           </div>
 
-          {/* 0.5: filter control (denominations / specific view only) */}
-          {!displayFamilies && (
-            <div className="flex items-center justify-end mb-3">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={activeOnly}
-                  onChange={(e) => setActiveOnly(e.target.checked)}
-                  className="h-3.5 w-3.5 accent-emerald-600"
-                />
-                Active denominations only
-              </label>
-            </div>
-          )}
-
           {/* RUNNER UPS */}
           <h3 className="font-bold text-slate-800 mb-4 text-lg border-b pb-2">
             {displayFamilies ? 'Runner-Up Families' : 'Runner-Up Traditions'}
@@ -362,17 +365,24 @@ export function ResultsDashboard({
                   <option value="">— None —</option>
                   {allCoordinates.size > 0
                     ? Array.from(allCoordinates.entries())
+                        .filter(([, data]) => !activeOnly || data.isActive !== false)
                         .sort((a, b) => a[1].name.localeCompare(b[1].name))
                         .map(([id, data]) => (
                           <option key={id} value={id}>
                             {data.name}
                           </option>
                         ))
-                    : results.map((denom: any) => (
+                    : results.length > 0
+                    ? results.map((denom: any) => (
                         <option key={denom.id} value={denom.id}>
                           {denom.name} ({denom.matchPercentage}%)
                         </option>
-                      ))}
+                      ))
+                    : (
+                        <option value="" disabled>
+                          Loading traditions...
+                        </option>
+                      )}
                 </select>
               </div>
 
@@ -572,6 +582,7 @@ export function ResultsDashboard({
               <CompassChart 
                 userCoords={userCoords} 
                 userTolerance={userTolerance} 
+                hideInactive={activeOnly}
               />
             </div>
           </div>

@@ -195,15 +195,15 @@ interface CompassProps {
     showTrails?: boolean;
     onToggleRings?: () => void;
     onToggleTrails?: () => void;
+    hideInactive?: boolean;
 }
 
-export default function CompassChart({ userCoords, userTolerance, isExport = false, selectedMode = 'quick', familyMatches = [] }: CompassProps) {
+export default function CompassChart({ userCoords, userTolerance, isExport = false, selectedMode = 'quick', familyMatches = [], hideInactive = false }: CompassProps) {
     const rawFamilyMetaMap = useFamilyMeta();
     const familyMetaMap = useMemo(() => rawFamilyMetaMap, [rawFamilyMetaMap]);
     const [rawMapData, setRawMapData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState<'families' | 'denominations'>('families');
-    const [hideInactive, setHideInactive] = useState(false);
     
     const [xAxis, setXAxis] = useState('theol_cons_lib_avg');
     const [yAxis, setYAxis] = useState('liturg_spont_avg');
@@ -431,6 +431,16 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
         return <div className="p-10 text-center text-slate-500 animate-pulse">Loading Theological Landscape...</div>;
     }
 
+    // Guard: if the coordinates API returned no rows, show an explicit message
+    // instead of a blank chart (e.g. stale local D1 / API error).
+    if (rawMapData.length === 0) {
+        return (
+            <div className="p-10 text-center text-slate-500">
+                Could not load the theological landscape. Please check your connection and try again.
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200 shadow-sm mt-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 pb-6">
@@ -452,15 +462,6 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                                     Specific Traditions
                                 </button>
                             </div>
-                        )}
-                        {!isExport && (
-                            <button
-                                onClick={() => setHideInactive(v => !v)}
-                                title="Hide historical / inactive traditions on the map"
-                                className={`px-3 py-1.5 text-xs font-bold rounded-md border transition-all ${hideInactive ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'}`}
-                            >
-                                {hideInactive ? 'Showing active only' : 'Show active only'}
-                            </button>
                         )}
                     </div>
                     <p className="text-sm text-slate-500">
