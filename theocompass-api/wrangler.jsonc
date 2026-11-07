@@ -10,16 +10,23 @@
 	"observability": {
 		"enabled": true
 	},
-	 // --- BIND OUR D1 DATABASE ---
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "theocompass-db",
-      "database_id": "256b4e36-633c-46fa-8ec7-9e79eba91823" // Replace with your actual D1 ID
-    }
-  ],
+	// --- BIND OUR D1 DATABASE ---
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "theocompass-db",
+			"database_id": "256b4e36-633c-46fa-8ec7-9e79eba91823" // Replace with your actual D1 ID
+		}
+	],
 	"compatibility_flags": [
 		"nodejs_compat"
+	],
+	"kv_namespaces": [
+		{
+			"binding": "THEOCOMPASS_CACHE",
+			"id": "605f8a8e45d54233ac6239194fcaa29e",
+			"remote": true
+		}
 	]
 	/**
 	 * Smart Placement

@@ -4,15 +4,23 @@
 	"private": true,
 	"scripts": {
 		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
+		"dev": "wrangler dev --local",
 		"start": "wrangler dev",
 		"test": "vitest",
-		"cf-typegen": "wrangler types"
+		"cf-typegen": "wrangler types",
+		"db:reset-local": "wrangler d1 execute theocompass-db --local --file=./reset.sql",
+		"db:seed-local": "wrangler d1 execute theocompass-db --local --file=./seed.sql",
+		"db:reset-remote": "wrangler d1 execute theocompass-db --remote --file=./reset.sql",
+		"db:seed-remote": "wrangler d1 execute theocompass-db --remote --file=./seed.sql",
+		"kv:update-local": "wrangler kv key put --binding=\"THEOCOMPASS_CACHE\" \"denomination_profiles\" --path=\"../precomputed/denomination_profiles.json\" --local",
+		"kv:update-remote": "wrangler kv key put --binding=\"THEOCOMPASS_CACHE\" \"denomination_profiles\" --path=\"../precomputed/denomination_profiles.json\"",
+		"data:sync-local": "npm run db:reset-local && npm run db:seed-local && npm run kv:update-local",
+		"data:sync-remote": "npm run db:reset-remote && npm run db:seed-remote && npm run kv:update-remote"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.12.4",
 		"typescript": "^5.5.2",
 		"vitest": "~3.2.0",
-		"wrangler": "^4.72.0"
+		"wrangler": "^4.77.0"
 	}
 }

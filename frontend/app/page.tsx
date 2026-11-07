@@ -243,7 +243,7 @@ export default function Home() {
             <div className="relative pl-8 md:pl-12">
               <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-slate-300 ring-4 ring-white"></div>
               <span className="text-slate-400 font-bold tracking-widest uppercase text-xs block mb-1">Phase 1 • Complete</span>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">v2.0 Public Alpha</h3>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">v2.0 Open Beta</h3>
               <p className="text-slate-600 mb-4 text-sm leading-relaxed">
                 The core engine was successfully stress-tested with the 13-axis algorithm, silence mechanics, and posture multipliers using a 30-question test against 30 major traditions.
               </p>

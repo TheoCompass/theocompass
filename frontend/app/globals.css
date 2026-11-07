@@ -147,4 +147,13 @@
   .animate-pulse-slow {
     animation: pulse-slow 2s ease-in-out infinite;
   }
+
+  /* Float/pulse for strong conviction dots */
+  @keyframes float-pulse {
+    0%, 100% { transform: translateY(0); opacity: 1; }
+    50% { transform: translateY(-2px); opacity: 0.85; }
+  }
+  .animate-float {
+    animation: float-pulse 3s ease-in-out infinite;
+  }
 }
