@@ -110,14 +110,18 @@ git branch -d feat/my-thing
 
 ## Frontend Deployment (Cloudflare Pages)
 
-The frontend is a fully static Next.js site (`output: "export"` in `frontend/next.config.ts`), so it deploys as plain files — **no `@cloudflare/next-on-pages` adapter** (that adapter is deprecated and does not support Next 16).
+The frontend deploys to Cloudflare Pages with the `@cloudflare/next-on-pages` adapter.
 
-**Cloudflare Pages project settings:**
+**Cloudflare Pages project settings (already configured in the dashboard):**
 - **Root directory:** `frontend`
-- **Build command:** `NEXT_PUBLIC_API_URL=https://theocompass-api.theocompass-project.workers.dev npm run build`
-- **Build output directory:** `out`
+- **Build command:** `NEXT_PUBLIC_API_URL=https://theocompass-api.theocompass-project.workers.dev npx @cloudflare/next-on-pages@1`
+- **Build output directory:** `.vercel/output/static`
 
-`npm run build` locally produces the same `out/` folder (which is git-ignored). No frontend redeploy is needed when only the D1/KV data changes — only when the `frontend/` code changes.
+**Why `frontend/.npmrc` exists:** `npx @cloudflare/next-on-pages@1` re-resolves dependencies on every build and pulls the latest `wrangler`, which now requires `@cloudflare/workers-types@^5`, while `next-on-pages` requires `^4`. That mismatch aborts the build with `ERESOLVE`. `frontend/.npmrc` sets `legacy-peer-deps=true` so the build proceeds.
+
+> `@cloudflare/next-on-pages` is deprecated. When you're ready to modernize, either migrate to the OpenNext adapter (`@opennextjs/cloudflare`) or — since this app is fully static — switch to a plain `output: "export"` static deploy (build command `npm run build`, output directory `out`).
+
+No frontend redeploy is needed when only the D1/KV data changes — only when the `frontend/` code changes.
 
 ---
 
