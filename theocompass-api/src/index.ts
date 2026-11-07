@@ -625,7 +625,10 @@ results.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
     // Sort families by highest average match
     familyMatches.sort((a, b) => b.matchPercentage - a.matchPercentage);
 
-    const topMatches = results.slice(0, 10);
+    // Return the FULL ranked list (all denominations) so the client can filter
+    // (e.g. "active only") and still re-rank / refill the visible top 10. This
+    // also powers a future premium "full ranking" view.
+    const allMatches = results;
 
     // ==========================================
     // CALCULATE USER'S THEOLOGICAL FINGERPRINT
@@ -767,8 +770,8 @@ if (affirmedAnswers.length === 0) {
     return new Response(JSON.stringify({
       status: "success",
       dataVersion: await getDataVersion(env),
-      matches: topMatches,
-      familyMatches: familyMatches.slice(0, 10),
+      matches: allMatches,
+      familyMatches: familyMatches,
       userDimCoords: userDimCoords,
       userTolerance: userTolerance,
       userLabels: theologicalLabels

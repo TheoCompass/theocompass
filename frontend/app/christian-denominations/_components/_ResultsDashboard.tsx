@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
 import CompassChart from "../CompassChart";
 import TheologicalLabelCloud from "../TheologicalLabelCloud";
 import { FamilyCard } from "./_FamilyCard";
 import { DenominationCard } from "./_DenominationCard";
 import { ConvictionSwatch } from "./_ConvictionSwatch";
-import { getTierStyle, getConvictionStyle, getGapStyle } from "../_helpers";
+import { getTierStyle, getConvictionStyle, getGapStyle, filterFamiliesByActive } from "../_helpers";
 import { AXIS_LABELS, FINGERPRINT_CATEGORIES } from "../_constants";
 
 export interface ResultsDashboardProps {
@@ -19,6 +19,7 @@ export interface ResultsDashboardProps {
   isCalculating: boolean;
   showSpecific: boolean;
   showTopFamilyDenoms: boolean;
+  activeOnly: boolean;
   compareDenomId: string | null;
   expandedAxis: string | null;
   collapsedCategories: Record<string, boolean>;
@@ -29,6 +30,7 @@ export interface ResultsDashboardProps {
   isExportingFingerprint: boolean;
   onSetShowSpecific: (val: boolean) => void;
   onSetShowTopFamilyDenoms: (val: boolean) => void;
+  onSetActiveOnly: (val: boolean) => void;
   onSetCompareDenomId: (id: string | null) => void;
   onSetExpandedAxis: (axis: string | null) => void;
   onSetCollapsedCategories: (cats: Record<string, boolean>) => void;
@@ -49,6 +51,7 @@ export function ResultsDashboard({
   isCalculating,
   showSpecific,
   showTopFamilyDenoms,
+  activeOnly,
   compareDenomId,
   expandedAxis,
   collapsedCategories,
@@ -59,6 +62,7 @@ export function ResultsDashboard({
   isExportingFingerprint,
   onSetShowSpecific,
   onSetShowTopFamilyDenoms,
+  onSetActiveOnly,
   onSetCompareDenomId,
   onSetExpandedAxis,
   onSetCollapsedCategories,
@@ -68,16 +72,18 @@ export function ResultsDashboard({
   onRetake,
   onDevMenu,
 }: ResultsDashboardProps) {
-  // 0.5: filter state for the ranked list (driven by live is_active)
-  const [activeOnly, setActiveOnly] = useState(false);
-
   // --- Derived values ---
   const userCoordsWithTolerance: Record<string, number> = {
     ...userCoords,
     tolerance: userTolerance,
   };
-  const displayFamilies = selectedMode === "quick" && !showSpecific && familyMatches.length > 0;
-  const topFamily = displayFamilies ? familyMatches?.[0] : null;
+  // 0.5: families filtered + recomputed for the active-only view (shared logic with export)
+  const familyMatchesFiltered = useMemo(
+    () => (activeOnly ? filterFamiliesByActive(familyMatches, allCoordinates) : familyMatches),
+    [activeOnly, familyMatches, allCoordinates]
+  );
+  const displayFamilies = selectedMode === "quick" && !showSpecific && familyMatchesFiltered.length > 0;
+  const topFamily = displayFamilies ? familyMatchesFiltered?.[0] : null;
   // 0.5: enrich results with isActive/estMembers from the coordinates map
   const enrichedResults = results.map((d: any) => {
     const coord = allCoordinates.get(d.id);
@@ -139,21 +145,29 @@ export function ResultsDashboard({
           </div>
 
           {/* Unified results filter — drives the ranked list, comparison options, and compass together */}
-          <div className="flex items-center justify-center mb-8">
+          <div className="flex flex-col items-center gap-2 mb-8">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Filter by status
+            </span>
             <div className="inline-flex items-center bg-slate-100 rounded-full p-1 border border-slate-200 shadow-sm">
               <button
-                onClick={() => setActiveOnly(false)}
+                onClick={() => onSetActiveOnly(false)}
                 className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all ${!activeOnly ? 'bg-white text-blue-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 All traditions
               </button>
               <button
-                onClick={() => setActiveOnly(true)}
+                onClick={() => onSetActiveOnly(true)}
                 className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all ${activeOnly ? 'bg-emerald-600 text-white border border-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 Active only
               </button>
             </div>
+            <p className="text-[11px] text-slate-400 max-w-md text-center leading-snug">
+              {activeOnly
+                ? "Showing only traditions that are active today - historical and extinct movements are hidden from your matches, families, compass and export."
+                : "Showing every tradition, including historical and no-longer-active movements. Choose 'Active only' to hide them from your matches, families, compass and export."}
+            </p>
           </div>
 
           {/* NEW: Specific Denominations Toggle & Disclaimer */}
@@ -190,7 +204,7 @@ export function ResultsDashboard({
           )}
 
           {/* HERO / TOP RESULT */}
-          {(displayFamilies ? familyMatches.length > 0 : listResults.length > 0) && (() => {
+          {(displayFamilies ? familyMatchesFiltered.length > 0 : listResults.length > 0) && (() => {
             const topPct = displayFamilies ? (topFamily?.matchPercentage ?? 0) : (topDenom?.matchPercentage ?? 0);
             const heroTier = getTierStyle(topPct);
             const isTopScore95 = topPct >= 95;
@@ -332,11 +346,11 @@ export function ResultsDashboard({
           </h3>
           <div className="flex flex-col gap-2 mb-12">
             {displayFamilies ? (
-              familyMatches.slice(1).map((fam: any, index: number) => (
+              familyMatchesFiltered.slice(1, 10).map((fam: any, index: number) => (
                 <FamilyCard key={fam.family} familyData={fam} rank={index + 2} />
               ))
             ) : (
-              listResults.slice(1).map((denom: any, index: number) => (
+              listResults.slice(1, 10).map((denom: any, index: number) => (
                 <DenominationCard key={denom.id} denom={denom} rank={index + 2} />
               ))
             )}
@@ -372,8 +386,8 @@ export function ResultsDashboard({
                             {data.name}
                           </option>
                         ))
-                    : results.length > 0
-                    ? results.map((denom: any) => (
+                    : listResults.length > 0
+                    ? listResults.slice(0, 10).map((denom: any) => (
                         <option key={denom.id} value={denom.id}>
                           {denom.name} ({denom.matchPercentage}%)
                         </option>

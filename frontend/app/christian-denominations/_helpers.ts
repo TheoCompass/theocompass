@@ -161,3 +161,52 @@ export function formatMembers(n: number | null | undefined): string {
   if (n >= 1_000) return Math.round(n / 1_000) + "K";
   return String(n);
 }
+
+// --- ACTIVE-ONLY FILTER HELPERS (shared by the results list and the export image) ---
+export type CoordsMap = Map<
+  string,
+  {
+    name: string;
+    family: string;
+    dimCoords: Record<string, number>;
+    isActive?: boolean;
+    estMembers?: number | null;
+  }
+>;
+
+// Treat an unknown active-state as active so we never hide a tradition by accident.
+export function isActiveDenom(denom: any, allCoordinates: CoordsMap): boolean {
+  if (denom?.isActive !== undefined && denom?.isActive !== null) {
+    return denom.isActive !== false;
+  }
+  const coord = allCoordinates.get(denom?.id);
+  return coord?.isActive !== false;
+}
+
+// Filter a ranked denomination list to active traditions (order preserved).
+export function filterDenomsByActive(results: any[], allCoordinates: CoordsMap): any[] {
+  return results.filter((d: any) => isActiveDenom(d, allCoordinates));
+}
+
+// Filter families: keep only active members, drop families with no active members,
+// recompute each family percentage from its surviving members, and re-sort.
+export function filterFamiliesByActive(familyMatches: any[], allCoordinates: CoordsMap): any[] {
+  const kept = familyMatches
+    .map((fam: any) => {
+      const members = (fam.allDenominations ?? []).filter((d: any) =>
+        isActiveDenom(d, allCoordinates)
+      );
+      if (members.length === 0) return null;
+      const avg =
+        members.reduce((sum: number, d: any) => sum + (d.matchPercentage ?? 0), 0) /
+        members.length;
+      return {
+        ...fam,
+        allDenominations: members,
+        topDenomination: members[0],
+        matchPercentage: Number(avg.toFixed(2)),
+      };
+    })
+    .filter(Boolean) as any[];
+  return kept.sort((a, b) => b.matchPercentage - a.matchPercentage);
+}

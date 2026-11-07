@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { forwardRef } from "react";
 import CompassChart from "../CompassChart";
-import { getTierStyle } from "../_helpers";
+import { getTierStyle, filterDenomsByActive, filterFamiliesByActive } from "../_helpers";
+import type { CoordsMap } from "../_helpers";
 
 interface ExportCardProps {
   results: any[];
@@ -13,6 +14,8 @@ interface ExportCardProps {
   selectedMode: "quick" | "standard" | "deep" | null;
   showSpecific: boolean;
   displayFamilies: boolean;
+  activeOnly: boolean;
+  allCoordinates: CoordsMap;
   timestamp: string;
   questionCount: number;
 }
@@ -26,18 +29,24 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
     selectedMode,
     showSpecific,
     displayFamilies,
+    activeOnly,
+    allCoordinates,
     timestamp,
     questionCount,
   },
   ref
 ) {
+  // Reflect the results-page "Active only" filter inside the exported image.
+  const exportResults = activeOnly ? filterDenomsByActive(results, allCoordinates) : results;
+  const exportFamilies = activeOnly ? filterFamiliesByActive(familyMatches, allCoordinates) : familyMatches;
+
   const topName = displayFamilies
-    ? familyMatches?.[0]?.family ?? "Unknown"
-    : results?.[0]?.name ?? "Unknown";
+    ? exportFamilies?.[0]?.family ?? "Unknown"
+    : exportResults?.[0]?.name ?? "Unknown";
 
   const topScore = displayFamilies
-    ? familyMatches?.[0]?.matchPercentage ?? 0
-    : results?.[0]?.matchPercentage ?? 0;
+    ? exportFamilies?.[0]?.matchPercentage ?? 0
+    : exportResults?.[0]?.matchPercentage ?? 0;
 
   const modeLabel =
     selectedMode === "quick"
@@ -46,7 +55,7 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
         ? "Standard Mode"
         : "Deep Dive";
 
-  const topFive = (displayFamilies ? familyMatches : results).slice(0, 5);
+  const topFive = (displayFamilies ? exportFamilies : exportResults).slice(0, 5);
   const trophyTier = getTierStyle(topScore);
 
   return (
@@ -107,7 +116,7 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
               Top 5 Family Alignments
             </div>
             <div className="space-y-2.5">
-              {familyMatches.slice(0, 5).map((d: any, i: number) => {
+              {exportFamilies.slice(0, 5).map((d: any, i: number) => {
                 const pct = d.matchPercentage ?? 0;
                 const tier = getTierStyle(pct);
                 return (
@@ -147,8 +156,8 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
               Top 5 Specific Traditions
             </div>
             <div className="space-y-2.5">
-              {results.slice(0, 5).length > 0 ? (
-                results.slice(0, 5).map((d: any, i: number) => {
+              {exportResults.slice(0, 5).length > 0 ? (
+                exportResults.slice(0, 5).map((d: any, i: number) => {
                   const pct = d.matchPercentage ?? 0;
                   const tier = getTierStyle(pct);
                   return (
@@ -201,8 +210,9 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
           userTolerance={userTolerance}
           isExport={true}
           selectedMode={selectedMode}
-          familyMatches={familyMatches}
+          familyMatches={exportFamilies}
           displayFamilies={displayFamilies}
+          hideInactive={activeOnly}
         />
       </div>
 
@@ -213,6 +223,9 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
         </p>
         <div className="w-12 h-px bg-slate-700 mx-auto my-3" />
         <p className="text-xs text-slate-400 mb-1">Built for informed decision, not persuasion.</p>
+        <p className="text-xs font-bold text-slate-300 mb-1">
+          {activeOnly ? "Filter: Active traditions only" : "Filter: All traditions (incl. historical)"}
+        </p>
         <p className="text-xs text-slate-500 font-mono mt-2">
           theocompass.com • Generated {timestamp}
         </p>

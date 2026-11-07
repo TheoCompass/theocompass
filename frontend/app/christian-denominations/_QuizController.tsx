@@ -43,6 +43,8 @@ export default function QuizController() {
   const [userCoords, setUserCoords] = useState<Record<string, number>>({});
   const [showSpecific, setShowSpecific] = useState(false);
   const [showTopFamilyDenoms, setShowTopFamilyDenoms] = useState(false);
+  // 0.5: global "active only" filter, shared by the results page AND the export image
+  const [activeOnly, setActiveOnly] = useState(false);
   const [userTolerance, setUserTolerance] = useState<number>(50);
   const [userLabels, setUserLabels] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -267,6 +269,7 @@ export default function QuizController() {
     setUserLabels([]);
     setShowSpecific(false);
     setShowTopFamilyDenoms(false);
+    setActiveOnly(false);
     setShowRestartModal(false);
   };
 
@@ -1071,6 +1074,8 @@ export default function QuizController() {
           selectedMode={selectedMode}
           showSpecific={showSpecific}
           displayFamilies={displayFamilies}
+          activeOnly={activeOnly}
+          allCoordinates={allCoordinates}
           timestamp={new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
           questionCount={answeredQuestionCount || questions.length}
         />
@@ -1131,6 +1136,8 @@ export default function QuizController() {
           exportRef={exportRef}
           isExportingLabels={isExportingLabels}
           isExportingFingerprint={isExportingFingerprint}
+          activeOnly={activeOnly}
+          onSetActiveOnly={setActiveOnly}
           onSetShowSpecific={setShowSpecific}
           onSetShowTopFamilyDenoms={setShowTopFamilyDenoms}
           onSetCompareDenomId={setCompareDenomId}
