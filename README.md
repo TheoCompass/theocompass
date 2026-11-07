@@ -108,6 +108,19 @@ git branch -d feat/my-thing
 
 ---
 
+## Frontend Deployment (Cloudflare Pages)
+
+The frontend is a fully static Next.js site (`output: "export"` in `frontend/next.config.ts`), so it deploys as plain files — **no `@cloudflare/next-on-pages` adapter** (that adapter is deprecated and does not support Next 16).
+
+**Cloudflare Pages project settings:**
+- **Root directory:** `frontend`
+- **Build command:** `NEXT_PUBLIC_API_URL=https://theocompass-api.theocompass-project.workers.dev npm run build`
+- **Build output directory:** `out`
+
+`npm run build` locally produces the same `out/` folder (which is git-ignored). No frontend redeploy is needed when only the D1/KV data changes — only when the `frontend/` code changes.
+
+---
+
 ## Dev Tools & Shortcuts 
 
 During development or testing, you might want to skip the 30-120 question quiz and generate results immediately. The developer tool modal is hidden in the UI to keep it clean for users. 
