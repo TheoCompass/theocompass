@@ -1,118 +1,308 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   TheoCompass design tokens — "Cool Instrument"
+   A precision navigational instrument: cool white ground, white plates,
+   one blue (the logo's), hairline rules, blue-weighted data ramps.
+   Depth comes from lightness, never from shadow. One warm foil, used rarely.
+   ========================================================================= */
 @theme {
-  /* Brand Colors */
-  --color-brand-primary: #0369a1; 
-  --color-brand-accent: #22d3ee;  
-  --color-brand-dark: #0f172a;    
-  --color-brand-light: #f8fafc;   
+  /* ─── Ground ──────────────────────────────────────────────────────────────
+     Honeydew page, white plates. The palette has no neutral greys, so the
+     "neutrals" below are navy-tinted derivations of it.                    */
+  --color-paper: #f1faee;
+  --color-paper-raised: #ffffff;
+  --color-ink: #1d3557;          /* Oxford Navy — 11.6:1 on paper */
+  --color-ink-soft: #3c5570;     /* 7.2:1 */
+  --color-ink-muted: #556a7e;    /* 5.2:1 — clears AA so 10px .meta is legal */
+  --color-rule: #d7e3e0;
+  --color-rule-strong: #b6c9cb;
+  --color-muted-soft: #e6efec;
 
-  /* Tolerance Scale Colors */
-  --color-tolerance-0: #e11d48; 
-  --color-tolerance-1: #f97316; 
-  --color-tolerance-2: #94a3b8; 
-  --color-tolerance-3: #34d399; 
-  --color-tolerance-4: #16a34a; 
+  /* ─── Interaction: Cerulean ───────────────────────────────────────────────
+     Fill with white text 4.6:1 · as small text use accent-ink (6.0:1).      */
+  --color-accent: #457b9d;       /* Cerulean (palette) */
+  --color-accent-ink: #37647f;   /* cerulean, darkened for text */
+  --color-accent-deep: #1d3557;
+  --color-accent-soft: #e0eeed;
 
-  /* Typography */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-merriweather), ui-serif, Georgia, serif;
+  /* ─── Emphasis: Punch Red (never carries small body text) ────────────────
+     Fill/marker 4.2:1 with white · text variant punch-ink 5.9:1.            */
+  --color-punch: #e63946;        /* Punch Red (palette) */
+  --color-punch-ink: #c1121f;
+  --color-punch-soft: #fdeced;
+
+  /* ─── Cerulean ramp: washes, chrome bands, data weight ────────────────── */
+  --color-cerulean-50: #f2f8f7;
+  --color-cerulean-100: #e0eeed;
+  --color-cerulean-200: #c6e2e0;
+  --color-cerulean-300: #a8dadc; /* Frosted Blue (palette) */
+  --color-cerulean-400: #7fb3bd;
+  --color-cerulean-500: #5d95a8;
+  --color-cerulean-600: #457b9d; /* Cerulean (palette) */
+  --color-cerulean-800: #2c5175;
+  --color-cerulean-900: #1d3557; /* Oxford Navy (palette) */
+
+  /* ─── Punch ramp ──────────────────────────────────────────────────────── */
+  --color-punch-50: #fdeced;
+  --color-punch-100: #fad2d5;
+  --color-punch-300: #f08a92;
+  --color-punch-500: #e63946;
+  --color-punch-700: #c1121f;
+  --color-punch-900: #8c0d17;
+
+  /* ─── Compatibility aliases ─────────────────────────────────────────────
+     Components still reference the old blue, warm, brass and sage names. They
+     now resolve inside the new palette instead of Tailwind's defaults, so
+     nothing renders off-palette while the sweep is in progress.            */
+  --color-blue-50: #f2f8f7;
+  --color-blue-100: #e0eeed;
+  --color-blue-200: #c6e2e0;
+  --color-blue-300: #a8dadc;
+  --color-blue-400: #7fb3bd;
+  --color-blue-500: #5d95a8;
+  --color-blue-600: #457b9d;
+  --color-blue-800: #2c5175;
+  --color-blue-900: #1d3557;
+
+  --color-warm: #c1121f;         /* divergence / "apart" */
+  --color-warm-soft: #fdeced;
+  --color-brass: #e63946;        /* the award tier */
+  --color-brass-soft: #fdeced;
+  --color-sage: #2f7a76;         /* teal accent for "aligned" marks */
+  --color-sage-soft: #e4f1ef;
+
+  /* ─── Legacy brand tokens ─────────────────────────────────────────────── */
+  --color-brand-primary: #457b9d;
+  --color-brand-accent: #e63946;
+  --color-brand-dark: #1d3557;
+  --color-brand-light: #f1faee;
+
+  /* ─── Match tier — "closer match is distinguishable" ────────────────────
+     Top tier is the punch red so #1 reads differently from every other row. */
+  --color-tier-1: #e63946;       /* 90+ */
+  --color-tier-2: #1f7a5f;       /* 75–89 */
+  --color-tier-3: #457b9d;       /* 60–74 */
+  --color-tier-4: #7d5ba6;       /* 40–59 */
+  --color-tier-5: #556a7e;       /* 0–39 */
+
+  /* ─── Quiz section hues ─────────────────────────────────────────────────
+     Pastel rainbow: nine low-chroma hues that stay distinguishable at dot and
+     chip-fill size. Mark colours only - never small text, they sit near 3:1. */
+  --color-cat-god: #5b7fb5;   /* periwinkle  */
+  --color-cat-chr: #b56576;   /* rose        */
+  --color-cat-scr: #4f9d9b;   /* teal        */
+  --color-cat-sal: #8e7ab5;   /* violet      */
+  --color-cat-sac: #c8963e;   /* ochre       */
+  --color-cat-wor: #6b9a58;   /* green       */
+  --color-cat-esc: #7c5f9e;   /* plum        */
+  --color-cat-eth: #cf7a45;   /* coral       */
+  --color-cat-met: #556a7e;   /* slate       */
+
+  /* ─── Typography ──────────────────────────────────────────────────────── */
+  /* Rem-only type steps. Every one scales with the root font-size, which is
+     what makes the header size control do anything at all: a px step is frozen
+     no matter what the reader asks for. Names follow Tailwind's own scale
+     (2xs < xs < sm < base) so there is one vocabulary, not two. */
+  --text-4xs: 0.5rem;            /*  8px — chart axis labels, kbd hints    */
+  --text-3xs: 0.625rem;          /* 10px — .meta, chip counters            */
+  --text-2xs: 0.6875rem;         /* 11px — dense controls, tag text        */
+  --text-mini: 0.8125rem;        /* 13px — compact body copy, quiz answers */
+  --text-body: 0.9375rem;        /* 15px — hero deck on small screens      */
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ─── Shape & layout rhythm ───────────────────────────────────────────── */
+  --radius-card: 6px;
+  --radius-pill: 3px;
+  --spacing-header: 3.5rem;
 }
 
 @layer base {
+  /* ── UI density ─────────────────────────────────────────────────────────
+     The root font-size IS the size setting. Two multipliers combine:
+
+       1. --type-base   fluid, 15.1px on a 375px phone -> 16.75px from 1280px
+                        up. Small screens get small type; nobody has to pick.
+       2. --type-scale  the reader's choice from the header control.
+
+     Together: compact 13.9-15.4px, regular 15.1-16.75px, comfortable
+     16.5-18.3px - about +-9% per tap, which is visible. A fixed px step was
+     not: 16 -> 17.5px moved almost nothing on a page of px-sized text.       */
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    --type-base: clamp(15px, 0.32vw + 13.9px, 16.75px);
+    --type-scale: 1;
+    font-size: calc(var(--type-base) * var(--type-scale));
+  }
+
+  html[data-density="compact"] { --type-scale: 0.92; }
+  html[data-density="regular"] { --type-scale: 1; }
+  html[data-density="comfortable"] { --type-scale: 1.09; }
+
   body {
-    background-color: var(--color-brand-light);
-    color: var(--color-brand-dark);
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* One visible focus treatment, everywhere. Never outline-none without it. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* Native controls: explicit colours so Windows dark mode can't invert them */
+  select {
+    background-color: var(--color-paper-raised);
+    color: var(--color-ink);
+  }
+
+  ::selection {
+    background-color: var(--color-brass-soft);
+    color: var(--color-ink);
+  }
+
+  /* Sticky-header offset for anchor targets */
+  section[id],
+  h2[id],
+  h3[id] {
+    scroll-margin-top: calc(var(--spacing-header) + 1rem);
   }
 }
 
 @layer utilities {
-  /* Fade-in + slide-up animation */
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  .animate-fade-in-up {
-    animation: fade-in-up 0.35s ease-out forwards;
+  /* ─── Structural primitives ──────────────────────────────────────────── */
+  .card {
+    background-color: var(--color-paper-raised);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-card);
   }
 
-  /* Fade-in animation */
+  .rule {
+    height: 1px;
+    width: 100%;
+    background-color: var(--color-rule);
+  }
+
+  /* Small-caps metadata line — the signature detail of this design language.
+     Wide tracking so labels read as instrument markings, not grey captions. */
+  .meta {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    line-height: 1.25;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+  }
+
+  /* Tabular figures for every score, rank and comparison */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* ─── Chart texture ───────────────────────────────────────────────────────
+     1px hairlines every 24px at ~5% navy. Evokes ruled chart paper: you feel
+     it before you see it. Applied to the results hero and the export canvas. */
+  .chart-grid {
+    background-image:
+      linear-gradient(to right, rgba(29, 53, 87, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(29, 53, 87, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* The tinted strip behind sticky headers and tab rows — the one place a
+     gradient is allowed, because it reads as a lit surface, not as decoration. */
+  .chrome-band {
+    background-image: linear-gradient(
+      to bottom,
+      var(--color-cerulean-200) 0%,
+      var(--color-cerulean-100) 50%,
+      var(--color-paper) 100%
+    );
+    border-bottom: 1px solid var(--color-cerulean-300);
+  }
+
+
+  /* Skip link: visible only while focused */
+  .skip-link:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
+
+@layer utilities {
+  /* ─── Motion ─────────────────────────────────────────────────────────────
+     Retained for backwards compatibility with existing components. Every
+     looping animation here is neutralised by the reduced-motion guard below.
+     New code should prefer explicit `transition` on transform/color/opacity. */
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in-up { animation: fade-in-up 0.35s ease-out forwards; }
+
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
   }
-  .animate-fade-in {
-    animation: fade-in 0.3s ease-out forwards;
-  }
+  .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
 
-  /* Slide-out-left for question transitions */
   @keyframes slide-out-left {
-    from {
-      opacity: 1;
-      transform: translateX(0);
-    }
-    to {
-      opacity: 0;
-      transform: translateX(-24px);
-    }
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(-24px); }
   }
-  .animate-slide-out-left {
-    animation: slide-out-left 0.2s ease-in forwards;
-  }
+  .animate-slide-out-left { animation: slide-out-left 0.2s ease-in forwards; }
 
-  /* Slide-in-right for question transitions */
   @keyframes slide-in-right {
-    from {
-      opacity: 0;
-      transform: translateX(24px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
   }
-  .animate-slide-in-right {
-    animation: slide-in-right 0.3s ease-out forwards;
-  }
+  .animate-slide-in-right { animation: slide-in-right 0.3s ease-out forwards; }
 
-  /* Shimmer for progress bar */
   @keyframes shimmer {
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
   }
   .animate-shimmer {
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
     background-size: 200% 100%;
     animation: shimmer 2s ease-in-out infinite;
   }
 
-  /* Pulse glow for "See Results" button */
   @keyframes glow-pulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(59, 130, 246, 0.3); }
-    50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+    0%, 100% { box-shadow: 0 0 8px rgba(107, 32, 51, 0.25); }
+    50% { box-shadow: 0 0 18px rgba(107, 32, 51, 0.45); }
   }
-  .animate-glow-pulse {
-    animation: glow-pulse 2s ease-in-out infinite;
-  }
+  .animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
 
-  /* Scale-in for save toast */
   @keyframes scale-in-out {
     0% { transform: scale(0.8); opacity: 0; }
     20% { transform: scale(1.05); opacity: 1; }
     80% { transform: scale(1); opacity: 1; }
     100% { transform: scale(0.9); opacity: 0; }
   }
-  .animate-scale-in-out {
-    animation: scale-in-out 1.5s ease-in-out forwards;
-  }
+  .animate-scale-in-out { animation: scale-in-out 1.5s ease-in-out forwards; }
 
-  /* Checkmark bounce for selected answer */
   @keyframes checkmark-bounce {
     0% { transform: scale(0); opacity: 0; }
     60% { transform: scale(1.3); opacity: 1; }
@@ -122,38 +312,169 @@
     animation: checkmark-bounce 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   }
 
-  /* Slide-down for sliders panel */
   @keyframes slide-down-in {
-    from {
-      max-height: 0;
-      opacity: 0;
-      transform: translateY(-8px);
-    }
-    to {
-      max-height: 500px;
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { max-height: 0; opacity: 0; transform: translateY(-8px); }
+    to { max-height: 500px; opacity: 1; transform: translateY(0); }
   }
-  .animate-slide-down-in {
-    animation: slide-down-in 0.3s ease-out forwards;
-  }
+  .animate-slide-down-in { animation: slide-down-in 0.3s ease-out forwards; }
 
-  /* Slow pulse for the info button hint on first question */
   @keyframes pulse-slow {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.7; transform: scale(1.05); }
   }
-  .animate-pulse-slow {
-    animation: pulse-slow 2s ease-in-out infinite;
-  }
+  .animate-pulse-slow { animation: pulse-slow 2s ease-in-out infinite; }
 
-  /* Float/pulse for strong conviction dots */
   @keyframes float-pulse {
     0%, 100% { transform: translateY(0); opacity: 1; }
     50% { transform: translateY(-2px); opacity: 0.85; }
   }
-  .animate-float {
-    animation: float-pulse 3s ease-in-out infinite;
+  .animate-float { animation: float-pulse 3s ease-in-out infinite; }
+
+  /* The halo around the user's marker on the compass. Opacity only: a
+     `transform: scale()` on an SVG <circle> scales about the viewBox origin,
+     so the ring would drift away from the dot instead of breathing around it.
+     Static opacity is set by the attribute, so the animation wins while it
+     runs and the marker still renders if CSS animations are unavailable. */
+  @keyframes halo-breathe {
+    0%, 100% { opacity: 0.22; }
+    50% { opacity: 0.5; }
+  }
+  .halo-breathe { animation: halo-breathe 3.2s ease-in-out infinite; }
+
+  /* ─── Motion · interaction feedback ───────────────────────────────────────
+     One-shot keyframes for the quiz loop and the results settle. Everything
+     here animates transform, opacity or clip-path only — never width, height
+     or left — so a 14-rail fingerprint or a 10-row match list cannot shift the
+     page while it plays.
+
+     All of them are one-shot and use `both`, which means a delayed element is
+     invisible until its turn comes. Keep every delay at or under ~400ms.     */
+
+  /* The answer row's key: 2px of accent growing down the inside edge. */
+  @keyframes keyline-in {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+  .animate-keyline-in { animation: keyline-in 0.22s ease-out both; }
+
+  /* The tick inside the radio. A smaller sibling of checkmark-bounce, mounted
+     per selection rather than per dialog. */
+  @keyframes tick-pop {
+    0% { transform: scale(0.4); opacity: 0; }
+    60% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .animate-tick-pop {
+    animation: tick-pop 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  /* Going back must not arrive from the right: a question the reader has
+     already seen slides in from the edge they came from. */
+  @keyframes slide-in-left {
+    from { opacity: 0; transform: translateX(-24px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .animate-slide-in-left { animation: slide-in-left 0.3s ease-out both; }
+
+  /* The question counter, remounted per index: reads as a mechanical tick. */
+  @keyframes number-tick {
+    from { opacity: 0; transform: translateY(45%); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-number-tick { animation: number-tick 0.22s ease-out both; }
+
+  /* A bar filling from its origin. clip-path, not scaleX: these bars are
+     rounded-full, and a horizontal scale turns their caps into ellipses. The
+     -1px right inset keeps the end cap from being clipped flat. */
+  @keyframes bar-grow {
+    from { clip-path: inset(0 100% 0 0); }
+    to { clip-path: inset(0 -1px 0 -1px); }
+  }
+  .animate-bar-grow {
+    animation: bar-grow 0.7s cubic-bezier(0.22, 0.75, 0.28, 1) both;
+  }
+
+  /* A fingerprint rail opening outward from the neutral centre line, so its
+     markers arrive where the signed scale says they belong. */
+  @keyframes rail-open {
+    from { clip-path: inset(0 50% 0 50%); }
+    to { clip-path: inset(0 0 0 0); }
+  }
+  .animate-rail-open {
+    animation: rail-open 0.55s cubic-bezier(0.22, 0.75, 0.28, 1) both;
+  }
+
+  /* A mock product booting up inside an accordion panel. */
+  @keyframes boot-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .animate-boot { animation: boot-in 0.32s ease-out both; }
+}
+
+/* ─── Scroll-linked reveal ──────────────────────────────────────────────────
+   A one-shot entrance that fires when something scrolls into view, which a
+   plain keyframe cannot do: an animation that starts at mount has finished
+   long before the reader reaches the roadmap.
+
+   Deliberately guarded three times. `@supports` keeps browsers without view
+   timelines on the static layout (no `opacity: 0` left behind, because the
+   class only animates where the timeline exists); the breakpoint keeps it off
+   the phone's snap carousel, where every card shares one scroll position and
+   would all reveal at once; and the media query respects reduced motion. */
+@media (min-width: 48rem) {
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes reveal-up {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .reveal-up {
+        animation: reveal-up linear both;
+        animation-timeline: view();
+        animation-range: entry 6% cover 20%;
+      }
+    }
   }
 }
+
+/* ─── Scroll-linked reveal, vertical sections ───────────────────────────────
+   `.reveal-up` above is gated to md+ because the roadmap turns into a snap
+   carousel on phones, where every card shares one scroll position and they
+   would all fire at once. Plain vertical blocks have no such problem, so they
+   get their own copy rather than sharing keyframes declared inside a media
+   query — a `@keyframes` in a media block only exists while that block
+   matches. Two guards, since the width one is exactly what it does not need:
+   the timeline must exist, and motion must be allowed. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    @keyframes reveal-in {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .reveal-static {
+      animation: reveal-in linear both;
+      animation-timeline: view();
+      animation-range: entry 6% cover 20%;
+    }
+  }
+}
+
+/* ─── Motion accessibility: one global kill-switch ───────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    /* Delays must die with the duration. A staggered list item with
+       `animation-fill-mode: both` is invisible until its delay expires, so
+       zeroing only the duration would leave the last rows blank for up to
+       ~400ms under "reduce motion" — the opposite of the intent. */
+    animation-delay: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

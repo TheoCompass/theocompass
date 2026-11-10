@@ -1,330 +1,720 @@
-"use client"; // Required for interactivity
+"use client";
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react"; 
+import { useEffect, useState } from "react";
+import { ArrowRight, ChevronDown } from "lucide-react";
+import { CERTAINTY_MARK, CERTAINTY_SLOTS, SURFACE } from "../lib/palette";
+import { APP_STAGE, APP_VERSION } from "../lib/site";
+
+/**
+ * The landing page, reworked for a phone first.
+ *
+ * Three things were doing damage: a full-bleed photo behind a 68vh hero (slow,
+ * and unreadable at 375px), a 800px vertical timeline you had to scroll past to
+ * reach anything, and a "Support the Project" section that repeated a link
+ * already in the footer. The photo is a dark texture from md up and an
+ * uncropped 2.4:1 band below it, the roadmap is a snap carousel on phones and a
+ * numbered timeline from md up, and every call to action is the same accent.
+ */
+
+const PHASES = [
+  {
+    phase: "Phase 1",
+    status: "Complete",
+    title: "v2.0 Open Beta",
+    body:
+      "The core engine was stress-tested with the 13-axis algorithm, silence mechanics and posture multipliers: a 30-question test against 30 major traditions.",
+    bullets: [],
+    done: true,
+  },
+  {
+    phase: "Phase 2",
+    status: "Live now",
+    title: "The full database",
+    body:
+      "230+ denominations are live. We are gathering community feedback to calibrate the algorithm and refine the experience.",
+    bullets: [
+      "Full 230+ denomination dataset",
+      "Compass chart and label cloud on results",
+      "Side-by-side denomination comparison",
+    ],
+    done: true,
+  },
+  {
+    phase: "Phase 3",
+    status: "Planned",
+    title: "Official launch",
+    body:
+      "The complete standard experience, plus the user infrastructure for saving and sharing results.",
+    bullets: ["Standard Mode (~60 questions)", "Accounts to save and share results", "Anonymous opt-in for the Global Theology Map"],
+    done: false,
+  },
+  {
+    phase: "Phase 4",
+    status: "Future",
+    title: "Deep Dive expansion",
+    body:
+      "For students and the theologically obsessed: the granular depths of Christian doctrine.",
+    bullets: ["Deep Dive Mode (120 questions)", "Side-by-side user comparison", "Creedal alignment scoring"],
+    done: false,
+  },
+];
+
+/**
+ * The four things the beta adds, each with a miniature of the real thing.
+ *
+ * This was four flat <li> rows: the plainest block on the page, describing the
+ * most visual part of the product. The previews below are drawn from the same
+ * palette and the same marks the app itself uses — family hues, the axis rail
+ * with its gap band, the essentiality ramp — so the section shows the product
+ * instead of listing it. No images, no data, nothing extra to download.
+ */
+const FEATURES = [
+  {
+    title: "230+ denominations",
+    body: "The full theological database, spanning every major branch of Christianity with sourced descriptions.",
+  },
+  {
+    title: "Results you can read",
+    body: "A compass you can tap, a 14-axis fingerprint with real contrast, and a label cloud that separates how sure you are from how essential the belief is.",
+  },
+  {
+    title: "Side-by-side comparison",
+    body: "Expand any tradition to see axis-by-axis agreement with your own profile: where you overlap, and where you diverge.",
+  },
+  {
+    title: "Shareable cards",
+    body: "Download your summary, labels or fingerprint as an image. No account, no email, nothing stored.",
+  },
+] as const;
+
+const PREVIEW_HUES = ["#b56576", "#8e7ab5", "#5b7fb5", "#4f9d9b", "#6b9a58", "#cf7a45", "#c8963e"];
+
+/** Hand-placed so the swarm has gaps instead of a grid (no layout randomness). */
+const PREVIEW_DOTS: Array<[number, number]> = [
+  [6, 22], [16, 54], [26, 16], [24, 78], [34, 40], [40, 8], [44, 64], [52, 26],
+  [56, 84], [60, 46], [66, 14], [70, 70], [78, 38], [82, 58], [86, 20], [92, 78],
+  [12, 38], [30, 62], [48, 12], [64, 92], [88, 46], [96, 30],
+];
+
+function BetaDatabasePreview() {
+  return (
+    <div className="relative h-24 w-full" aria-hidden="true">
+      {PREVIEW_DOTS.map(([x, y], i) => (
+        <span
+          key={`${x}-${y}`}
+          className="absolute h-1.5 w-1.5 rounded-full"
+          style={{ left: `${x}%`, top: `${y}%`, backgroundColor: PREVIEW_HUES[i % PREVIEW_HUES.length] }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function BetaCompassPreview() {
+  return (
+    <div className="chart-grid relative h-24 w-full bg-paper" aria-hidden="true">
+      <span className="absolute left-1/2 top-0 h-full w-px bg-rule" />
+      <span className="absolute left-0 top-1/2 h-px w-full bg-rule" />
+      <span className="absolute h-1.5 w-1.5 rounded-full bg-[#b56576]" style={{ left: "24%", top: "28%" }} />
+      <span className="absolute h-1.5 w-1.5 rounded-full bg-[#6b9a58]" style={{ left: "70%", top: "22%" }} />
+      <span className="absolute h-1.5 w-1.5 rounded-full bg-[#c8963e]" style={{ left: "34%", top: "72%" }} />
+      <span className="absolute h-1.5 w-1.5 rounded-full bg-cerulean-600" style={{ left: "78%", top: "66%" }} />
+      {/* You: punch fill, navy ring, and the breathing halo from the real chart */}
+      <span
+        className="halo-breathe absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-punch-500"
+        style={{ left: "56%", top: "50%" }}
+      />
+      <span
+        className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-cerulean-900 bg-punch-500"
+        style={{ left: "56%", top: "50%" }}
+      />
+    </div>
+  );
+}
+
+const PREVIEW_AXES = [
+  { label: "Theology", you: 34, them: 68 },
+  { label: "Practice", you: 58, them: 51 },
+];
+
+function BetaComparePreview() {
+  return (
+    <div className="w-full space-y-3" aria-hidden="true">
+      {PREVIEW_AXES.map((axis) => {
+        const gap = Math.abs(axis.them - axis.you);
+        return (
+          <div key={axis.label}>
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="meta">{axis.label}</span>
+              <span className="font-mono text-3xs text-ink-muted">{gap} apart</span>
+            </div>
+            <div className="relative h-2 w-full bg-muted-soft">
+              <span
+                className="absolute top-0 h-full"
+                style={{
+                  left: `${Math.min(axis.you, axis.them)}%`,
+                  width: `${gap}%`,
+                  backgroundColor: "#7d5ba6",
+                  opacity: 0.3,
+                }}
+              />
+              <span
+                className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-paper bg-cerulean-900"
+                style={{ left: `${axis.you}%` }}
+              />
+              <span
+                className="absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-cerulean-900 bg-paper-raised"
+                style={{ left: `${axis.them}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const PREVIEW_CARDS = [
+  { text: "The Trinity", tier: "Core Dogma", filled: 3 },
+  { text: "Believer's baptism", tier: "Secondary", filled: 2 },
+  { text: "Women's ordination", tier: "Non-Essential", filled: 1 },
+];
+
+function BetaExportPreview() {
+  return (
+    <div className="w-full border border-rule bg-paper-raised" aria-hidden="true">
+      <div className="flex items-center justify-between bg-cerulean-900 px-2 py-1.5">
+        <span className="font-serif text-3xs text-paper">TheoCompass</span>
+        <span className="h-1 w-1 rounded-full bg-punch-500" />
+      </div>
+      <div className="space-y-1 p-2">
+        {PREVIEW_CARDS.map((card) => (
+          <div
+            key={card.text}
+            className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-[2px] border border-rule bg-paper-raised px-1.5 py-1"
+          >
+            <span className="text-3xs leading-tight text-ink">{card.text}</span>
+            <span className="shrink-0 rounded-[2px] bg-muted-soft px-1 py-0.5 text-[0.5rem] font-semibold leading-none text-ink-soft">
+              {card.tier}
+            </span>
+            {/* Three ticks, matching CERTAINTY_SLOTS: three slots, four states.
+                The colours are imported, not literals: this preview was the last
+                place in the app that spelled the cerulean out by hand. */}
+            <span className="ml-auto flex items-end gap-[2px]">
+              {Array.from({ length: CERTAINTY_SLOTS }, (_, slot) => (
+                <span
+                  key={slot}
+                  className="h-1.5 w-[3px]"
+                  style={{
+                    backgroundColor: slot < card.filled ? CERTAINTY_MARK : SURFACE.ruleStrong,
+                  }}
+                />
+              ))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const BETA_PREVIEWS = [BetaDatabasePreview, BetaCompassPreview, BetaComparePreview, BetaExportPreview];
 
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [openFeature, setOpenFeature] = useState(0);
+
+  // Escape and a resize to desktop both close the menu. Without the second one
+  // the drawer survives a resize as an invisible open state, which the next
+  // click on the hamburger then reads as "already open".
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsMenuOpen(false);
+    };
+    const desktop = window.matchMedia("(min-width: 48rem)");
+    const onBreakpoint = () => {
+      if (desktop.matches) setIsMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    desktop.addEventListener("change", onBreakpoint);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      desktop.removeEventListener("change", onBreakpoint);
+    };
+  }, [isMenuOpen]);
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900">
-      
-      {/* 1. Header */}
-      <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 py-4 px-6 md:px-12 flex justify-between items-center">
-        <Link href="/" className="flex items-center gap-3 group">
-          <Image 
-            src="/logo.png" 
-            alt="TheoCompass Logo" 
-            width={40} 
-            height={40} 
-            className="rounded transition-transform group-hover:scale-105"
+    <div className="flex min-h-screen flex-col bg-paper pb-16 font-sans text-ink md:pb-0">
+      {/* 1. Header - one row, one accent, nothing rounded */}
+      <header className="sticky top-0 z-50 flex w-full items-center justify-between border-b border-rule bg-paper/95 px-4 py-2.5 backdrop-blur-md md:px-12 md:py-3">
+        <Link href="/" className="flex items-center gap-3">
+          <Image
+            src="/logo.png"
+            alt="TheoCompass"
+            width={40}
+            height={40}
+            className="h-8 w-8 object-contain md:h-9 md:w-9"
+            priority
           />
-          <span className="font-serif font-bold text-xl text-slate-800 tracking-tight">TheoCompass</span>
+          <span className="font-serif text-lg font-bold tracking-tight text-ink md:text-xl">TheoCompass</span>
         </Link>
-        
-        {/* Desktop Nav */}
-         <nav className="hidden md:flex gap-6 text-sm font-medium text-slate-500 items-center">
-           <Link href="#products" className="hover:text-blue-700 transition-colors">Products</Link>
-           <Link href="#roadmap" className="hover:text-blue-700 transition-colors">Roadmap</Link>
-           <a href="https://www.reddit.com/r/TheoCompass" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-3 py-1.5 rounded-full text-xs font-bold transition-all">💬 Community</a>
-           <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-pink-50 hover:bg-pink-100 text-pink-600 border border-pink-200 px-3 py-1.5 rounded-full text-xs font-bold transition-all">❤️ Support</a>
-         </nav>
 
-        {/* Mobile Menu Button */}
-        <div className="md:hidden">
-           <button 
-             onClick={() => setIsMenuOpen(!isMenuOpen)} 
-             className="text-slate-600 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-             aria-label="Toggle Menu"
-           >
-             {isMenuOpen ? (
-               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-               </svg>
-             ) : (
-               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-               </svg>
-             )}
-           </button>
-        </div>
-        {/* Mobile Dropdown Menu */}
+        <nav className="hidden items-center gap-5 text-sm font-medium text-ink-muted md:flex">
+          <Link href="#products" className="transition-colors hover:text-ink">
+            The quiz
+          </Link>
+          <Link href="#roadmap" className="transition-colors hover:text-ink">
+            Roadmap
+          </Link>
+          <a
+            href="https://www.reddit.com/r/TheoCompass"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-ink"
+          >
+            Community
+          </a>
+          <Link
+            href="/christian-denominations"
+            className="border border-cerulean-900 bg-cerulean-900 px-3 py-1.5 text-2xs font-semibold text-paper transition-colors hover:bg-cerulean-800"
+          >
+            Start the quiz
+          </Link>
+        </nav>
+
+        <button
+          type="button"
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          aria-expanded={isMenuOpen}
+          aria-controls="mobile-menu"
+          aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+          className="p-2 text-ink-soft transition-colors hover:bg-muted-soft hover:text-ink md:hidden"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"}
+            />
+          </svg>
+        </button>
+
         {isMenuOpen && (
-          <div className="md:hidden bg-white border-b border-slate-200 shadow-sm z-40 absolute w-full left-0 top-full">
-          <nav className="flex flex-col gap-4 p-6 text-base font-medium text-slate-700">
-             <Link href="#products" onClick={() => setIsMenuOpen(false)} className="hover:text-blue-700 transition-colors">Products</Link>
-             <Link href="#roadmap" onClick={() => setIsMenuOpen(false)} className="hover:text-blue-700 transition-colors">Roadmap</Link>
-             <a href="https://www.reddit.com/r/TheoCompass" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-orange-500 hover:text-orange-600 font-semibold transition-colors">💬 Community</a>
-             <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-pink-500 hover:text-pink-600 font-semibold transition-colors">❤️ Support</a>
-          </nav>
-          </div>
+          <>
+            {/* The drawer used to float over a page that kept scrolling behind
+                it, with nothing saying where it ended. A scrim closes it and
+                marks the boundary; `top-full` starts it under the header, which
+                is why it can live inside a `backdrop-blur` parent at all. */}
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setIsMenuOpen(false)}
+              className="animate-fade-in absolute left-0 top-full h-[100dvh] w-full cursor-default bg-ink/25 md:hidden"
+            />
+
+            <div
+              id="mobile-menu"
+              className="animate-fade-in absolute left-0 top-full z-10 w-full border-b border-rule bg-paper-raised md:hidden"
+            >
+              <nav className="px-4 text-mini font-medium text-ink-soft">
+                <Link
+                  href="#products"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="block border-b border-rule py-3 transition-colors hover:text-ink"
+                >
+                  The quiz
+                </Link>
+                <Link
+                  href="#roadmap"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="block border-b border-rule py-3 transition-colors hover:text-ink"
+                >
+                  Roadmap
+                </Link>
+                <a
+                  href="https://www.reddit.com/r/TheoCompass"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="block border-b border-rule py-3 transition-colors hover:text-ink"
+                >
+                  Community
+                </a>
+                <div className="py-3">
+                  <Link
+                    href="/christian-denominations"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="flex items-center justify-center gap-1.5 bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-deep"
+                  >
+                    Start the quiz
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+                  </Link>
+                </div>
+              </nav>
+            </div>
+          </>
         )}
       </header>
 
-      {/* 2. Hero Section */}
-      <main className="relative min-h-[90vh] flex flex-col items-center justify-center w-full overflow-hidden">
-        <div className="absolute inset-0 z-0 bg-slate-900">
-          <Image 
-            src="/banner.png" 
-            alt="TheoCompass Background" 
+      {/* 2. Hero - one artwork layer at every width, cropped from the centre */}
+      <main id="main-content" className="relative flex w-full flex-col items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(120%_100%_at_50%_0%,#2c5175_0%,#1d3557_55%,#14273f_100%)]" />
+
+        {/* The banner is 4912x2048 and its middle third is the compass; the outer
+            thirds are empty texture. Cropping them off with `object-cover` shows
+            the part that matters, at a readable size, instead of squeezing the
+            whole frame into a letterbox band on a phone. */}
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/banner.png"
+            alt=""
             fill
-            className="object-cover object-center opacity-40"
+            sizes="100vw"
             priority
+            className="object-cover object-center opacity-50 md:opacity-40"
           />
-          <div className="absolute inset-0 bg-gradient-to-b" />
+          <div className="absolute inset-0 bg-gradient-to-b from-cerulean-900/45 via-cerulean-900/60 to-cerulean-900" />
         </div>
 
-        <div className="relative z-10 w-full max-w-5xl mx-auto px-6 py-20 text-center flex flex-col items-center">
-           <div className="mb-6 inline-flex items-center gap-2 bg-amber-500/15 backdrop-blur-md border border-amber-400/30 text-amber-100 text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
-             <span className="relative flex h-2 w-2">
-               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
-             </span>
-             🚀 v2.0 Open Beta is Live!
-           </div>
+        <div className="relative z-10 flex w-full max-w-3xl flex-col items-center px-4 py-12 text-center md:py-24">
+          {/* The badge used to be 10px cerulean-200 with a 40%-opacity border on
+              a navy gradient: the first thing on the page was the least visible.
+              Punch fill, a live dot, and a slow sweep — all killed by the global
+              reduced-motion guard in globals.css. */}
+          <span
+            className="relative mb-5 inline-flex animate-fade-in-up items-center gap-2 overflow-hidden border border-punch-500/50 bg-punch-500/20 px-3 py-1.5 text-2xs font-semibold uppercase tracking-[0.16em] text-paper"
+            style={{ animationFillMode: "both" }}
+          >
+            <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-punch-300 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-punch-500" />
+            </span>
+            {APP_VERSION} {APP_STAGE.toLowerCase()}
+            <span aria-hidden="true" className="pointer-events-none absolute inset-0 animate-shimmer" />
+          </span>
 
-          <h1 className="font-serif text-5xl md:text-7xl font-bold text-white mb-6 leading-tight tracking-tight drop-shadow-lg">
-            Find your theological <span className="text-blue-400">alignment.</span>
+          <h1
+            className="animate-fade-in-up font-display text-[clamp(1.9rem,7vw,3.5rem)] font-semibold leading-[1.05] tracking-tight text-paper"
+            style={{ animationDelay: "70ms", animationFillMode: "both" }}
+          >
+            Find your theological <span className="text-cerulean-300">alignment.</span>
           </h1>
-          
-           <p className="text-lg md:text-xl text-slate-200 mb-10 max-w-2xl mx-auto leading-relaxed drop-shadow">
-             Explore the theological landscape. Match your beliefs against <span className="font-bold text-white">230+ Christian denominations</span> across 13 dimensions.
-             We analyze not just <span className="font-bold text-white">what</span> you believe, 
-             but your certainty and posture toward others.
-           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 mb-12">
-            <Link 
-              href="/christian-denominations" 
-              className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-10 rounded-full shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 text-lg ring-1 ring-white/20"
+          <p
+            className="mx-auto mt-5 max-w-xl animate-fade-in-up text-body leading-relaxed text-cerulean-100 md:text-base"
+            style={{ animationDelay: "140ms", animationFillMode: "both" }}
+          >
+            Match your beliefs against <strong className="font-bold text-paper">230+ Christian denominations</strong>{" "}
+            across 13 dimensions. We look at <strong className="font-bold text-paper">what</strong> you believe, your
+            certainty, and your posture toward everyone else.
+          </p>
+
+          <div
+            className="mt-8 flex w-full animate-fade-in-up flex-col gap-3 sm:w-auto sm:flex-row"
+            style={{ animationDelay: "220ms", animationFillMode: "both" }}
+          >
+            <Link
+              href="/christian-denominations"
+              className="border border-paper bg-paper px-6 py-3 text-center text-sm font-semibold text-cerulean-900 transition-[background-color,transform] hover:-translate-y-0.5 hover:bg-cerulean-100 motion-reduce:hover:translate-y-0"
             >
-              Take the Quiz
+              Take the quiz
             </Link>
-            <Link 
-              href="#roadmap" 
-              className="bg-white/10 backdrop-blur-md border border-white/30 hover:bg-white/20 text-white font-bold py-4 px-10 rounded-full shadow-lg transition-all text-lg"
+            <Link
+              href="#roadmap"
+              className="px-6 py-3 text-center text-sm font-semibold text-cerulean-100 underline decoration-cerulean-300/50 underline-offset-4 transition-colors hover:text-paper hover:decoration-cerulean-300"
             >
-              View Roadmap
+              What comes next
             </Link>
           </div>
         </div>
       </main>
 
-      {/* 3. Active Products Section */}
-      <section id="products" className="w-full bg-slate-50 py-24 px-6 relative z-10 -mt-20">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8 md:p-12 flex flex-col md:flex-row gap-8 items-center transform hover:-translate-y-1 transition-transform duration-300">
-            <div className="flex-1">
-              <span className="text-amber-600 font-bold tracking-widest uppercase text-xs mb-2 block">Now in Open Beta</span>
-              <h2 className="font-serif text-3xl font-bold text-slate-900 mb-4">Denomination Alignment Quiz</h2>
-              <p className="text-slate-600 leading-relaxed mb-6">
-                Now powered by <strong>230+ Christian denominations</strong> across history. The open beta unlocks our full theological database — match your beliefs to traditions from Apostolic to Pentecostal, and see exactly where you align.
-              </p>
-              <div className="flex flex-wrap gap-2 mb-6">
-                <span className="bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-1 rounded">13 Dimensions</span>
-                <span className="bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-1 rounded">30 Questions</span>
-                <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2.5 py-1 rounded border border-amber-200">230+ Denominations</span>
-              </div>
-              <Link href="/christian-denominations" className="inline-flex items-center font-bold text-blue-600 hover:text-blue-800 transition-colors">
-                Take the Quiz <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-              </Link>
-            </div>
-            <div className="w-full md:w-1/3 aspect-square rounded-2xl overflow-hidden shadow-inner shrink-0 relative bg-slate-100 border border-slate-200">
-              <Image 
-                src="/compass-family.png" 
-                alt="TheoCompass family alignment chart showing 30 Christian tradition clusters"
-                fill
-                className="object-contain p-3"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* 4. What's New in Open Beta */}
-      <section className="w-full bg-white py-24 px-6 border-t border-slate-100">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="font-serif text-3xl md:text-4xl font-bold text-slate-900 mb-4">What's New in Open Beta</h2>
-            <p className="text-slate-600 leading-relaxed max-w-xl mx-auto">
-              Since the Alpha, we've been hard at work. Here's what the Open Beta brings to the table.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Card 1: Database */}
-            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 hover:border-amber-300 hover:shadow-md transition-all group">
-              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center mb-4 text-xl group-hover:scale-110 transition-transform">
-                📚
-              </div>
-              <h3 className="font-bold text-slate-900 mb-2">230+ Denominations</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Our full theological database is now live — spanning traditions from Apostolic to Pentecostal, across every major branch of Christianity.
-              </p>
-            </div>
-
-            {/* Card 2: Visual Overhaul */}
-            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 hover:border-blue-300 hover:shadow-md transition-all group">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center mb-4 text-xl group-hover:scale-110 transition-transform">
-                🎨
-              </div>
-              <h3 className="font-bold text-slate-900 mb-2">Redesigned Results</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                A complete visual overhaul of the results page — featuring an interactive compass chart, theological fingerprint breakdown, and a dynamic label cloud.
-              </p>
-            </div>
-
-            {/* Card 3: Side-by-Side Compare */}
-            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 hover:border-emerald-300 hover:shadow-md transition-all group">
-              <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center mb-4 text-xl group-hover:scale-110 transition-transform">
-                🔬
-              </div>
-              <h3 className="font-bold text-slate-900 mb-2">Compare Side-by-Side</h3>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Expand any denomination card to see axis-by-axis alignment against your profile — discover exactly where you overlap and where you diverge.
-              </p>
-            </div>
-          </div>
-
-          {/* Community CTA ribbon */}
-          <div className="mt-12 bg-gradient-to-r from-orange-50 to-pink-50 border border-orange-200/60 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <p className="font-bold text-slate-800 mb-1">Shape the future of TheoCompass</p>
-              <p className="text-sm text-slate-600">Join the Reddit community to discuss results, suggest features, and help calibrate the algorithm.</p>
-            </div>
-            <a 
-              href="https://www.reddit.com/r/TheoCompass" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="shrink-0 inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-full transition-all shadow-md hover:shadow-lg text-sm"
-            >
-              💬 Join the Community
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. Support the Project */}
-      <section className="w-full bg-slate-50 py-24 px-6 border-t border-slate-100">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="bg-gradient-to-br from-pink-50 to-amber-50 border border-pink-200/60 rounded-2xl p-8 md:p-10">
-            <div className="text-4xl mb-4">☕</div>
-            <h2 className="font-serif text-2xl md:text-3xl font-bold text-slate-900 mb-4">Support the Project</h2>
-            <p className="text-slate-600 leading-relaxed max-w-xl mx-auto mb-6">
-              Each month of development involves dozens of hours of work, from deep theological research to coding the quiz and its scoring models. This goal helps sustain the project's momentum and directly funds the time and effort required to build the next phase of TheoCompass.
-            </p>
-            <a 
-              href="https://ko-fi.com/oroq" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-pink-500 hover:bg-pink-600 text-white font-bold px-8 py-3 rounded-full shadow-md hover:shadow-lg transition-all text-sm"
-            >
-              ❤️ Support on Ko‑fi
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. Development Roadmap Section (Vertical Timeline) */}
-      <section id="roadmap" className="w-full bg-white py-24 px-6 border-t border-slate-100">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="font-serif text-3xl md:text-4xl font-bold text-slate-900 mb-4">Development Roadmap</h2>
-            <p className="text-slate-600 leading-relaxed max-w-xl mx-auto">
-              TheoCompass is under active development. We are building the most comprehensive theological mapping tool on the internet. Here is where we are heading.
-            </p>
-          </div>
-
-          {/* Timeline Container */}
-          <div className="relative border-l-2 border-slate-200 ml-4 md:ml-12 space-y-12 pb-8">
-            
-            {/* Phase 1: Complete */}
-            <div className="relative pl-8 md:pl-12">
-              <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-slate-300 ring-4 ring-white"></div>
-              <span className="text-slate-400 font-bold tracking-widest uppercase text-xs block mb-1">Phase 1 • Complete</span>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">v2.0 Open Beta</h3>
-              <p className="text-slate-600 mb-4 text-sm leading-relaxed">
-                The core engine was successfully stress-tested with the 13-axis algorithm, silence mechanics, and posture multipliers using a 30-question test against 30 major traditions.
-              </p>
-            </div>
-
-            {/* Phase 2: Live Now */}
-            <div className="relative pl-8 md:pl-12">
-              <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-amber-500 ring-4 ring-white"></div>
-              <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-amber-500 animate-ping opacity-50"></div>
-              <span className="text-amber-600 font-bold tracking-widest uppercase text-xs block mb-1">Phase 2 • Live Now</span>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">v2.0 Open Beta</h3>
-              <p className="text-slate-600 mb-3 text-sm leading-relaxed">
-                The full 230+ denomination database is live! We are gathering community feedback to calibrate the algorithm and refine the user experience.
-              </p>
-              <ul className="text-sm text-slate-500 list-disc pl-4 space-y-1">
-                <li>Full 230+ denomination dataset</li>
-                <li>Redesigned results with compass chart & label cloud</li>
-                <li>Side-by-side denomination comparison</li>
-              </ul>
-            </div>
-
-            {/* Phase 3: Launch */}
-            <div className="relative pl-8 md:pl-12 group">
-              <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-slate-200 border-2 border-slate-300 ring-4 ring-white group-hover:border-blue-400 transition-colors"></div>
-              <span className="text-slate-500 font-bold tracking-widest uppercase text-xs block mb-1">Phase 3 • Planned</span>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">v2.0 Official Launch</h3>
-              <p className="text-slate-600 mb-3 text-sm leading-relaxed">
-                The complete standard experience. Unlocking the larger test and introducing user infrastructure for saving and sharing theology.
-              </p>
-              <ul className="text-sm text-slate-500 list-disc pl-4 space-y-1">
-                <li>Standard Mode (~60 Questions)</li>
-                <li>User accounts to save & share results</li>
-                <li>Anonymous opt-in for the Global Theology Map</li>
-              </ul>
-            </div>
-
-            {/* Phase 4: Deep Dive */}
-            <div className="relative pl-8 md:pl-12 group">
-              <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-slate-200 border-2 border-slate-300 ring-4 ring-white group-hover:border-blue-400 transition-colors"></div>
-              <span className="text-slate-500 font-bold tracking-widest uppercase text-xs block mb-1">Phase 4 • Future</span>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">The Deep Dive Expansion</h3>
-              <p className="text-slate-600 mb-3 text-sm leading-relaxed">
-                For the ultimate theology nerds and students. A massive test exploring the absolute granular depths of Christian doctrine.
-              </p>
-              <ul className="text-sm text-slate-500 list-disc pl-4 space-y-1">
-                <li>Deep Dive Mode (120 Questions)</li>
-                <li>Side-by-side user comparison tool</li>
-                <li>Creedal Alignment scoring</li>
-              </ul>
-            </div>
-
-          </div>
-          
-          {/* Platform Future Note */}
-          <div className="mt-12 p-6 bg-blue-50 border border-blue-100 rounded-xl text-center">
-            <p className="text-sm font-medium text-blue-800">
-              <strong>Beyond Phase 4:</strong> TheoCompass will expand to include the Worldview Quiz, the Global Theology Heatmap, and community-requested features.
-            </p>
-          </div>
-
-        </div>
-      </section>
-
-      {/* 5. Footer */}
-      <footer className="w-full bg-slate-900 text-slate-400 py-12 px-6 text-center border-t border-slate-800">
-        <div className="max-w-4xl mx-auto flex flex-col items-center">
-          <p className="font-serif italic text-lg mb-6 text-slate-300">
-            "He is before all things, and in him all things hold together." — Colossians 1:17
+      {/* 3. The one live product - a single card, not a pitch deck */}
+      <section id="products" className="w-full border-b border-rule bg-paper px-4 py-12 md:px-6 md:py-16">
+        <div className="reveal-static mx-auto max-w-3xl border border-rule bg-paper-raised p-5 md:p-8">
+          <p className="meta mb-2 text-cerulean-800">Now in open beta</p>
+          <h2 className="font-serif text-2xl font-bold text-ink md:text-3xl">Denomination alignment quiz</h2>
+          <p className="mt-3 text-sm leading-relaxed text-ink-soft md:text-base">
+            230+ Christian denominations across history, from Apostolic to Pentecostal. Answer honestly and the compass
+            shows where you sit, the fingerprint shows how strongly you hold it, and the label cloud names the beliefs
+            underneath.
           </p>
-          <div className="flex gap-6 mb-8 text-sm">
-            <a href="https://www.reddit.com/r/TheoCompass" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Community</a>
-            <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="hover:text-pink-400 transition-colors">Support</a>
-            <a href="mailto:theocompass.project@gmail.com" className="hover:text-white transition-colors">Contact</a>
+
+          <dl className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-t border-rule pt-4 text-2xs">
+            <div className="flex items-baseline gap-1.5">
+              <dt className="text-ink-muted">Dimensions</dt>
+              <dd className="num font-mono font-semibold text-ink">13</dd>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <dt className="text-ink-muted">Questions</dt>
+              <dd className="num font-mono font-semibold text-ink">30&ndash;120</dd>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <dt className="text-ink-muted">Traditions</dt>
+              <dd className="num font-mono font-semibold text-ink">230+</dd>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <dt className="text-ink-muted">Account needed</dt>
+              <dd className="font-semibold text-ink">No</dd>
+            </div>
+          </dl>
+
+          <Link
+            href="/christian-denominations"
+            className="mt-5 inline-block border border-cerulean-900 bg-cerulean-900 px-5 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-cerulean-800"
+          >
+            Start the quiz
+          </Link>
+        </div>
+      </section>
+
+      {/* 4. What the beta adds - an accordion that shows the product, not tells */}
+      <section className="w-full border-b border-rule bg-paper-raised px-4 py-12 md:px-6 md:py-16">
+        <div className="reveal-static mx-auto max-w-3xl">
+          <h2 className="font-serif text-2xl font-bold text-ink md:text-3xl">What the beta adds</h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft md:text-base">
+            Four things changed in this build. Open one to see what it looks like.
+          </p>
+
+          <div className="mt-6 divide-y divide-rule border-y border-rule">
+            {FEATURES.map((feature, index) => {
+              const isOpen = openFeature === index;
+              const Preview = BETA_PREVIEWS[index];
+              return (
+                <div key={feature.title}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenFeature(isOpen ? -1 : index)}
+                    aria-expanded={isOpen}
+                    aria-controls={`beta-panel-${index}`}
+                    className="group flex w-full items-center gap-3 py-4 text-left"
+                  >
+                    <span className="num font-mono text-3xs text-ink-muted">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="flex-1 text-sm font-bold text-ink transition-colors group-hover:text-accent-deep">
+                      {feature.title}
+                    </span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      strokeWidth={2}
+                      className={`h-4 w-4 shrink-0 text-ink-muted transition-transform duration-300 motion-reduce:transition-none ${
+                        isOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* 0fr -> 1fr: the panel animates to its own height without a
+                      magic max-height, and simply snaps open where the
+                      transition is unsupported. */}
+                  <div
+                    id={`beta-panel-${index}`}
+                    aria-hidden={!isOpen}
+                    className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+                      isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="grid gap-4 pb-5 pl-7 sm:grid-cols-[1fr_14rem] sm:items-center">
+                        <p className="text-sm leading-relaxed text-ink-soft">{feature.body}</p>
+                        <div
+                          className={`w-full border border-rule bg-paper p-2 ${
+                            isOpen ? "animate-boot" : ""
+                          }`}
+                        >
+                          <Preview />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="border-t border-slate-800 pt-6 w-full max-w-md">
-            <p className="text-xs text-slate-500 mb-1">Built for informed decision, not persuasion.</p>
-            <p className="text-xs text-slate-600">© 2026 Oroq / TheoCompass Project</p>
+
+          <p className="mt-6 text-sm leading-relaxed text-ink-soft">
+            Questions, corrections or calibration arguments are welcome in the{" "}
+            <a
+              href="https://www.reddit.com/r/TheoCompass"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-cerulean-900 underline decoration-cerulean-300 underline-offset-2 hover:decoration-cerulean-900"
+            >
+              community
+            </a>
+            .
+          </p>
+        </div>
+      </section>
+
+
+      {/* 5. Roadmap - a snap carousel on phones, a timeline from md up */}
+      <section id="roadmap" className="w-full border-b border-rule bg-paper px-4 py-12 md:px-6 md:py-16">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="font-serif text-2xl font-bold text-ink md:text-3xl">Roadmap</h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft md:text-base">
+            Where the project is, and where it is going. Swipe through on a phone.
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span className="flex h-1.5 w-32 gap-0.5" aria-hidden="true">
+              {PHASES.map((item) => (
+                <span
+                  key={item.title}
+                  className={`h-full flex-1 ${item.done ? "bg-punch-ink" : "bg-rule"}`}
+                />
+              ))}
+            </span>
+            <span className="text-2xs font-medium text-ink-muted">
+              {PHASES.filter((item) => item.done).length} of {PHASES.length} phases complete
+            </span>
           </div>
+
+          <ol className="-mx-4 mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-3 md:mx-0 md:mt-8 md:block md:overflow-visible md:px-0 md:pb-0">
+            {PHASES.map((item, index) => {
+              const isLive = item.status === "Live now";
+              const markerClass = isLive
+                ? "border-punch-ink bg-paper text-punch-ink ring-2 ring-punch-500/25"
+                : item.done
+                ? "border-punch-ink bg-punch-ink text-paper"
+                : index === PHASES.length - 1
+                ? "border-rule-strong bg-paper text-ink-muted"
+                : "border-cerulean-600 bg-paper text-cerulean-800";
+              const pillClass = isLive
+                ? "bg-punch-ink text-paper"
+                : item.done
+                ? "bg-punch-50 text-punch-ink"
+                : item.status === "Planned"
+                ? "bg-cerulean-50 text-cerulean-800"
+                : "bg-muted-soft text-ink-muted";
+
+              return (
+                <li
+                  key={item.title}
+                  className="reveal-up relative w-[80%] shrink-0 snap-start border border-rule bg-paper-raised p-4 md:grid md:w-auto md:grid-cols-[1.75rem_1fr] md:gap-x-5 md:border-0 md:bg-transparent md:p-0 md:pb-9 md:last:pb-0"
+                >
+                  {/* Desktop rail: a numbered marker and a connector that keeps
+                      running between items, so the completed stretch of the
+                      timeline is visibly punch and the rest is rule. */}
+                  <div aria-hidden="true" className="hidden md:flex md:flex-col md:items-center">
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-2xs font-bold ${markerClass}`}
+                    >
+                      {index + 1}
+                    </span>
+                    <span
+                      className={`mt-1 w-0.5 flex-1 ${item.done ? "bg-punch-ink/30" : "bg-rule"}`}
+                    />
+                  </div>
+
+                  <div className="md:pt-0.5">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="meta">
+                        {item.phase} of {PHASES.length}
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wider ${pillClass}`}
+                      >
+                        {isLive && (
+                          <span className="h-1 w-1 rounded-full bg-paper animate-pulse-slow" />
+                        )}
+                        {item.status}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-ink md:text-lg">{item.title}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{item.body}</p>
+                    {item.bullets.length > 0 && (
+                      <ul className="mt-2 space-y-1 text-sm text-ink-muted">
+                        {item.bullets.map((bullet) => (
+                          <li key={bullet} className="flex gap-2">
+                            <span
+                              aria-hidden="true"
+                              className={`mt-[0.45rem] h-1 w-1 shrink-0 rounded-full ${
+                                item.done ? "bg-punch-ink/60" : "bg-cerulean-600/60"
+                              }`}
+                            />
+                            {bullet}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+
+
+      {/* 6. Footer - the support link lives here instead of in its own section */}
+      <footer className="w-full bg-paper-raised px-4 py-10 md:px-6 md:py-12">
+        <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+          <p className="max-w-[34ch] font-serif text-base italic leading-snug text-ink-soft md:max-w-none md:text-lg">
+            &ldquo;He is before all things, and in him all things hold together.&rdquo; &ndash; Colossians 1:17
+          </p>
+
+          <nav className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
+            <a
+              href="https://www.reddit.com/r/TheoCompass"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-ink-soft transition-colors hover:text-ink"
+            >
+              Community
+            </a>
+            <a
+              href="https://ko-fi.com/oroq"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-ink-soft transition-colors hover:text-punch-ink"
+            >
+              Support on Ko-fi
+            </a>
+            <a
+              href="mailto:theocompass.project@gmail.com"
+              className="text-ink-soft transition-colors hover:text-ink"
+            >
+              Contact
+            </a>
+          </nav>
+
+          <p className="mt-6 max-w-md border-t border-rule pt-4 text-xs leading-relaxed text-ink-muted">
+            Each month is dozens of hours of research and code. If it has been useful,{" "}
+            <a
+              href="https://ko-fi.com/oroq"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-rule-strong underline-offset-2 hover:text-ink"
+            >
+              a coffee
+            </a>{" "}
+            keeps it moving.
+          </p>
+
+          <p className="mt-4 text-xs text-ink-muted">Built for informed decision, not persuasion.</p>
+          <p className="mt-1 text-xs text-ink-muted">&copy; 2026 Oroq / TheoCompass Project</p>
         </div>
       </footer>
-      
+
+      {/*
+        Sticky mobile call to action. The hero button scrolls away on a phone, so
+        the one action that matters stays reachable; the padding on the root keeps
+        it from covering the footer.
+      */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-paper-raised/95 px-4 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+        <Link
+          href="/christian-denominations"
+          className="block border border-cerulean-900 bg-cerulean-900 px-4 py-2.5 text-center text-sm font-semibold text-paper"
+        >
+          Start the quiz
+        </Link>
+      </div>
     </div>
   );
 }
+

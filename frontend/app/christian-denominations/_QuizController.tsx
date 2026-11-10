@@ -6,13 +6,15 @@ import html2canvas from "html2canvas-pro";
 import CompassChart from "./CompassChart"; 
 import { useRouter } from 'next/navigation';
 import { trackEvent } from '../../lib/gtag';
+import { APP_STAGE } from '../../lib/site';
+import { Info } from "lucide-react";
 import type { Question, UserResponse } from './_types';
 import { AXIS_LABELS, FINGERPRINT_CATEGORIES, QUIZ_CATEGORY_LABELS } from './_constants';
 import { normalizeAxisKey } from './_helpers';
 import { PageHeader } from './_components/_PageHeader';
 import { Modals } from './_components/_Modals';
 import { ModeSelectCards } from './_components/_ModeSelectCards';
-import { QuizQuestionView } from './_components/_QuizQuestionView';
+import { AxisSlider, QuizQuestionView } from './_components/_QuizQuestionView';
 import { ResultsDashboard } from './_components/_ResultsDashboard';
 import ExportCard from './_components/_ExportCard';
 import ExportLabelsCard from './_components/_ExportLabelsCard';
@@ -41,8 +43,7 @@ export default function QuizController() {
   const [results, setResults] = useState<any[]>([]);
   const [familyMatches, setFamilyMatches] = useState<any[]>([]);
   const [userCoords, setUserCoords] = useState<Record<string, number>>({});
-  const [showSpecific, setShowSpecific] = useState(false);
-  const [showTopFamilyDenoms, setShowTopFamilyDenoms] = useState(false);
+  const [showSpecific, setShowSpecific] = useState(true);
   // 0.5: global "active only" filter, shared by the results page AND the export image
   const [activeOnly, setActiveOnly] = useState(false);
   const [userTolerance, setUserTolerance] = useState<number>(50);
@@ -79,6 +80,8 @@ export default function QuizController() {
   const [devCode, setDevCode] = useState("");
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [quizAnimKey, setQuizAnimKey] = useState(0);
+  /** Set before bumping quizAnimKey, so Back can slide in from the left. */
+  const [quizAnimDir, setQuizAnimDir] = useState<"next" | "prev">("next");
 
   // Instructions view state
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -271,8 +274,7 @@ export default function QuizController() {
     setUserTolerance(50);
     setUserCertainty(50);
     setUserLabels([]);
-    setShowSpecific(false);
-    setShowTopFamilyDenoms(false);
+    setShowSpecific(true);
     setActiveOnly(false);
     setShowRestartModal(false);
   };
@@ -372,6 +374,7 @@ export default function QuizController() {
       }
       
       setCurrentQuestionIndex(nextIndex);
+      setQuizAnimDir("next");
       setQuizAnimKey(prev => prev + 1);
     } else {
       setIsCalculating(true);
@@ -542,6 +545,7 @@ export default function QuizController() {
   const handleBack = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
+      setQuizAnimDir("prev");
       setQuizAnimKey(prev => prev + 1);
     }
   };
@@ -608,9 +612,9 @@ export default function QuizController() {
       exportRef.current.style.left = 'auto';
       
       const canvas = await html2canvas(exportRef.current, {
-        scale: 2, 
+        scale: 2,
         useCORS: true,
-        backgroundColor: "#0f172a", 
+        backgroundColor: "#ffffff",
       });
       
       const dataURL = canvas.toDataURL("image/png");
@@ -645,9 +649,9 @@ export default function QuizController() {
       exportLabelsRef.current.style.left = 'auto';
       
       const canvas = await html2canvas(exportLabelsRef.current, {
-        scale: 2, 
+        scale: 2,
         useCORS: true,
-        backgroundColor: "#f8fafc",
+        backgroundColor: "#ffffff",
       });
       
       const dataURL = canvas.toDataURL("image/png");
@@ -727,6 +731,32 @@ export default function QuizController() {
   }, [currentView, displayAnswers, selectedAnswer, isSilenceSelected]);
 
 
+  // One definition, four return branches. This prop list was pasted into each
+  // of them, so adding one meant remembering all four.
+  const modals = (
+    <Modals
+      showBackModal={showBackModal}
+      showDevModal={showDevModal}
+      showRestartModal={showRestartModal}
+      devCode={devCode}
+      onUnlockDevTools={() => {
+        setShowRestartModal(false);
+        setShowDevModal(true);
+      }}
+      onCloseBackModal={() => setShowBackModal(false)}
+      onCloseDevModal={() => setShowDevModal(false)}
+      onCloseRestartModal={() => {
+        setShowRestartModal(false);
+        setDevCode("");
+      }}
+      onConfirmBack={handleConfirmBack}
+      onConfirmDev={handleConfirmDev}
+      onConfirmRestart={handleConfirmRestart}
+      onDevDenomFill={handleDevDenomFill}
+      onSetDevCode={setDevCode}
+    />
+  );
+
   // ==========================================
   // VIEW 1: MODE SELECT
   // ==========================================
@@ -741,7 +771,7 @@ export default function QuizController() {
     }
 
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+      <div className="min-h-screen bg-paper flex flex-col font-sans text-ink">
         <PageHeader
           showRestart={false}
           onLogoClick={() => setShowBackModal(true)}
@@ -750,25 +780,17 @@ export default function QuizController() {
           onRestartClick={() => setShowRestartModal(true)}
         />
 
-        <Modals
-          showBackModal={showBackModal}
-          showDevModal={showDevModal}
-          showRestartModal={showRestartModal}
-          devCode={devCode}
-          onUnlockDevTools={() => { setShowRestartModal(false); setShowDevModal(true); }}
-          onCloseBackModal={() => setShowBackModal(false)}
-          onCloseDevModal={() => setShowDevModal(false)}
-          onCloseRestartModal={() => { setShowRestartModal(false); setDevCode(""); }}
-          onConfirmBack={handleConfirmBack}
-          onConfirmDev={handleConfirmDev}
-          onConfirmRestart={handleConfirmRestart}
-          onDevDenomFill={handleDevDenomFill}
-          onSetDevCode={setDevCode}
-        />
-        <main className="flex-grow flex flex-col items-center justify-center p-6 max-w-4xl mx-auto animate-fade-in-up">
-          <h1 className="font-serif text-3xl md:text-5xl font-bold mb-4 text-center">Select Quiz Mode</h1>
-          <p className="text-slate-600 mb-10 text-center max-w-xl">Choose how deep you want to go. Progress is saved automatically.</p>
-          
+        {modals}
+        <main id="main-content" className="flex-grow flex flex-col items-center justify-center p-6 max-w-4xl mx-auto animate-fade-in-up">
+          <span className="meta">TheoCompass · {APP_STAGE}</span>
+          <h1 className="font-display text-3xl md:text-4xl mt-2 mb-3 text-center text-ink">
+            How deep do you want to go?
+          </h1>
+          <p className="text-ink-soft mb-8 text-center max-w-xl text-sm leading-relaxed">
+            30 to 120 questions on the doctrines that separate traditions. Progress
+            is saved automatically.
+          </p>
+
           <ModeSelectCards savedMode={savedMode} onSelectQuick={() => startInstructions("quick")} />
         </main>
       </div>
@@ -784,129 +806,104 @@ export default function QuizController() {
     const steps = [
       {
         title: "Select your Stance",
-        color: "text-slate-800",
+        color: "text-ink",
         content: (
           <div>
-            <p className="text-sm text-slate-600 mb-4">Choose the answer that best represents your view. Click <strong className="text-blue-600">"Learn more"</strong> for a detailed definition.</p>
+            <p className="text-sm text-ink-soft mb-4">Choose the answer that best represents your view. Tap <strong className="text-cerulean-900">Context</strong> for a detailed definition.</p>
             
-            <div className="bg-white p-4 rounded-xl border-2 border-blue-300 shadow-sm mb-3">
+            <div className="border border-rule bg-paper px-3 py-2.5">
               <div className="flex justify-between items-center">
-                <span className="font-medium text-blue-800">Example: Transubstantiation</span>
+                <span className="font-medium text-accent-deep">Example: Transubstantiation</span>
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); setDemoInfoOpen(!demoInfoOpen); }}
-                  className={`flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0 px-3 py-1.5 rounded-full border ${
+                  aria-expanded={demoInfoOpen}
+                  className={`flex shrink-0 items-center gap-1.5 border px-2 py-2 text-2xs font-medium transition-colors ${
                     demoInfoOpen
-                      ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                      : "bg-slate-100 text-blue-600 border-blue-200 animate-pulse-slow ring-2 ring-blue-300"
+                      ? "border-cerulean-900 bg-cerulean-900 text-white"
+                      : "border-rule bg-paper-raised text-ink-muted"
                   }`}
                 >
-                  <span className="text-xs whitespace-nowrap">{demoInfoOpen ? "Close" : "Learn more"}</span>
+                  <Info aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  <span className="whitespace-nowrap">{demoInfoOpen ? "Hide" : "Context"}</span>
                 </button>
               </div>
               
               {demoInfoOpen && (
-                <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-slate-600 border border-blue-200 animate-fade-in-up">
-                  <strong className="text-blue-800">Further Context:</strong><br/>
+                <div className="mt-2 border border-cerulean-200 bg-cerulean-50 px-3 py-2 text-xs leading-relaxed text-ink-soft">
+                  <span className="meta block">Further context</span>
                   The bread and wine become the actual body and blood of Christ during the Eucharist, while maintaining their physical appearances.
                 </div>
               )}
             </div>
             
-            <p className="text-xs text-slate-400 mt-2">
-              Tap <strong className="text-blue-600 font-medium">"Learn more"</strong> on any answer during the quiz to read additional context about that theological position.
+            <p className="text-xs text-ink-muted mt-2">
+              The same <strong className="text-cerulean-900 font-medium">Context</strong> button sits on every answer during the quiz.
             </p>
           </div>
         ),
       },
       {
         title: "Set your Certainty",
-        color: "text-blue-700",
+        color: "text-accent",
         content: (
           <div>
-            <p className="text-sm text-slate-600 mb-4">How confident are you in this specific belief?</p>
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <div className="flex justify-between text-sm mb-2 font-medium">
-                <span className="text-slate-800 font-bold flex items-center gap-2">
-                  <svg className="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  Certainty
-                </span>
-                <span className="font-bold text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-full text-xs">Pretty Sure</span>
-              </div>
-              <div className="relative mb-2">
-                <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 rounded-lg pointer-events-none bg-gradient-to-r from-slate-300 via-blue-400 to-blue-600"></div>
-                <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 flex justify-between px-[2px] pointer-events-none">
-                  {[0, 1, 2, 3].map(i => (
-                    <div key={i} className={`w-0.5 h-3 -translate-y-0.5 rounded-full ${i <= 2 ? 'bg-white' : 'bg-white/60'}`} />
-                  ))}
-                </div>
-                <div className="w-full h-8 relative">
-                  <div className="absolute left-[62%] top-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-2 border-blue-500 shadow-md"></div>
-                </div>
-              </div>
-              <div className="flex justify-between text-xs text-slate-400">
-                <span>Not Sure</span><span>Leaning</span><span>Pretty Sure</span><span>Certain</span>
-              </div>
+            <p className="text-sm text-ink-soft mb-4">How confident are you in this specific belief?</p>
+            <div className="mt-1 border border-rule bg-paper px-3 py-3 pointer-events-none select-none">
+              <AxisSlider
+                legend="Certainty"
+                labels={["Not Sure", "Leaning", "Pretty Sure", "Certain"]}
+                shortLabels={["Not sure", "Leaning", "Pretty sure", "Certain"]}
+                value={2}
+                onChange={() => {}}
+              />
             </div>
           </div>
         ),
       },
       {
         title: "Set Tolerance",
-        color: "text-emerald-600",
+        color: "text-accent",
         content: (
           <div>
-            <p className="text-sm text-slate-600 mb-4">How many of the other options do you consider valid? This affects how exclusive your match is.</p>
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <div className="flex justify-between items-end mb-1">
-                <span className="text-slate-800 text-sm font-bold flex items-center gap-2">
-                  <svg className="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  Tolerance
-                </span>
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-yellow-50 text-yellow-600">A Few</span>
-              </div>
-              <p className="text-xs text-slate-500 italic mb-2">A few other options are valid, but require theological discernment.</p>
-              <div className="w-full h-2 rounded-full bg-gradient-to-r from-red-400 via-yellow-400 via-green-400 to-sky-400"></div>
-              <div className="hidden sm:flex justify-between text-xs text-slate-400 mt-1">
-                <span>None</span>
-                <span className="text-center leading-tight -ml-7">None for<br/>Fellowship</span>
-                <span className="-ml-8">A Few</span>
-                <span className="-ml-3">Most</span>
-                <span>All</span>
-              </div>
-              <div className="flex sm:hidden justify-between text-xs text-slate-400 mt-1">
-                <span>None</span>
-                <span>A Few</span>
-                <span>All</span>
-              </div>
+            <p className="text-sm text-ink-soft mb-4">How many of the other options do you consider valid? This affects how exclusive your match is.</p>
+            <div className="mt-1 border border-rule bg-paper px-3 py-3 pointer-events-none select-none">
+              <AxisSlider
+                legend="How many views are acceptable?"
+                labels={["None Valid", "None for Fellowship", "A Few Valid", "Most Valid", "All Valid"]}
+                shortLabels={["None", "No fellowship", "A few", "Most", "All"]}
+                value={2}
+                onChange={() => {}}
+              />
+              <p className="mt-2 text-2xs leading-snug text-ink-muted">
+                A few other options are valid, but require theological discernment.
+              </p>
             </div>
           </div>
         ),
       },
       {
         title: "Or, Choose Silence",
-        color: "text-slate-800",
+        color: "text-ink",
         content: (
           <div>
-            <p className="text-sm text-slate-600 mb-4">If a question doesn't fit your theology, bypass the sliders entirely:</p>
-            <div className="flex flex-col sm:flex-row gap-3 mb-3">
-              <div className="flex-1 p-4 rounded-xl border-2 border-slate-300 bg-slate-50/50 text-sm flex items-start gap-3">
-                <span className="text-2xl flex-shrink-0">🤷</span>
-                <div className="text-left">
-                  <span className="font-bold text-slate-700 block">Apathetic Silence</span>
-                  <p className="text-xs text-slate-400 mt-0.5">The topic isn't relevant to you. Creates a soft, neutral stance.</p>
-                </div>
+            <p className="text-sm text-ink-soft mb-4">If a question doesn't fit your theology, bypass the sliders entirely:</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="border border-rule bg-paper px-3 py-2.5">
+                <span className="block text-mini font-medium text-ink">
+                  Apathetic silence
+                </span>
+                <p className="mt-0.5 text-2xs leading-snug text-ink-muted">
+                  The topic is not relevant to you. Creates a soft, neutral stance.
+                </p>
               </div>
-              <div className="flex-1 p-4 rounded-xl border-2 border-red-200 bg-red-50/50 text-sm flex items-start gap-3">
-                <span className="text-2xl flex-shrink-0">✋</span>
-                <div className="text-left">
-                  <span className="font-bold text-red-700 block">Hostile Silence</span>
-                  <p className="text-xs text-slate-400 mt-0.5">You reject the question's premise. Penalizes denominations that affirm it.</p>
-                </div>
+              <div className="border border-punch-300 bg-punch-soft px-3 py-2.5">
+                <span className="block text-mini font-medium text-punch-ink">
+                  Hostile silence
+                </span>
+                <p className="mt-0.5 text-2xs leading-snug text-ink-soft">
+                  You reject the question's premise. Penalises traditions that affirm it.
+                </p>
               </div>
             </div>
           </div>
@@ -915,7 +912,7 @@ export default function QuizController() {
     ];
     
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+      <div className="min-h-screen bg-paper flex flex-col font-sans text-ink">
         <PageHeader
           showRestart={false}
           onLogoClick={() => setShowBackModal(true)}
@@ -923,64 +920,50 @@ export default function QuizController() {
           onBackClick={() => setShowBackModal(true)}
           onRestartClick={() => setShowRestartModal(true)}
         />
-        <Modals
-          showBackModal={showBackModal}
-          showDevModal={showDevModal}
-          showRestartModal={showRestartModal}
-          devCode={devCode}
-          onUnlockDevTools={() => { setShowRestartModal(false); setShowDevModal(true); }}
-          onCloseBackModal={() => setShowBackModal(false)}
-          onCloseDevModal={() => setShowDevModal(false)}
-          onCloseRestartModal={() => { setShowRestartModal(false); setDevCode(""); }}
-          onConfirmBack={handleConfirmBack}
-          onConfirmDev={handleConfirmDev}
-          onConfirmRestart={handleConfirmRestart}
-          onDevDenomFill={handleDevDenomFill}
-          onSetDevCode={setDevCode}
-        />
-       <main className="flex-grow p-6 max-w-2xl mx-auto w-full flex flex-col">
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm mt-8">
-            <h1 className="font-serif text-3xl font-bold mb-2 text-blue-900">How to navigate the quiz</h1>
-            <p className="text-slate-500 text-sm mb-6">
+        {modals}
+       <main id="main-content" className="mx-auto flex w-full max-w-[56rem] flex-grow flex-col px-4 py-6 md:px-8 md:py-10 animate-fade-in">
+          <div className="border border-rule bg-paper-raised px-4 py-6 sm:px-8 sm:py-8">
+            <h1 className="font-display text-[clamp(1.75rem,4vw,2.5rem)] leading-tight text-ink">How to navigate the quiz</h1>
+            <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-ink-soft">
               TheoCompass measures not just <em>what</em> you believe, but <em>how</em> you hold those beliefs.
             </p>
             
-            <div className="flex items-center justify-center gap-2 mb-6">
+            <div className="mt-5 flex items-center gap-1.5">
               {Array.from({ length: totalSteps }).map((_, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => setTutorialStep(i)}
-                  className={`w-4 h-4 rounded-full transition-all ${
-                    i === tutorialStep ? "bg-blue-600 w-8" : "bg-slate-300 hover:bg-slate-400"
+                  className={`h-[3px] transition-all ${
+                    i === tutorialStep ? "w-6 bg-cerulean-900" : "w-3 bg-rule-strong hover:bg-ink-muted"
                   }`}
                   aria-label={`Step ${i + 1}`}
                 />
               ))}
             </div>
             
-            <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 mb-6 min-h-[180px] animate-fade-in-up" key={tutorialStep}>
+            <div className="mb-4 min-h-[150px] border border-rule bg-paper px-3.5 py-4 animate-fade-in-up" key={tutorialStep}>
               <div className="flex items-center gap-2 mb-3">
-                <span className="bg-blue-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+                <span className="num flex h-5 min-w-5 items-center justify-center bg-cerulean-900 px-1 font-mono text-3xs font-bold text-white">
                   {tutorialStep + 1}
                 </span>
-                <h3 className={`font-bold text-lg ${steps[tutorialStep].color}`}>{steps[tutorialStep].title}</h3>
+                <h3 className={`font-display text-base leading-tight ${steps[tutorialStep].color}`}>{steps[tutorialStep].title}</h3>
               </div>
               {steps[tutorialStep].content}
             </div>
             
-            <div className="flex justify-between items-center mb-6">
+            <div className="mb-4 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setTutorialStep(Math.max(0, tutorialStep - 1))}
                 disabled={tutorialStep === 0}
                 className={`text-sm font-medium transition-colors ${
-                  tutorialStep === 0 ? "text-slate-300 cursor-not-allowed" : "text-slate-600 hover:text-blue-700"
+                  tutorialStep === 0 ? "text-rule-strong cursor-not-allowed" : "text-ink-soft hover:text-accent"
                 }`}
               >
                 ← Previous
               </button>
-              <span className="text-xs text-slate-400 font-medium">
+              <span className="text-xs text-ink-muted font-medium">
                 Step {tutorialStep + 1} of {totalSteps}
               </span>
               <button
@@ -988,7 +971,7 @@ export default function QuizController() {
                 onClick={() => setTutorialStep(Math.min(totalSteps - 1, tutorialStep + 1))}
                 disabled={tutorialStep === totalSteps - 1}
                 className={`text-sm font-medium transition-colors ${
-                  tutorialStep === totalSteps - 1 ? "text-slate-300 cursor-not-allowed" : "text-slate-600 hover:text-blue-700"
+                  tutorialStep === totalSteps - 1 ? "text-rule-strong cursor-not-allowed" : "text-ink-soft hover:text-accent"
                 }`}
               >
                 Next →
@@ -996,24 +979,24 @@ export default function QuizController() {
             </div>
 
             {error && (
-              <div className="mb-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between border border-punch-300 bg-punch-soft px-3 py-2 text-xs text-punch-ink">
                 <span>{error}</span>
                 <button onClick={() => startInstructions(selectedMode!)} className="ml-4 underline font-bold whitespace-nowrap">Try Again</button>
               </div>
             )}
 
-            <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-700 flex items-center gap-2">
-              <span className="text-indigo-400 text-base leading-none">⌨️</span>
-              <span><span className="font-semibold">During the quiz:</span> Press <kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px] min-w-[18px] text-center">1</kbd>–<kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px] min-w-[18px] text-center">4</kbd> to select, <kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px]">Enter</kbd> to confirm, <kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px]">S</kbd> / <kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px]">H</kbd> for silence.</span>
+            <div className="mb-3 flex items-start gap-2 border border-rule bg-muted-soft px-3 py-2 text-2xs leading-snug text-ink-soft">
+              
+              <span><span className="font-semibold">During the quiz:</span> Press <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">1</kbd>–<kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">4</kbd> to select, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">Enter</kbd> to confirm, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">S</kbd> / <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">H</kbd> for silence.</span>
             </div>
 
             <button 
               onClick={startQuiz} 
               disabled={isLoading || !!error || tutorialStep < totalSteps - 1}
-              className={`w-full py-4 rounded-xl font-bold shadow-md transition-all text-lg ${
-                isLoading || error ? "bg-slate-200 text-slate-500 cursor-not-allowed" : 
-                tutorialStep < totalSteps - 1 ? "bg-slate-200 text-slate-400 cursor-not-allowed" :
-                "bg-blue-900 hover:bg-blue-800 text-white"
+              className={`mt-2 w-full px-5 py-2.5 text-sm font-medium transition-colors ${
+                isLoading || error ? "bg-rule text-ink-muted cursor-not-allowed" : 
+                tutorialStep < totalSteps - 1 ? "bg-rule text-ink-muted cursor-not-allowed" :
+                "bg-accent hover:bg-accent-deep text-white"
               }`}
             >
               {isLoading ? "Loading Database..." : 
@@ -1024,13 +1007,13 @@ export default function QuizController() {
             
             {skipConfirm ? (
               <div className="flex items-center justify-center gap-2 mt-3">
-                <span className="text-xs text-slate-500">Skip tutorial?</span>
+                <span className="text-xs text-ink-muted">Skip tutorial?</span>
                 <button
                   type="button"
                   onClick={() => { setSkipConfirm(false); startQuiz(); }}
                   disabled={isLoading || !!error}
-                  className={`text-sm font-bold px-4 py-1.5 rounded-lg transition-colors ${
-                    isLoading || error ? "bg-slate-200 text-slate-400 cursor-not-allowed" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                  className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    isLoading || error ? "bg-rule text-ink-muted cursor-not-allowed" : "bg-cerulean-100 text-cerulean-900 hover:bg-cerulean-200"
                   }`}
                 >
                   Yes, skip
@@ -1038,7 +1021,7 @@ export default function QuizController() {
                 <button
                   type="button"
                   onClick={() => setSkipConfirm(false)}
-                  className="text-xs text-slate-400 hover:text-slate-600 underline"
+                  className="text-xs text-ink-muted hover:text-ink-soft underline"
                 >
                   Cancel
                 </button>
@@ -1049,7 +1032,7 @@ export default function QuizController() {
                 onClick={() => setSkipConfirm(true)}
                 disabled={isLoading || !!error}
                 className={`w-full text-center text-sm mt-3 transition-colors ${
-                  isLoading || error ? "text-slate-300 cursor-not-allowed" : "text-slate-400 hover:text-blue-600"
+                  isLoading || error ? "text-rule-strong cursor-not-allowed" : "text-ink-muted hover:text-accent"
                 }`}
               >
                 Skip tutorial, start quiz
@@ -1073,7 +1056,7 @@ export default function QuizController() {
     };
 
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 relative overflow-x-hidden">
+      <div className="min-h-screen bg-paper flex flex-col font-sans text-ink relative overflow-x-hidden">
         {/* HIDDEN EXPORT CARDS */}
         <ExportCard
           ref={exportRef}
@@ -1114,21 +1097,7 @@ export default function QuizController() {
           onBackClick={() => setShowBackModal(true)}
           onRestartClick={() => setShowRestartModal(true)}
         />
-        <Modals
-          showBackModal={showBackModal}
-          showDevModal={showDevModal}
-          showRestartModal={showRestartModal}
-          devCode={devCode}
-          onUnlockDevTools={() => { setShowRestartModal(false); setShowDevModal(true); }}
-          onCloseBackModal={() => setShowBackModal(false)}
-          onCloseDevModal={() => setShowDevModal(false)}
-          onCloseRestartModal={() => { setShowRestartModal(false); setDevCode(""); }}
-          onConfirmBack={handleConfirmBack}
-          onConfirmDev={handleConfirmDev}
-          onConfirmRestart={handleConfirmRestart}
-          onDevDenomFill={handleDevDenomFill}
-          onSetDevCode={setDevCode}
-        />
+        {modals}
 
         <ResultsDashboard
           results={results}
@@ -1140,19 +1109,16 @@ export default function QuizController() {
           selectedMode={selectedMode}
           isCalculating={isCalculating}
           showSpecific={showSpecific}
-          showTopFamilyDenoms={showTopFamilyDenoms}
           compareDenomId={compareDenomId}
           expandedAxis={expandedAxis}
           collapsedCategories={collapsedCategories}
           allCoordinates={allCoordinates}
           isExporting={isExporting}
-          exportRef={exportRef}
           isExportingLabels={isExportingLabels}
           isExportingFingerprint={isExportingFingerprint}
           activeOnly={activeOnly}
           onSetActiveOnly={setActiveOnly}
           onSetShowSpecific={setShowSpecific}
-          onSetShowTopFamilyDenoms={setShowTopFamilyDenoms}
           onSetCompareDenomId={setCompareDenomId}
           onSetExpandedAxis={setExpandedAxis}
           onSetCollapsedCategories={setCollapsedCategories}
@@ -1160,25 +1126,30 @@ export default function QuizController() {
           onDownloadLabels={handleDownloadLabels}
           onDownloadFingerprint={handleDownloadFingerprint}
           onRetake={() => setShowRestartModal(true)}
-          onDevMenu={() => setShowDevModal(true)}
         />
 
         {/* GLOBAL FOOTER */}
-        <footer className="w-full bg-slate-900 text-slate-300 py-10 px-6 text-center mt-auto">
-          <div className="max-w-4xl mx-auto flex flex-col items-center">
-            <p className="font-serif italic text-lg mb-6 text-slate-400">
-              "He is before all things, and in him all things hold together." — Colossians 1:17
+        <footer className="mt-auto w-full border-t border-rule bg-paper py-8 px-6 text-center">
+          <div className="mx-auto flex max-w-3xl flex-col items-center">
+            <p className="mb-5 max-w-md font-serif text-base italic leading-relaxed text-ink-soft">
+              “He is before all things, and in him all things hold together.”
+              <span className="mt-1 block text-xs not-italic text-ink-muted">
+                Colossians 1:17
+              </span>
             </p>
-            <div className="flex gap-6 mb-8 text-sm">
-              <a href="https://theocompass.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">TheoCompass.com</a>
-              <a href="https://www.reddit.com/r/TheoCompass" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">r/TheoCompass</a>
-              <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Support on Ko-fi</a>
-              <a href="mailto:theocompass.project@gmail.com" className="hover:text-white transition-colors">Contact</a>
+            <div className="meta flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+              <a href="https://theocompass.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-ink">TheoCompass.com</a>
+              <a href="https://www.reddit.com/r/TheoCompass" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-ink">r/TheoCompass</a>
+              <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-accent">Support on Ko-fi</a>
+              <a href="mailto:theocompass.project@gmail.com" className="transition-colors hover:text-ink">Contact</a>
             </div>
-            <p className="text-xs text-slate-500 mb-2">Built for informed decision, not persuasion.</p>
-            <p className="text-xs text-slate-500">© 2026 Oroq / TheoCompass Project</p>
+            <div className="mt-6 space-y-1 border-t border-rule pt-4 text-2xs text-ink-muted">
+              <p>Built for informed decisions, not persuasion.</p>
+              <p>© 2026 Oroq / TheoCompass Project</p>
+            </div>
           </div>
         </footer>
+
       </div>
     );
   }
@@ -1190,47 +1161,26 @@ export default function QuizController() {
   if (!currentQuestion) return <div className="p-10 text-center">Error: No question data found.</div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-        <PageHeader
-          showRestart={true}
-          onLogoClick={() => setShowBackModal(true)}
-          onTitleClick={() => setShowBackModal(true)}
-          onBackClick={() => setShowBackModal(true)}
-          onRestartClick={() => setShowRestartModal(true)}
-        />
-        <div className="w-full bg-slate-200 h-3">
-          <div 
-            className="h-3 transition-all duration-500 ease-out relative overflow-hidden"
-            style={{ width: `${progressPercentage}%` }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-700 rounded-r-full"></div>
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer rounded-r-full"></div>
-          </div>
-        </div>
-      </header>
-      
-      <Modals
-        showBackModal={showBackModal}
-        showDevModal={showDevModal}
-        showRestartModal={showRestartModal}
-        devCode={devCode}
-        onUnlockDevTools={() => { setShowRestartModal(false); setShowDevModal(true); }}
-        onCloseBackModal={() => setShowBackModal(false)}
-        onCloseDevModal={() => setShowDevModal(false)}
-        onCloseRestartModal={() => { setShowRestartModal(false); setDevCode(""); }}
-        onConfirmBack={handleConfirmBack}
-        onConfirmDev={handleConfirmDev}
-        onConfirmRestart={handleConfirmRestart}
-        onDevDenomFill={handleDevDenomFill}
-        onSetDevCode={setDevCode}
+    <div className="min-h-screen bg-paper flex flex-col font-sans text-ink">
+      <PageHeader
+        showRestart={true}
+        onLogoClick={() => setShowBackModal(true)}
+        onTitleClick={() => setShowBackModal(true)}
+        onBackClick={() => setShowBackModal(true)}
+        onRestartClick={() => setShowRestartModal(true)}
       />
+      
+      {modals}
 
       {showSaveToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-          <div className="bg-slate-800 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg animate-scale-in-out flex items-center gap-2">
-            <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+        <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2 pointer-events-none">
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-2 border border-rule-strong bg-paper-raised px-3 py-1.5 text-xs font-medium text-ink animate-scale-in-out"
+          >
+            <svg className="h-3.5 w-3.5 text-sage" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
             Progress saved
           </div>
@@ -1257,6 +1207,7 @@ export default function QuizController() {
         transitionCategoryName={transitionCategoryName}
         transitionCategoryCode={transitionCategoryCode}
         quizAnimKey={quizAnimKey}
+        quizAnimDir={quizAnimDir}
         userAnswers={userAnswers}
         onStandardAnswerClick={handleStandardAnswerClick}
         onToggleInfo={toggleInfo}
