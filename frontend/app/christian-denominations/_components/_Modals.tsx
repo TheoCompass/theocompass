@@ -5,7 +5,12 @@ import { ArrowRight, Dices, Target, Terminal, UserCog } from "lucide-react";
 import { DIALOG_BUTTON, Dialog } from "./_Dialog";
 
 /**
- * The three dialogs the quiz opens: leave, restart, developer.
+ * The dialogs the quiz opens: leave, restart, developer.
+ *
+ * "Leave" has two voices. Mid-quiz it is one warning, because progress is
+ * already in localStorage and there is nothing to decide. On the results page
+ * the same button must offer a choice: keep the finished result for next time,
+ * or delete it. That is `backContext`.
  *
  * These were the last screens still wearing the old dialect - `bg-black/50`,
  * `rounded-lg shadow-xl`, a 16px bold sans title, `bg-red-600` for anything
@@ -32,6 +37,16 @@ interface ModalsProps {
   onConfirmRestart: () => void;
   onDevDenomFill: (denomId: string) => void;
   onSetDevCode: (code: string) => void;
+  /**
+   * Which leave dialog to show: "progress" mid-quiz, "results" once the quiz is
+   * finished. On results there is a choice, because those two exits do
+   * different things to localStorage.
+   */
+  backContext?: "progress" | "results";
+  /** Results only: keep the result and go to the main page. */
+  onSaveAndLeave: () => void;
+  /** Results only: drop the result and go to the main page. */
+  onDiscardAndLeave: () => void;
   backModalMessage?: string;
 }
 
@@ -85,6 +100,9 @@ export function Modals({
   onConfirmRestart,
   onDevDenomFill,
   onSetDevCode,
+  backContext = "progress",
+  onSaveAndLeave,
+  onDiscardAndLeave,
   backModalMessage = "Your progress is saved automatically. You can resume later.",
 }: ModalsProps) {
   const [customDenomId, setCustomDenomId] = useState("DENOM_001");
@@ -108,24 +126,51 @@ export function Modals({
   return (
     <>
       {/* ── Leave ─────────────────────────────────────────────────────── */}
-      <Dialog
-        open={showBackModal}
-        onClose={onCloseBackModal}
-        eyebrow="Leave"
-        title="Leave the quiz?"
-        footer={
-          <>
-            <button type="button" onClick={onCloseBackModal} className={DIALOG_BUTTON.quiet}>
-              Stay
-            </button>
-            <button type="button" onClick={onConfirmBack} className={DIALOG_BUTTON.danger}>
-              Leave quiz
-            </button>
-          </>
-        }
-      >
-        <p>{backModalMessage}</p>
-      </Dialog>
+      {backContext === "results" ? (
+        <Dialog
+          open={showBackModal}
+          onClose={onCloseBackModal}
+          eyebrow="Leave"
+          title="Leave your results?"
+          footer={
+            <>
+              <button type="button" onClick={onCloseBackModal} className={DIALOG_BUTTON.quiet}>
+                Stay
+              </button>
+              <button type="button" onClick={onDiscardAndLeave} className={DIALOG_BUTTON.danger}>
+                Don&rsquo;t save
+              </button>
+              <button type="button" onClick={onSaveAndLeave} className={DIALOG_BUTTON.primary}>
+                Save results
+              </button>
+            </>
+          }
+        >
+          <p>
+            Saving keeps these results in this browser, so opening the quiz again shows
+            them instead of starting over. Leaving without saving deletes them.
+          </p>
+        </Dialog>
+      ) : (
+        <Dialog
+          open={showBackModal}
+          onClose={onCloseBackModal}
+          eyebrow="Leave"
+          title="Leave the quiz?"
+          footer={
+            <>
+              <button type="button" onClick={onCloseBackModal} className={DIALOG_BUTTON.quiet}>
+                Stay
+              </button>
+              <button type="button" onClick={onConfirmBack} className={DIALOG_BUTTON.danger}>
+                Leave quiz
+              </button>
+            </>
+          }
+        >
+          <p>{backModalMessage}</p>
+        </Dialog>
+      )}
 
       {/* ── Developer tools ───────────────────────────────────────────── */}
       <Dialog

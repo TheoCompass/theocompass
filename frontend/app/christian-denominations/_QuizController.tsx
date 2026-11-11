@@ -20,6 +20,32 @@ import ExportCard from './_components/_ExportCard';
 import ExportLabelsCard from './_components/_ExportLabelsCard';
 import ExportFingerprintCard from './_components/_ExportFingerprintCard';
 
+/**
+ * The one definition of what a finished quiz looks like in localStorage.
+ *
+ * `handleNext` and the results page's "Save results" exit both write through
+ * here, so the key and the stored shape cannot drift apart.
+ */
+function persistFinalResults(snapshot: {
+  matches: unknown[];
+  familyMatches: unknown[];
+  userDimCoords: Record<string, number>;
+  userTolerance: number;
+  userCertainty: number;
+  userLabels: unknown[];
+  selectedMode: "quick" | "standard" | "deep" | null;
+  answeredCount: number;
+}) {
+  try {
+    localStorage.setItem(
+      "theocompass_final_results",
+      JSON.stringify({ ...snapshot, timestamp: new Date().getTime() })
+    );
+  } catch (err) {
+    console.error("Failed to save results", err);
+  }
+}
+
 export default function QuizController() {
   // --- APP STATE ---
   const [currentView, setCurrentView] = useState<"mode-select" | "instructions" | "quiz" | "results">("mode-select");
@@ -79,6 +105,11 @@ export default function QuizController() {
   const [showRestartModal, setShowRestartModal] = useState(false); 
   const [devCode, setDevCode] = useState("");
   const [showSaveToast, setShowSaveToast] = useState(false);
+  /**
+   * Set when the user leaves the results without saving, so a calculation that
+   * is still in flight cannot write the result back after the fact.
+   */
+  const skipResultsSaveRef = useRef(false);
   const [quizAnimKey, setQuizAnimKey] = useState(0);
   /** Set before bumping quizAnimKey, so Back can slide in from the left. */
   const [quizAnimDir, setQuizAnimDir] = useState<"next" | "prev">("next");
@@ -255,12 +286,44 @@ export default function QuizController() {
     router.push('/');
   };
 
+  /**
+   * Results exit, option one: keep the finished result in this browser, then go
+   * to the main page. The start screen reads this key and opens on the results.
+   */
+  const handleSaveResultsAndLeave = () => {
+    if (results.length > 0) {
+      persistFinalResults({
+        matches: results,
+        familyMatches,
+        userDimCoords: userCoords,
+        userTolerance,
+        userCertainty,
+        userLabels,
+        selectedMode,
+        answeredCount: answeredQuestionCount || questions.length,
+      });
+    }
+    localStorage.removeItem('theocompass_quiz_progress');
+    setShowBackModal(false);
+    router.push('/');
+  };
+
+  /** Results exit, option two: forget the result so the next visit starts fresh. */
+  const handleDiscardResultsAndLeave = () => {
+    skipResultsSaveRef.current = true;
+    localStorage.removeItem('theocompass_final_results');
+    localStorage.removeItem('theocompass_quiz_progress');
+    setShowBackModal(false);
+    router.push('/');
+  };
+
   const handleConfirmDev = () => {
     handleDevAutoFill(); 
     setShowDevModal(false);
   };
 
   const handleConfirmRestart = () => {
+    skipResultsSaveRef.current = false;
     localStorage.removeItem('theocompass_quiz_progress');
     localStorage.removeItem('theocompass_final_results');
     setCurrentView("mode-select");
@@ -280,6 +343,7 @@ export default function QuizController() {
   };
 
   const startInstructions = async (mode: "quick" | "standard" | "deep") => {
+    skipResultsSaveRef.current = false;
     setSelectedMode(mode);
     setCurrentView("instructions");
     setIsLoading(true);
@@ -410,17 +474,18 @@ export default function QuizController() {
           const answerCount = Object.keys(newAnswers).length;
           setAnsweredQuestionCount(answerCount);
 
-          localStorage.setItem("theocompass_final_results", JSON.stringify({
-             matches: data.matches,
-             familyMatches: data.familyMatches || [],
-             userDimCoords: data.userDimCoords,
-             userTolerance: data.userTolerance ?? 50,
-             userCertainty: data.userCertainty ?? 50,
-             userLabels: data.userLabels,
-             selectedMode: selectedMode,
-             answeredCount: answerCount,
-             timestamp: new Date().getTime()
-          }));
+          if (!skipResultsSaveRef.current) {
+            persistFinalResults({
+              matches: data.matches,
+              familyMatches: data.familyMatches || [],
+              userDimCoords: data.userDimCoords,
+              userTolerance: data.userTolerance ?? 50,
+              userCertainty: data.userCertainty ?? 50,
+              userLabels: data.userLabels,
+              selectedMode,
+              answeredCount: answerCount,
+            });
+          }
 
           localStorage.removeItem('theocompass_quiz_progress');
         } else {
@@ -754,6 +819,9 @@ export default function QuizController() {
       onConfirmRestart={handleConfirmRestart}
       onDevDenomFill={handleDevDenomFill}
       onSetDevCode={setDevCode}
+      backContext={currentView === "results" ? "results" : "progress"}
+      onSaveAndLeave={handleSaveResultsAndLeave}
+      onDiscardAndLeave={handleDiscardResultsAndLeave}
     />
   );
 

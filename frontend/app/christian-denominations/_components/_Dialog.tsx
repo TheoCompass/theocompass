@@ -153,7 +153,9 @@ export function Dialog({
           <div className="px-5 py-4 text-mini leading-relaxed text-ink-soft">{children}</div>
 
           {footer && (
-            <div className="flex justify-end gap-2 border-t border-rule px-5 py-3">{footer}</div>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-rule px-5 py-3">
+              {footer}
+            </div>
           )}
         </div>
       </div>
