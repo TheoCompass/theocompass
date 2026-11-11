@@ -1,9 +1,18 @@
 // Add KV to your Env interface
 import { computeCertaintyAxis } from "./axis-scores";
+import { handleGetRoadmap, handlePatchRoadmapTask, handleUnlockRoadmap } from "./roadmap";
+import { handleGetStats, handlePostQuizEvent } from "./quiz-stats";
 
 export interface Env {
   DB: D1Database;
   THEOCOMPASS_CACHE: KVNamespace; // <-- ADD THIS
+  /**
+   * Moderator code for roadmap status edits. Set it in production with
+   * `wrangler secret put ADMIN_CODE`; when unset the worker falls back to "mod"
+   * so a fresh clone can edit locally. It only guards the roadmap, never
+   * anything sensitive.
+   */
+  ADMIN_CODE?: string;
 }
 
 export interface UserResponse {
@@ -39,8 +48,8 @@ export default {
     // Set up CORS headers so your Next.js frontend can fetch this data
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
+      "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Admin-Code, X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
       "Access-Control-Expose-Headers": "X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
       "Content-Type": "application/json",
     };
@@ -294,6 +303,41 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/api/calculate") {
         return await handleCalculate(request, env, corsHeaders);
+      }
+
+      // -----------------------------------------------------------------
+      // ENDPOINT 7: Roadmap - content + moderator status edits
+      // -----------------------------------------------------------------
+      if (request.method === "GET" && url.pathname === "/api/roadmap") {
+        return await handleGetRoadmap(env, corsHeaders);
+      }
+
+      // Validates the moderator code without writing anything, so the UI can
+      // unlock before the first edit.
+      if (request.method === "POST" && url.pathname === "/api/roadmap/unlock") {
+        return await handleUnlockRoadmap(request, env, corsHeaders);
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/roadmap/tasks/")) {
+        const taskId = decodeURIComponent(url.pathname.slice("/api/roadmap/tasks/".length));
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(taskId)) {
+          return new Response(JSON.stringify({ error: "Invalid task id." }), {
+            status: 400,
+            headers: corsHeaders,
+          });
+        }
+        return await handlePatchRoadmapTask(request, env, corsHeaders, taskId);
+      }
+
+      // -----------------------------------------------------------------
+      // ENDPOINT 8: Quiz completion events + aggregate stats
+      // -----------------------------------------------------------------
+      if (request.method === "POST" && url.pathname === "/api/quiz/events") {
+        return await handlePostQuizEvent(request, env, corsHeaders, await getDataVersion(env));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/stats") {
+        return await handleGetStats(env, corsHeaders);
       }
 
       // -----------------------------------------------------------------

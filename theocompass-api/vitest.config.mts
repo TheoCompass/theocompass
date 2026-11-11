@@ -1,7 +1,13 @@
-import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
+import { defineWorkersConfig, readD1Migrations } from '@cloudflare/vitest-pool-workers/config';
+
+// D1-backed tests (roadmap, quiz stats) need the schema, so the migration files
+// are read here and applied per test file in test/setup.ts. That keeps the suite
+// on the exact schema the worker deploys with instead of a hand-written copy.
+const migrations = await readD1Migrations('./migrations');
 
 export default defineWorkersConfig({
 	test: {
+		setupFiles: ['./test/setup.ts'],
 		poolOptions: {
 			workers: {
 				wrangler: { configPath: './wrangler.jsonc' },
@@ -14,8 +20,10 @@ export default defineWorkersConfig({
 				miniflare: {
 					kvNamespaces: ['THEOCOMPASS_CACHE'],
 					d1Databases: ['DB'],
+					bindings: { TEST_MIGRATIONS: migrations },
 				},
 			},
 		},
 	},
 });
+

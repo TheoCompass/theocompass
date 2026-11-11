@@ -13,12 +13,14 @@
 		"db:seed-local": "wrangler d1 execute theocompass-db --local --file=./seed.sql",
 		"db:reset-remote": "wrangler d1 execute theocompass-db --remote --file=./reset.sql",
 		"db:seed-remote": "wrangler d1 execute theocompass-db --remote --file=./seed.sql",
+		"db:seed-roadmap-local": "wrangler d1 execute theocompass-db --local --file=./roadmap_seed.sql",
+		"db:seed-roadmap-remote": "wrangler d1 execute theocompass-db --remote --file=./roadmap_seed.sql",
 		"db:migrate-local": "wrangler d1 migrations apply theocompass-db --local",
 		"db:migrate-remote": "wrangler d1 migrations apply theocompass-db --remote",
 		"kv:update-local": "wrangler kv key put --binding=\"THEOCOMPASS_CACHE\" \"denomination_profiles\" --path=\"../precomputed/denomination_profiles.json\" --local",
 		"kv:update-remote": "wrangler kv key put --binding=\"THEOCOMPASS_CACHE\" \"denomination_profiles\" --path=\"../precomputed/denomination_profiles.json\" --remote",
-		"data:sync-local": "npm run db:migrate-local && npm run db:reset-local && npm run db:seed-local && npm run kv:update-local",
-		"data:sync-remote": "npm run db:migrate-remote && npm run db:reset-remote && npm run db:seed-remote && npm run kv:update-remote"
+		"data:sync-local": "npm run db:migrate-local && npm run db:reset-local && npm run db:seed-local && npm run db:seed-roadmap-local && npm run kv:update-local",
+		"data:sync-remote": "npm run db:migrate-remote && npm run db:reset-remote && npm run db:seed-remote && npm run db:seed-roadmap-remote && npm run kv:update-remote"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.12.4",
