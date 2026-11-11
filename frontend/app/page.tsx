@@ -427,8 +427,6 @@ export default function Home() {
             </div>
           </dl>
 
-          <LiveStats />
-
           <Link
             href="/christian-denominations"
             className="mt-5 inline-block border border-cerulean-900 bg-cerulean-900 px-5 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-cerulean-800"
@@ -436,6 +434,8 @@ export default function Home() {
             Start the quiz
           </Link>
         </div>
+
+        <LiveStats />
       </section>
 
       {/* 4. What the beta adds - an accordion that shows the product, not tells */}

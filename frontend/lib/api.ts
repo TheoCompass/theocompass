@@ -168,6 +168,17 @@ export interface QuizStats {
   topFamilies: Array<{ name: string; count: number }>;
   topMatches: Array<{ name: string; count: number }>;
   avgTopMatch: number | null;
+  // Added with the collective-results panel. Optional so a frontend deploy that
+  // lands before the API (or a cached response from the previous deploy) still
+  // type-checks and renders the older summary.
+  medianTopMatch?: number | null;
+  daily?: Array<{ date: string; count: number }>;
+  scoreHistogram?: number[];
+  scoreSample?: number;
+  familySample?: number;
+  matchSample?: number;
+  distinctFamilies?: number;
+  posture?: { tolerance: number | null; certainty: number | null; sample: number };
 }
 
 export async function fetchQuizStats(): Promise<QuizStats> {

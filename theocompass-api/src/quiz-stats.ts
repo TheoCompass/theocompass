@@ -7,7 +7,9 @@
  * Nothing identifying is stored: no email, IP, user agent or free text -- just
  * the outcome of a run (mode, answer count, top match, tolerance/certainty).
  * The client generates a session id per completed quiz; the UNIQUE index on
- * quiz_events.session_id means a retry or a restored results view records once.
+ * quiz_events.session_id means a retry records once. Developer "skip to a
+ * result" runs never post here: only the normal completion path calls this
+ * endpoint, so generated/inspected results do not enter the public counters.
  */
 
 const QUIZ_MODES = ["quick", "standard", "deep"] as const;
@@ -80,10 +82,34 @@ export async function handlePostQuizEvent(
 
 type CountRow = { count: number | null };
 type GroupRow = { key: string | null; count: number | null };
+type DailyRow = { day: string | null; count: number | null };
+type HistogramRow = { bucket: number | null; count: number | null };
+type SampleRow = {
+  family_sample: number | null;
+  match_sample: number | null;
+  score_sample: number | null;
+  distinct_families: number | null;
+};
+type MedianRow = { median: number | null };
+type PostureRow = {
+  tolerance: number | null;
+  certainty: number | null;
+  sample: number | null;
+};
+
+const DAILY_DAYS = 14;
+const HISTOGRAM_BUCKETS = 20;
+
+function numeric(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
 
 function numberFrom(row: CountRow | undefined | null): number {
-  const value = row?.count;
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  return numeric(row?.count);
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function groupsFrom(rows: GroupRow[] | undefined): Array<{ name: string; count: number }> {
@@ -91,6 +117,38 @@ function groupsFrom(rows: GroupRow[] | undefined): Array<{ name: string; count: 
   return rows
     .filter((row) => row.key)
     .map((row) => ({ name: String(row.key), count: numberFrom(row) }));
+}
+
+/**
+ * UTC day keys, oldest first, ending today. D1's `date('now')` and
+ * `date(created_at)` are UTC, so the zero-fill has to be built on the same
+ * clock or the last bar would be a day out for anyone east of Greenwich.
+ */
+function lastUtcDays(count: number): string[] {
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Array.from({ length: count }, (_, index) =>
+    new Date(today - (count - 1 - index) * 86_400_000).toISOString().slice(0, 10)
+  );
+}
+
+function dailyFrom(rows: DailyRow[] | undefined): Array<{ date: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const row of rows ?? []) {
+    if (row.day) counts.set(row.day, numeric(row.count));
+  }
+  return lastUtcDays(DAILY_DAYS).map((date) => ({ date, count: counts.get(date) ?? 0 }));
+}
+
+function histogramFrom(rows: HistogramRow[] | undefined): number[] {
+  const histogram = new Array<number>(HISTOGRAM_BUCKETS).fill(0);
+  for (const row of rows ?? []) {
+    const bucket = row.bucket;
+    if (typeof bucket !== "number" || !Number.isInteger(bucket)) continue;
+    if (bucket < 0 || bucket >= histogram.length) continue;
+    histogram[bucket] = numeric(row.count);
+  }
+  return histogram;
 }
 
 export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promise<Response> {
@@ -101,11 +159,26 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     });
   }
 
-  const [totals, today, last7, byMode, families, matches, scores] = await env.DB.batch([
+  const [
+    totals,
+    today,
+    last7,
+    byMode,
+    families,
+    matches,
+    scores,
+    daily,
+    histogram,
+    samples,
+    median,
+    posture,
+  ] = await env.DB.batch([
     env.DB.prepare("SELECT COUNT(*) AS count, MIN(created_at) AS since FROM quiz_events"),
     env.DB.prepare("SELECT COUNT(*) AS count FROM quiz_events WHERE date(created_at) = date('now')"),
+    // Calendar days, not a rolling 7x24h window, so this always equals the last
+    // seven bars of `daily` and the sparkline's "last 7" label is literally true.
     env.DB.prepare(
-      "SELECT COUNT(*) AS count FROM quiz_events WHERE created_at >= datetime('now', '-7 days')"
+      "SELECT COUNT(*) AS count FROM quiz_events WHERE date(created_at) >= date('now', '-6 days')"
     ),
     env.DB.prepare("SELECT mode AS key, COUNT(*) AS count FROM quiz_events GROUP BY mode"),
     env.DB.prepare(
@@ -121,6 +194,55 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     env.DB.prepare(
       "SELECT AVG(top_match_score) AS average FROM quiz_events WHERE top_match_score IS NOT NULL"
     ),
+    env.DB.prepare(
+      `SELECT date(created_at) AS day, COUNT(*) AS count FROM quiz_events
+       WHERE date(created_at) >= date('now', '-13 days')
+       GROUP BY day ORDER BY day ASC`
+    ),
+    // 20 buckets: bucket 0 is 0-4.9, bucket 19 is 95-100. The CAST truncates
+    // toward zero; scores are clamped to 0-100 on insert, so MIN/MAX only guard
+    // legacy rows.
+    env.DB.prepare(
+      `SELECT MIN(19, MAX(0, CAST(top_match_score / 5 AS INTEGER))) AS bucket,
+              COUNT(*) AS count
+       FROM quiz_events
+       WHERE top_match_score IS NOT NULL
+       GROUP BY bucket ORDER BY bucket ASC`
+    ),
+    env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM quiz_events
+           WHERE top_family IS NOT NULL AND top_family <> '') AS family_sample,
+         (SELECT COUNT(*) FROM quiz_events
+           WHERE top_match_name IS NOT NULL AND top_match_name <> '') AS match_sample,
+         (SELECT COUNT(*) FROM quiz_events
+           WHERE top_match_score IS NOT NULL) AS score_sample,
+         (SELECT COUNT(DISTINCT top_family) FROM quiz_events
+           WHERE top_family IS NOT NULL AND top_family <> '') AS distinct_families`
+    ),
+    // Median via the two middle ranks: for an odd count both expressions are
+    // the same row, for an even count they are the pair that gets averaged.
+    env.DB.prepare(
+      `WITH ranked AS (
+         SELECT top_match_score AS score,
+                ROW_NUMBER() OVER (ORDER BY top_match_score) AS rn,
+                COUNT(*) OVER () AS n
+         FROM quiz_events
+         WHERE top_match_score IS NOT NULL
+       )
+       SELECT AVG(score) AS median
+       FROM ranked
+       WHERE rn IN ((n + 1) / 2, (n + 2) / 2)`
+    ),
+    // Only runs that answered both sliders count: otherwise the two averages
+    // would come from different populations and read as a paired result.
+    env.DB.prepare(
+      `SELECT AVG(user_tolerance) AS tolerance,
+              AVG(user_certainty) AS certainty,
+              COUNT(*) AS sample
+       FROM quiz_events
+       WHERE user_tolerance IS NOT NULL AND user_certainty IS NOT NULL`
+    ),
   ]);
 
   const totalRow = (totals.results?.[0] ?? {}) as CountRow & { since?: string | null };
@@ -130,6 +252,10 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
   }
 
   const average = ((scores.results?.[0] ?? {}) as { average?: number | null }).average;
+  const sampleRow = (samples.results?.[0] ?? {}) as SampleRow;
+  const medianRow = (median.results?.[0] ?? {}) as MedianRow;
+  const postureRow = (posture.results?.[0] ?? {}) as PostureRow;
+
   const payload = JSON.stringify({
     status: "success",
     data: {
@@ -140,7 +266,19 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
       byMode: modeCounts,
       topFamilies: groupsFrom((families.results ?? []) as GroupRow[]),
       topMatches: groupsFrom((matches.results ?? []) as GroupRow[]),
-      avgTopMatch: typeof average === "number" ? Math.round(average * 10) / 10 : null,
+      avgTopMatch: typeof average === "number" ? round1(average) : null,
+      medianTopMatch: typeof medianRow.median === "number" ? round1(medianRow.median) : null,
+      daily: dailyFrom((daily.results ?? []) as DailyRow[]),
+      scoreHistogram: histogramFrom((histogram.results ?? []) as HistogramRow[]),
+      scoreSample: numeric(sampleRow.score_sample),
+      familySample: numeric(sampleRow.family_sample),
+      matchSample: numeric(sampleRow.match_sample),
+      distinctFamilies: numeric(sampleRow.distinct_families),
+      posture: {
+        tolerance: typeof postureRow.tolerance === "number" ? round1(postureRow.tolerance) : null,
+        certainty: typeof postureRow.certainty === "number" ? round1(postureRow.certainty) : null,
+        sample: numeric(postureRow.sample),
+      },
     },
     updatedAt: new Date().toISOString(),
   });

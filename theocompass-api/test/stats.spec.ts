@@ -41,6 +41,42 @@ const event = {
 	userCertainty: 55,
 };
 
+type SeedEvent = {
+	sessionId: string;
+	createdAt?: string;
+	topFamily?: string | null;
+	topMatchName?: string | null;
+	topMatchScore?: number | null;
+	userTolerance?: number | null;
+	userCertainty?: number | null;
+};
+
+/** Direct insert so a test can backdate rows and leave optional columns empty. */
+async function seedEvent(seed: SeedEvent): Promise<void> {
+	await env.DB.prepare(
+		`INSERT INTO quiz_events
+		   (session_id, mode, top_family, top_match_id, top_match_name, top_match_score,
+		    answered_count, user_tolerance, user_certainty, data_version, created_at)
+		 VALUES (?, 'quick', ?, ?, ?, ?, 10, ?, ?, 'test', COALESCE(?, datetime('now')))`
+	)
+		.bind(
+			seed.sessionId,
+			seed.topFamily ?? null,
+			seed.topMatchName ? seed.topMatchName.toLowerCase() : null,
+			seed.topMatchName ?? null,
+			seed.topMatchScore ?? null,
+			seed.userTolerance ?? null,
+			seed.userCertainty ?? null,
+			seed.createdAt ?? null
+		)
+		.run();
+}
+
+/** SQLite `datetime('now')` format, in UTC, N days back. */
+function daysAgo(days: number): string {
+	return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 19).replace('T', ' ');
+}
+
 beforeEach(() => {
 	invalidateStatsCache();
 });
@@ -54,10 +90,88 @@ describe('GET /api/stats', () => {
 			last7Days: 0,
 			trackingSince: null,
 			avgTopMatch: null,
+			medianTopMatch: null,
 			byMode: { quick: 0, standard: 0, deep: 0 },
 			topFamilies: [],
 			topMatches: [],
+			scoreSample: 0,
+			familySample: 0,
+			matchSample: 0,
+			distinctFamilies: 0,
+			posture: { tolerance: null, certainty: null, sample: 0 },
 		});
+		expect(data.daily).toHaveLength(14);
+		expect(data.daily.every((day: { count: number }) => day.count === 0)).toBe(true);
+		expect(data.scoreHistogram).toEqual(new Array(20).fill(0));
+	});
+});
+
+describe('aggregate breakdowns', () => {
+	it('buckets scores and reports a median that ignores a single outlier', async () => {
+		const scores = [0, 4.9, 5, 89.9, 90, 95, 100];
+		for (const [index, score] of scores.entries()) {
+			await seedEvent({ sessionId: `histogram-${index}`, topMatchScore: score });
+		}
+
+		const data = await getStats();
+		expect(data.scoreSample).toBe(7);
+		expect(data.avgTopMatch).toBe(55);
+		expect(data.medianTopMatch).toBe(89.9);
+
+		const histogram: number[] = data.scoreHistogram;
+		expect(histogram).toHaveLength(20);
+		expect(histogram[0]).toBe(2); // 0 and 4.9
+		expect(histogram[1]).toBe(1); // 5
+		expect(histogram[17]).toBe(1); // 89.9
+		expect(histogram[18]).toBe(1); // 90
+		expect(histogram[19]).toBe(2); // 95 and 100
+		expect(histogram.reduce((sum, count) => sum + count, 0)).toBe(7);
+	});
+
+	it('averages the two middle scores for an even count', async () => {
+		for (const [index, score] of [40, 60, 80, 90].entries()) {
+			await seedEvent({ sessionId: `even-${index}`, topMatchScore: score });
+		}
+
+		const data = await getStats();
+		expect(data.medianTopMatch).toBe(70); // (60 + 80) / 2
+		expect(data.avgTopMatch).toBe(67.5);
+	});
+
+	it('zero-fills the 14 UTC days and counts calendar days for last7Days', async () => {
+		await seedEvent({ sessionId: 'daily-today', createdAt: daysAgo(0) });
+		await seedEvent({ sessionId: 'daily-three', createdAt: daysAgo(3) });
+		await seedEvent({ sessionId: 'daily-eight', createdAt: daysAgo(8) });
+		await seedEvent({ sessionId: 'daily-twenty', createdAt: daysAgo(20) });
+
+		const data = await getStats();
+		expect(data.totalQuizzes).toBe(4);
+		expect(data.today).toBe(1);
+		expect(data.last7Days).toBe(2);
+		expect(data.daily).toHaveLength(14);
+		expect(data.daily.reduce((sum: number, day: { count: number }) => sum + day.count, 0)).toBe(3);
+		expect(data.daily.at(-1).count).toBe(1); // today
+		expect(data.daily.at(-4).count).toBe(1); // three days ago
+	});
+
+	it('keeps one denominator per breakdown', async () => {
+		await seedEvent({ sessionId: 'samples-posture', userTolerance: 40, userCertainty: 80 });
+		await seedEvent({ sessionId: 'samples-tolerance', userTolerance: 90 });
+		await seedEvent({
+			sessionId: 'samples-score',
+			topFamily: 'Protestant',
+			topMatchName: 'Anglican',
+			topMatchScore: 70,
+		});
+
+		const data = await getStats();
+		expect(data.posture).toEqual({ tolerance: 40, certainty: 80, sample: 1 });
+		expect(data.familySample).toBe(1);
+		expect(data.matchSample).toBe(1);
+		expect(data.distinctFamilies).toBe(1);
+		expect(data.scoreSample).toBe(1);
+		expect(data.medianTopMatch).toBe(70);
+		expect(data.scoreHistogram[14]).toBe(1); // 70 / 5
 	});
 });
 
@@ -81,6 +195,15 @@ describe('POST /api/quiz/events', () => {
 		expect(data.topMatches).toEqual([{ name: 'Anglican', count: 2 }]);
 		expect(data.topFamilies).toEqual([{ name: 'Protestant', count: 2 }]);
 		expect(data.avgTopMatch).toBe(88.5);
+		expect(data.medianTopMatch).toBe(88.5);
+		expect(data.scoreSample).toBe(2);
+		expect(data.scoreHistogram[17]).toBe(2);
+		expect(data.familySample).toBe(2);
+		expect(data.matchSample).toBe(2);
+		expect(data.distinctFamilies).toBe(1);
+		expect(data.posture).toEqual({ tolerance: 60, certainty: 55, sample: 2 });
+		expect(data.last7Days).toBe(2);
+		expect(data.daily.at(-1).count).toBe(2);
 	});
 
 	it('invalidates the stats cache when a new run lands', async () => {

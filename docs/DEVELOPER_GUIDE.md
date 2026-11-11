@@ -134,22 +134,46 @@ shows the positional `phase.task` (`7.1`), and keeps the sheet's own label in
 ## 10. Anonymous Quiz Stats
 
 `POST /api/quiz/events` records one completed quiz; `GET /api/stats` aggregates
-them for the landing-page strip. Nothing identifying is stored — no email, IP,
-user agent or free text — only mode, answer count, top match, tolerance and
-certainty.
+them for the landing-page "Collective results" panel. Nothing identifying is
+stored — no email, IP, user agent or free text — only mode, answer count, top
+match, tolerance and certainty.
 
 The client sends a `sessionId` (a UUID generated per completion) and the unique
-index on `quiz_events.session_id` makes the insert idempotent: a retry, or a
-results screen that re-posts, cannot inflate the counters. The payload is
-validated server-side — mode must be `quick`/`standard`/`deep`, `answeredCount`
-1–200 — and optional fields that fail their range are dropped rather than
-rejecting the whole event.
+index on `quiz_events.session_id` makes the insert idempotent: a retry cannot
+inflate the counters. The payload is validated server-side — mode must be
+`quick`/`standard`/`deep`, `answeredCount` 1–200 — and optional fields that fail
+their range are dropped rather than rejecting the whole event.
+
+Only the normal end-of-quiz path posts an event. The `mod` developer tools
+(“Skip to a result”) calculate directly and mark themselves as dev runs, so their
+results enter neither `quiz_complete` analytics nor `/api/quiz/events`.
 
 `frontend/app/_components/_LiveStats.tsx` fetches `/api/stats` once per page view
-and renders nothing until at least 10 quizzes are recorded, or if the request
-fails, so the landing page never waits on it and never shows a "0 quizzes taken"
-badge. `GET /api/stats` is cached for 60s per isolate and 5 minutes at the edge;
-a recorded event invalidates the isolate cache.
+and renders nothing below 10 runs or if the request fails, so the landing page
+never waits on it and never shows a "0 quizzes taken" badge. The panel sits below
+the product card and has three states:
+
+* **10–49 runs** — total, the 14-day sparkline, and a progress panel that says
+  how many runs unlock the rest.
+* **50–199 runs** — all four tiles, plus an "Early data" label.
+* **200+ runs** — all four tiles, label gone.
+
+The tiles are: runs (total, 14 UTC days, last 7 days, today), closeness
+(median/mean closest match and the five-tier distribution), family shares (top
+five families plus an explicit "Other families" remainder), and posture
+(tolerance/certainty averages, taken only over runs that answered both sliders).
+Every percentage names its own denominator.
+
+`GET /api/stats` keeps the original summary fields and adds `medianTopMatch`,
+`daily[14]` (zero-filled UTC days), `scoreHistogram[20]` (5-point buckets),
+`scoreSample`, `familySample`, `matchSample`, `distinctFamilies`, and
+`posture { tolerance, certainty, sample }`. `last7Days` is now a UTC calendar
+window (today plus the six before), so it always equals the last seven bars of
+`daily`. All new `QuizStats` fields are optional in `frontend/lib/api.ts`, so a
+frontend deploy that lands before the API still renders the older summary.
+
+`GET /api/stats` is cached for 60s per isolate and 5 minutes at the edge; a
+recorded event invalidates the isolate cache.
 
 Migration `migrations/0003_quiz_stats.sql` adds the outcome columns and the unique
 session index to the `quiz_events` table created in `0001`.
@@ -157,4 +181,7 @@ session index to the `quiz_events` table created in `0001`.
 **Tests.** `cd theocompass-api && npm test` runs everything. The D1-backed specs
 (`test/roadmap.spec.ts`, `test/stats.spec.ts`) apply the real migrations through
 `test/setup.ts`; `vitest.config.mts` reads them with `readD1Migrations`, so the
-suite always tests the schema that gets deployed.
+suite always tests the schema that gets deployed. `stats.spec.ts` covers the
+bucket boundaries (0, 4.9, 5, 89.9, 90, 95, 100), the median for odd and even
+counts, UTC day zero-fill/`last7Days`, and the separate denominators behind the
+closeness, family and posture figures.

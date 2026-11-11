@@ -111,6 +111,12 @@ export default function QuizController() {
    * is still in flight cannot write the result back after the fact.
    */
   const skipResultsSaveRef = useRef(false);
+  /**
+   * Which path produced the results being shown. The moderator/dev "skip to a
+   * result" tools call /api/calculate directly, so they mark themselves here and
+   * are excluded from completion analytics and the public stats counter.
+   */
+  const completionSourceRef = useRef<"quiz" | "dev">("quiz");
   const [quizAnimKey, setQuizAnimKey] = useState(0);
   /** Set before bumping quizAnimKey, so Back can slide in from the left. */
   const [quizAnimDir, setQuizAnimDir] = useState<"next" | "prev">("next");
@@ -325,6 +331,7 @@ export default function QuizController() {
 
   const handleConfirmRestart = () => {
     skipResultsSaveRef.current = false;
+    completionSourceRef.current = "quiz";
     localStorage.removeItem('theocompass_quiz_progress');
     localStorage.removeItem('theocompass_final_results');
     setCurrentView("mode-select");
@@ -345,6 +352,7 @@ export default function QuizController() {
 
   const startInstructions = async (mode: "quick" | "standard" | "deep") => {
     skipResultsSaveRef.current = false;
+    completionSourceRef.current = "quiz";
     setSelectedMode(mode);
     setCurrentView("instructions");
     setIsLoading(true);
@@ -463,14 +471,19 @@ export default function QuizController() {
           setUserCertainty(data.userCertainty ?? 50);
           setUserLabels(data.userLabels || []);
           
-          trackEvent('quiz_complete', {
-            quiz_mode: selectedMode || 'quick',
-            questions_answered: Object.keys(newAnswers).length,
-            top_match: data.matches[0]?.name || 'unknown',
-            top_match_score: data.matches[0]?.matchPercentage || 0,
-            user_tolerance: data.userTolerance ?? 50,
-            user_certainty: data.userCertainty ?? 50
-          });
+          // Dev-generated results are for inspection only: they must not enter
+          // product analytics or the public stats below.
+          const countsAsStatistic = completionSourceRef.current !== "dev";
+          if (countsAsStatistic) {
+            trackEvent('quiz_complete', {
+              quiz_mode: selectedMode || 'quick',
+              questions_answered: Object.keys(newAnswers).length,
+              top_match: data.matches[0]?.name || 'unknown',
+              top_match_score: data.matches[0]?.matchPercentage || 0,
+              user_tolerance: data.userTolerance ?? 50,
+              user_certainty: data.userCertainty ?? 50
+            });
+          }
 
           const answerCount = Object.keys(newAnswers).length;
           setAnsweredQuestionCount(answerCount);
@@ -490,20 +503,25 @@ export default function QuizController() {
 
           localStorage.removeItem('theocompass_quiz_progress');
 
-          // Anonymous completion stat for the landing page. Fire-and-forget:
-          // the results screen must never wait on it, and the per-run session
-          // id makes a retry harmless.
-          void recordQuizCompletion({
-            sessionId: createQuizSessionId(),
-            mode: selectedMode ?? 'quick',
-            answeredCount: answerCount,
-            topFamily: data.matches[0]?.family ?? null,
-            topMatchId: data.matches[0]?.id ?? null,
-            topMatchName: data.matches[0]?.name ?? null,
-            topMatchScore: data.matches[0]?.matchPercentage ?? null,
-            userTolerance: data.userTolerance ?? 50,
-            userCertainty: data.userCertainty ?? 50,
-          });
+          // Anonymous completion stat for the landing page. Only normal runs
+          // count: the moderator/dev shortcuts mark completionSourceRef as
+          // "dev", so a generated result -- even one that replaced an in-flight
+          // normal calculation -- is never reported as a real completion.
+          // Fire-and-forget: the results screen must never wait on it, and the
+          // per-run session id makes a retry harmless.
+          if (countsAsStatistic) {
+            void recordQuizCompletion({
+              sessionId: createQuizSessionId(),
+              mode: selectedMode ?? 'quick',
+              answeredCount: answerCount,
+              topFamily: data.matches[0]?.family ?? null,
+              topMatchId: data.matches[0]?.id ?? null,
+              topMatchName: data.matches[0]?.name ?? null,
+              topMatchScore: data.matches[0]?.matchPercentage ?? null,
+              userTolerance: data.userTolerance ?? 50,
+              userCertainty: data.userCertainty ?? 50,
+            });
+          }
         } else {
           console.error("Calculation failed");
         }
@@ -522,6 +540,9 @@ export default function QuizController() {
   }, [currentQuestionIndex, currentView]);
 
   const handleDevAutoFill = async () => {
+    // A shortcut for inspecting the results screen, not a real completion:
+    // mark it so handleNext cannot report this result if it is still in flight.
+    completionSourceRef.current = "dev";
     const dummyAnswers: Record<string, UserResponse> = {};
     questions.forEach(q => {
       const randomAnswerIndex = Math.floor(Math.random() * q.answers.length);
@@ -569,6 +590,8 @@ export default function QuizController() {
   };
 
   const handleDevDenomFill = async (denomId: string) => {
+    // Same rule as handleDevAutoFill: generated results stay out of the stats.
+    completionSourceRef.current = "dev";
     setIsCalculating(true);
     setCurrentView('results');
     setShowDevModal(false);
