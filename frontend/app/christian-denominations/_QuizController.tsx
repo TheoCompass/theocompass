@@ -6,6 +6,7 @@ import html2canvas from "html2canvas-pro";
 import CompassChart from "./CompassChart"; 
 import { useRouter } from 'next/navigation';
 import { trackEvent } from '../../lib/gtag';
+import { createQuizSessionId, recordQuizCompletion } from '../../lib/api';
 import { APP_STAGE } from '../../lib/site';
 import { Info } from "lucide-react";
 import type { Question, UserResponse } from './_types';
@@ -488,6 +489,21 @@ export default function QuizController() {
           }
 
           localStorage.removeItem('theocompass_quiz_progress');
+
+          // Anonymous completion stat for the landing page. Fire-and-forget:
+          // the results screen must never wait on it, and the per-run session
+          // id makes a retry harmless.
+          void recordQuizCompletion({
+            sessionId: createQuizSessionId(),
+            mode: selectedMode ?? 'quick',
+            answeredCount: answerCount,
+            topFamily: data.matches[0]?.family ?? null,
+            topMatchId: data.matches[0]?.id ?? null,
+            topMatchName: data.matches[0]?.name ?? null,
+            topMatchScore: data.matches[0]?.matchPercentage ?? null,
+            userTolerance: data.userTolerance ?? 50,
+            userCertainty: data.userCertainty ?? 50,
+          });
         } else {
           console.error("Calculation failed");
         }

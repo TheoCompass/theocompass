@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { CERTAINTY_MARK, CERTAINTY_SLOTS, SURFACE } from "../lib/palette";
 import { APP_STAGE, APP_VERSION } from "../lib/site";
+import { LiveStats } from "./_components/_LiveStats";
+import { RoadmapMilestones } from "./_components/_RoadmapMilestones";
 
 /**
  * The landing page, reworked for a phone first.
@@ -16,50 +18,12 @@ import { APP_STAGE, APP_VERSION } from "../lib/site";
  * already in the footer. The photo is a dark texture from md up and an
  * uncropped 2.4:1 band below it, the roadmap is a snap carousel on phones and a
  * numbered timeline from md up, and every call to action is the same accent.
+ *
+ * The roadmap section is `<RoadmapMilestones />` rather than markup here: the
+ * milestones are shared with `/roadmap`, and the hand-written phases that used
+ * to live in this file disagreed with the real plan.
  */
 
-const PHASES = [
-  {
-    phase: "Phase 1",
-    status: "Complete",
-    title: "v2.0 Open Beta",
-    body:
-      "The core engine was stress-tested with the 13-axis algorithm, silence mechanics and posture multipliers: a 30-question test against 30 major traditions.",
-    bullets: [],
-    done: true,
-  },
-  {
-    phase: "Phase 2",
-    status: "Live now",
-    title: "The full database",
-    body:
-      "230+ denominations are live. We are gathering community feedback to calibrate the algorithm and refine the experience.",
-    bullets: [
-      "Full 230+ denomination dataset",
-      "Compass chart and label cloud on results",
-      "Side-by-side denomination comparison",
-    ],
-    done: true,
-  },
-  {
-    phase: "Phase 3",
-    status: "Planned",
-    title: "Official launch",
-    body:
-      "The complete standard experience, plus the user infrastructure for saving and sharing results.",
-    bullets: ["Standard Mode (~60 questions)", "Accounts to save and share results", "Anonymous opt-in for the Global Theology Map"],
-    done: false,
-  },
-  {
-    phase: "Phase 4",
-    status: "Future",
-    title: "Deep Dive expansion",
-    body:
-      "For students and the theologically obsessed: the granular depths of Christian doctrine.",
-    bullets: ["Deep Dive Mode (120 questions)", "Side-by-side user comparison", "Creedal alignment scoring"],
-    done: false,
-  },
-];
 
 /**
  * The four things the beta adds, each with a miniature of the real thing.
@@ -266,7 +230,7 @@ export default function Home() {
           <Link href="#products" className="transition-colors hover:text-ink">
             The quiz
           </Link>
-          <Link href="#roadmap" className="transition-colors hover:text-ink">
+          <Link href="/roadmap" className="transition-colors hover:text-ink">
             Roadmap
           </Link>
           <a
@@ -328,7 +292,7 @@ export default function Home() {
                   The quiz
                 </Link>
                 <Link
-                  href="#roadmap"
+                  href="/roadmap"
                   onClick={() => setIsMenuOpen(false)}
                   className="block border-b border-rule py-3 transition-colors hover:text-ink"
                 >
@@ -463,6 +427,8 @@ export default function Home() {
             </div>
           </dl>
 
+          <LiveStats />
+
           <Link
             href="/christian-denominations"
             className="mt-5 inline-block border border-cerulean-900 bg-cerulean-900 px-5 py-2.5 text-sm font-semibold text-paper transition-colors hover:bg-cerulean-800"
@@ -551,105 +517,8 @@ export default function Home() {
         </div>
       </section>
 
-
-      {/* 5. Roadmap - a snap carousel on phones, a timeline from md up */}
-      <section id="roadmap" className="w-full border-b border-rule bg-paper px-4 py-12 md:px-6 md:py-16">
-        <div className="mx-auto max-w-3xl">
-          <h2 className="font-serif text-2xl font-bold text-ink md:text-3xl">Roadmap</h2>
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft md:text-base">
-            Where the project is, and where it is going. Swipe through on a phone.
-          </p>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <span className="flex h-1.5 w-32 gap-0.5" aria-hidden="true">
-              {PHASES.map((item) => (
-                <span
-                  key={item.title}
-                  className={`h-full flex-1 ${item.done ? "bg-punch-ink" : "bg-rule"}`}
-                />
-              ))}
-            </span>
-            <span className="text-2xs font-medium text-ink-muted">
-              {PHASES.filter((item) => item.done).length} of {PHASES.length} phases complete
-            </span>
-          </div>
-
-          <ol className="-mx-4 mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-3 md:mx-0 md:mt-8 md:block md:overflow-visible md:px-0 md:pb-0">
-            {PHASES.map((item, index) => {
-              const isLive = item.status === "Live now";
-              const markerClass = isLive
-                ? "border-punch-ink bg-paper text-punch-ink ring-2 ring-punch-500/25"
-                : item.done
-                ? "border-punch-ink bg-punch-ink text-paper"
-                : index === PHASES.length - 1
-                ? "border-rule-strong bg-paper text-ink-muted"
-                : "border-cerulean-600 bg-paper text-cerulean-800";
-              const pillClass = isLive
-                ? "bg-punch-ink text-paper"
-                : item.done
-                ? "bg-punch-50 text-punch-ink"
-                : item.status === "Planned"
-                ? "bg-cerulean-50 text-cerulean-800"
-                : "bg-muted-soft text-ink-muted";
-
-              return (
-                <li
-                  key={item.title}
-                  className="reveal-up relative w-[80%] shrink-0 snap-start border border-rule bg-paper-raised p-4 md:grid md:w-auto md:grid-cols-[1.75rem_1fr] md:gap-x-5 md:border-0 md:bg-transparent md:p-0 md:pb-9 md:last:pb-0"
-                >
-                  {/* Desktop rail: a numbered marker and a connector that keeps
-                      running between items, so the completed stretch of the
-                      timeline is visibly punch and the rest is rule. */}
-                  <div aria-hidden="true" className="hidden md:flex md:flex-col md:items-center">
-                    <span
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 text-2xs font-bold ${markerClass}`}
-                    >
-                      {index + 1}
-                    </span>
-                    <span
-                      className={`mt-1 w-0.5 flex-1 ${item.done ? "bg-punch-ink/30" : "bg-rule"}`}
-                    />
-                  </div>
-
-                  <div className="md:pt-0.5">
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className="meta">
-                        {item.phase} of {PHASES.length}
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wider ${pillClass}`}
-                      >
-                        {isLive && (
-                          <span className="h-1 w-1 rounded-full bg-paper animate-pulse-slow" />
-                        )}
-                        {item.status}
-                      </span>
-                    </div>
-                    <h3 className="text-base font-bold text-ink md:text-lg">{item.title}</h3>
-                    <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{item.body}</p>
-                    {item.bullets.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-sm text-ink-muted">
-                        {item.bullets.map((bullet) => (
-                          <li key={bullet} className="flex gap-2">
-                            <span
-                              aria-hidden="true"
-                              className={`mt-[0.45rem] h-1 w-1 shrink-0 rounded-full ${
-                                item.done ? "bg-punch-ink/60" : "bg-cerulean-600/60"
-                              }`}
-                            />
-                            {bullet}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-      </section>
-
+      {/* 5. Roadmap - three milestones here, the eight phases on /roadmap */}
+      <RoadmapMilestones />
 
       {/* 6. Footer - the support link lives here instead of in its own section */}
       <footer className="w-full bg-paper-raised px-4 py-10 md:px-6 md:py-12">
@@ -659,6 +528,9 @@ export default function Home() {
           </p>
 
           <nav className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
+            <Link href="/roadmap" className="text-ink-soft transition-colors hover:text-ink">
+              Full roadmap
+            </Link>
             <a
               href="https://www.reddit.com/r/TheoCompass"
               target="_blank"

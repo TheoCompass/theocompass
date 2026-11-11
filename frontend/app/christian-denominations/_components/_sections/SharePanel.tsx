@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowRight,
   BarChart3,
@@ -152,6 +153,13 @@ export function SharePanel({
           <p className="mt-1.5 text-sm text-ink-soft">
             A historical and creedal timeline, plus a creedal alignment score.
           </p>
+          <Link
+            href="/roadmap"
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-cerulean-800 underline decoration-cerulean-300 underline-offset-4 transition-colors hover:decoration-cerulean-600"
+          >
+            See what’s planned
+            <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </Link>
         </div>
         <div>
           <h3 className="meta">Support the project</h3>
