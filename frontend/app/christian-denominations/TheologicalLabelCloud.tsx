@@ -1,8 +1,12 @@
 "use client";
 import { useState, useMemo } from "react";
+import { CERTAINTY_TEXT, HUE_BASE } from "../../lib/palette";
+import { TIER_DESCRIPTIONS, TIER_LABELS } from "./_constants";
+import { CertaintyMeter } from "./_components/_CertaintyMeter";
 
-interface Label {
-  label: string;
+export interface Label {
+  /** Usually a string; the API sometimes sends the whole label object. */
+  label: string | { label?: string };
   category: string;
   certainty: number;
   tolerance: number;
@@ -10,85 +14,34 @@ interface Label {
   desc?: string;
 }
 
+/** Reads the text out of either shape, without an `any` cast at every call site. */
+export function labelText(value: Label["label"] | undefined | null): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") return value.label ?? "";
+  return "";
+}
+
 interface TheologicalLabelCloudProps {
   userLabels: Label[];
   className?: string;
+  /** When true the component is hosted inside a results panel (drops outer card). */
+  embedded?: boolean;
 }
 
 type ViewMode = "importance" | "category";
 
-const TOLERANCE_STYLES = [
-  "bg-red-900 text-red-50 border-red-950 hover:bg-red-800",
-  "bg-orange-500 text-orange-50 border-orange-600 hover:bg-orange-400",
-  "bg-yellow-400 text-yellow-50 border-yellow-500 hover:bg-yellow-300",
-  "bg-green-600 text-green-50 border-green-700 hover:bg-green-500",
-  "bg-blue-400 text-blue-50 border-blue-500 hover:bg-blue-500"
-];
+// Two facts per belief, one channel each, and neither channel is colour:
+//   how essential -> the tier's own WORD, on a quiet pill on the chip, plus a
+//                    1/5 - 5/5 numeral in the heading that owns the group
+//   how sure      -> HOW MANY of three ticks are filled
+//
+// The first channel has now been tried four times. Five hues had no order; a
+// monotone navy ramp was ordered but unreadable at 3px, where its steps sit
+// 13 L* apart and blur into one another. A word is ordinal by definition,
+// needs no legend, and cannot be confused with the category dot above it.
+const TOLERANCE_TEXT = TIER_LABELS;
+const TOLERANCE_DESCRIPTIONS = TIER_DESCRIPTIONS;
 
-const TOLERANCE_TEXT = ["Core Dogma", "Primary", "Secondary", "Tertiary", "Non-Essential"];
-const TOLERANCE_DESCRIPTIONS = [
-  "Non-negotiable beliefs central to Christian orthodoxy",
-  "Doctrines that define theological traditions",
-  "Important beliefs that distinguish denominations",
-  "Positions debated within denominations",
-  "Matters of personal conviction or preference",
-];
-
-const TOLERANCE_ICONS = [
-  "✦", // Core Dogma — star symbol
-  "◆", // Primary — diamond
-  "●", // Secondary — circle
-  "▸", // Tertiary — arrow
-  "○"  // Non-Essential — open circle
-];
-
-const TOLERANCE_BORDER_COLORS = [
-  "border-l-red-500",
-  "border-l-orange-400",
-  "border-l-yellow-400",
-  "border-l-green-500",
-  "border-l-blue-400"
-];
-
-const TOLERANCE_TINT_BG = [
-  "bg-red-50/50",
-  "bg-orange-50/50",
-  "bg-yellow-50/50",
-  "bg-green-50/50",
-  "bg-blue-50/50"
-];
-
-const TOLERANCE_DOT_COLORS = [
-  "bg-red-500",
-  "bg-orange-400",
-  "bg-yellow-400",
-  "bg-green-500",
-  "bg-blue-400"
-];
-
-const TOLERANCE_BAR_COLORS = [
-  "bg-red-600",
-  "bg-orange-500",
-  "bg-yellow-400",
-  "bg-green-500",
-  "bg-blue-400"
-];
-
-const CERTAINTY_SIZES = [
-  "text-[10px] px-2 py-0.5 font-medium border",
-  "text-xs px-3 py-1 font-semibold border-2",
-  "text-sm px-4 py-1.5 font-bold border-2 shadow-sm",
-  "text-base px-5 py-2 font-black border-4 shadow-md",
-];
-
-const CERTAINTY_TEXT = ["Not Sure", "Leaning", "Pretty Sure", "Certain"];
-
-const CERTAINTY_RING_COLORS = [
-  "stroke-slate-300",   // Not Sure
-  "stroke-blue-400",    // Leaning
-  "stroke-blue-600",    // Pretty Sure
-  "stroke-blue-900"     // Certain
-];
 
 const CATEGORY_LABELS: Record<string, string> = {
   "GOD": "The Nature of God, Christ, & the Holy Spirit",
@@ -116,18 +69,7 @@ const CATEGORY_SHORT_LABELS: Record<string, string> = {
   "GEN": "General"
 };
 
-const CATEGORY_DOT_COLORS: Record<string, string> = {
-  "GOD": "bg-amber-400",
-  "CHR": "bg-purple-400",
-  "SCR": "bg-emerald-400",
-  "SAL": "bg-rose-400",
-  "SAC": "bg-cyan-400",
-  "WOR": "bg-indigo-400",
-  "ESC": "bg-fuchsia-400",
-  "ETH": "bg-teal-400",
-  "MET": "bg-orange-400",
-  "GEN": "bg-slate-400"
-};
+
 
 const CATEGORY_SORT_ORDER = [
   "GOD", "CHR", "SCR", "SAL", "SAC", "WOR", "ESC", "ETH", "MET", "GEN"
@@ -135,58 +77,8 @@ const CATEGORY_SORT_ORDER = [
 
 const IMPORTANCE_ORDER = [0, 1, 2, 3, 4];
 
-function CertaintyRing({ certainty, size = 28 }: { certainty: number; size?: number }) {
-  const strokeWidth = 1.5;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  
-  const dashOffsets = [
-    circumference,                // 0% — empty
-    circumference * 0.65,         // 35% — ~1/3
-    circumference * 0.3,          // 70% — ~2/3
-    0                              // 100% — full
-  ];
 
-  return (
-    <svg width={size} height={size} className="shrink-0" viewBox={`0 0 ${size} ${size}`}>
-      {/* Background ring */}
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        className="text-slate-200"
-      />
-      {/* Foreground ring */}
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={strokeWidth}
-        strokeDasharray={circumference}
-        strokeDashoffset={dashOffsets[certainty]}
-        strokeLinecap="round"
-        className={`${CERTAINTY_RING_COLORS[certainty]} transition-all duration-500`}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      />
-      {/* Center dot for fully certain */}
-      {certainty === 3 && (
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={2}
-          className="fill-blue-900"
-        />
-      )}
-    </svg>
-  );
-}
-
-export default function TheologicalLabelCloud({ userLabels, className = "" }: TheologicalLabelCloudProps) {
+export default function TheologicalLabelCloud({ userLabels, className = "", embedded = false }: TheologicalLabelCloudProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("importance");
   const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null);
@@ -199,9 +91,7 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
     
     const map = new Map<string, Label>();
     userLabels.forEach(labelObj => {
-      const labelKey = typeof labelObj.label === 'object' 
-        ? (labelObj.label as any)?.label 
-        : labelObj.label;
+      const labelKey = labelText(labelObj.label);
 
       if (!labelKey) return;
 
@@ -226,7 +116,7 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
     const all = Array.from(labelMap.values());
     
     return all.filter(labelObj => {
-      const text = (typeof labelObj.label === 'object' ? (labelObj.label as any).label : labelObj.label) || '';
+      const text = labelText(labelObj.label);
       
       // Search filter
       if (searchQuery) {
@@ -245,18 +135,14 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
     });
   }, [labelMap, searchQuery, activeCategories]);
 
-  // Importance mode groups — include ALL tiers (empty ones too) for the card layout
+  // Importance mode groups - include ALL tiers (empty ones too) for the card layout
   const allImportanceGroups = useMemo(() => {
     return IMPORTANCE_ORDER.map(tol => ({
       tolerance: tol,
       title: TOLERANCE_TEXT[tol],
-      icon: TOLERANCE_ICONS[tol],
-      style: TOLERANCE_STYLES[tol],
-      borderColor: TOLERANCE_BORDER_COLORS[tol],
-      tintBg: TOLERANCE_TINT_BG[tol],
       labels: filteredLabels
         .filter(l => l.tolerance === tol)
-        .sort((a, b) => (b.certainty - a.certainty) || String(a.label || "").localeCompare(String(b.label || "")))
+        .sort((a, b) => (b.certainty - a.certainty) || labelText(a.label).localeCompare(labelText(b.label)))
     }));
   }, [filteredLabels]);
 
@@ -274,9 +160,13 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
         id: cat,
         title: CATEGORY_LABELS[cat] || cat,
         shortTitle: CATEGORY_SHORT_LABELS[cat] || cat,
+        // Tier first, so the tier pills cluster into runs. That makes the word
+        // do the grouping job inside a topic without adding five sub-headers to
+        // a list that may only hold eight beliefs.
         labels: labels.sort((a, b) => 
+          ((a.tolerance ?? 2) - (b.tolerance ?? 2)) ||
           (b.certainty - a.certainty) || 
-          (String(a.label || "").localeCompare(String(b.label || "")))
+          labelText(a.label).localeCompare(labelText(b.label))
         )
       }))
       .sort((a, b) => {
@@ -329,8 +219,6 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
     setExpandedLabel(prev => prev === labelKey ? null : labelKey);
   };
 
-  if (!userLabels || userLabels.length === 0) return null;
-
   const totalLabels = labelMap.size;
 
   // Calculate tier distribution for summary bar (using all labels, not filtered)
@@ -348,71 +236,85 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
     const maxCount = Math.max(...tierCounts);
     if (maxCount === totalLabels && totalLabels > 0) {
       const tierIdx = tierCounts.indexOf(maxCount);
-      return { idx: tierIdx, name: TOLERANCE_TEXT[tierIdx], icon: TOLERANCE_ICONS[tierIdx] };
+      return { idx: tierIdx, name: TOLERANCE_TEXT[tierIdx] };
     }
     return null;
   }, [tierCounts, totalLabels]);
 
-  // Render a single label pill (shared between importance and category views)
-  const renderLabelPill = (labelObj: Label, keyPrefix: string, idx: number) => {
-    const actualLabelText = typeof labelObj.label === 'object' 
-      ? (labelObj.label as any).label 
-      : labelObj.label;
-    const isHovered = hoveredLabel === actualLabelText;
+  // Hook order: the empty-state guard has to sit AFTER every useMemo. Returning
+  // early above them made the hook count differ between the first render (no
+  // labels yet) and the next one (labels arrived), which React treats as an
+  // error rather than a no-op.
+  if (!userLabels || userLabels.length === 0) return null;
+
+  // One belief: its name, its certainty as a tick count, and - only when the
+  // surrounding heading does not already say it - its tier as a word.
+  //
+  // That rule is why the importance view shows no pill: it sits inside a card
+  // headed "[1/5] Core Dogma", so twelve chips each repeating "Core Dogma"
+  // would be twelve lines of noise. The topic view interleaves tiers under a
+  // category heading, so there the chip must speak for itself.
+  const renderLabelPill = (labelObj: Label, keyPrefix: string, idx: number, showTier = true) => {
+    const actualLabelText = labelText(labelObj.label);
+    const tolerance = Math.max(0, Math.min(4, labelObj.tolerance ?? 2));
+    const certainty = Math.max(0, Math.min(3, labelObj.certainty ?? 0));
     const isExpandedLabel = expandedLabel === actualLabelText;
-    const labelStyle = TOLERANCE_STYLES[labelObj.tolerance ?? 2];
-    const sizeStyle = CERTAINTY_SIZES[labelObj.certainty ?? 0];
-    const categoryKey = labelObj.category || "GEN";
-    const catDotColor = CATEGORY_DOT_COLORS[categoryKey] || "bg-slate-400";
+    const certaintyWord = CERTAINTY_TEXT[certainty];
+    const tierName = TOLERANCE_TEXT[tolerance];
+    const categoryName = CATEGORY_SHORT_LABELS[labelObj.category] || labelObj.category;
 
     return (
-      <div key={`${keyPrefix}-${idx}-${actualLabelText}`} className="relative">
-        {/* Main tag */}
+      <div
+        key={`${keyPrefix}-${idx}-${actualLabelText}`}
+        className={isExpandedLabel ? "w-full" : ""}
+      >
         <button
+          type="button"
           onClick={() => toggleExpandedLabel(actualLabelText)}
           onMouseEnter={() => setHoveredLabel(actualLabelText)}
           onMouseLeave={() => setHoveredLabel(null)}
-          className={`
-            rounded-full transition-all duration-200 ease-out text-center leading-tight cursor-pointer
-            flex items-center gap-1.5 relative
-            ${sizeStyle} ${labelStyle}
-            ${isHovered ? 'scale-105 shadow-md -translate-y-0.5' : ''}
-            ${hoveredLabel && hoveredLabel !== actualLabelText ? 'opacity-40 grayscale' : 'opacity-100'}
-            ${isExpandedLabel ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
-          `}
+          aria-expanded={isExpandedLabel}
+          aria-label={`${actualLabelText}. ${certaintyWord}, ${tierName}.`}
+          className={`inline-flex max-w-full cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border border-rule bg-paper-raised px-2.5 py-1.5 text-left text-mini font-medium leading-tight text-ink transition-colors hover:border-rule-strong hover:bg-paper ${
+            hoveredLabel && hoveredLabel !== actualLabelText ? "opacity-40" : "opacity-100"
+          } ${isExpandedLabel ? "border-ink" : ""}`}
         >
-          <CertaintyRing certainty={labelObj.certainty ?? 0} size={16} />
-          {actualLabelText}
-          {/* Category indicator dot (top-right) */}
-          <span 
-            className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${catDotColor} border border-white/60`}
-            title={CATEGORY_SHORT_LABELS[categoryKey] || categoryKey}
-          />
+          <span className="min-w-0">{actualLabelText}</span>
+          {showTier && (
+            <span className="shrink-0 rounded-[2px] bg-muted-soft px-1.5 py-0.5 text-3xs font-semibold leading-none text-ink-soft">
+              {tierName}
+            </span>
+          )}
+          <CertaintyMeter value={certainty} className="ml-auto" />
         </button>
 
-        {/* Click-expanded detail panel */}
+        {/* Full-row inspector: the chip wraps onto its own line, so on a phone
+            the description gets the whole width instead of a 24rem sliver. */}
         {isExpandedLabel && (
-          <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm text-sm w-full max-w-sm z-10 relative">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${TOLERANCE_STYLES[labelObj.tolerance ?? 2]}`}>
-                  {TOLERANCE_TEXT[labelObj.tolerance]}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  {CATEGORY_SHORT_LABELS[labelObj.category] || labelObj.category}
-                </span>
-              </div>
-              <span className="text-[10px] font-bold text-blue-600 flex items-center gap-1">
-                <CertaintyRing certainty={labelObj.certainty ?? 0} size={12} />
-                {CERTAINTY_TEXT[labelObj.certainty]}
+          <div className="mt-1.5 animate-fade-in border border-rule bg-paper-raised">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-rule px-3 py-2">
+              <span className="flex items-center gap-1.5 text-2xs font-semibold text-ink">
+                <CertaintyMeter value={certainty} size="sm" />
+                {certaintyWord}
               </span>
+              <span className="flex items-center gap-1.5 text-2xs text-ink-soft">
+                <span className="num rounded-[2px] bg-ink px-1 py-0.5 font-mono text-3xs font-bold leading-none text-paper">
+                  {tolerance + 1}/5
+                </span>
+                {tierName}
+              </span>
+              <span className="text-2xs text-ink-muted">{categoryName}</span>
             </div>
-            {labelObj.desc && (
-              <p className="text-xs text-slate-600 leading-relaxed">{labelObj.desc}</p>
-            )}
-            {!labelObj.desc && (
-              <p className="text-xs text-slate-400 italic">No additional context available.</p>
-            )}
+            <div className="space-y-1 px-3 py-2">
+              <p className="text-2xs leading-snug text-ink-muted">
+                {TOLERANCE_DESCRIPTIONS[tolerance]}
+              </p>
+              {labelObj.desc ? (
+                <p className="text-mini leading-relaxed text-ink-soft">{labelObj.desc}</p>
+              ) : (
+                <p className="text-mini italic text-ink-muted">No additional context available.</p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -420,45 +322,47 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
   };
 
   return (
-    <div className={`space-y-6 ${className}`}>
+    <div className={`${embedded ? "space-y-4" : "space-y-6"} ${className}`}>
       {/* ─── HEADER: Title + View Toggle + Legend ─── */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+      <div className={`${embedded ? "card p-4 md:p-6 sm:p-8 space-y-4" : "card p-6 space-y-5"}`}>
         {/* Title Row */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
           <div>
-            <h3 className="font-serif text-xl font-bold text-slate-900">Theological Labels</h3>
-            <p className="text-sm text-slate-500">{totalLabels} beliefs defining your worldview</p>
+            <h3 className="font-serif text-xl font-bold text-ink">Theological Labels</h3>
+            <p className="text-sm text-ink-muted">
+              {totalLabels} beliefs, ranked from core dogma to personal preference.
+            </p>
           </div>
           
           {/* View Toggle — restyled */}
-          <div className="flex bg-slate-100 rounded-xl p-1.5 gap-1 shrink-0 border border-slate-200">
+          <div className="flex shrink-0 gap-1 border border-rule bg-muted-soft p-1">
             <button
               onClick={() => setViewMode("importance")}
-              className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`px-3 py-1.5 text-2xs font-semibold transition-colors ${
                 viewMode === "importance" 
-                  ? "bg-blue-600 text-white shadow-md" 
-                  : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                  ? "bg-ink text-white" 
+                  : "text-ink-muted hover:text-ink-soft hover:bg-paper-raised/50"
               }`}
             >
-              ✦ By Importance
+              By importance
             </button>
             <button
               onClick={() => setViewMode("category")}
-              className={`px-5 py-2 text-xs font-bold rounded-lg transition-all ${
+              className={`px-3 py-1.5 text-2xs font-semibold transition-colors ${
                 viewMode === "category" 
-                  ? "bg-blue-600 text-white shadow-md" 
-                  : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                  ? "bg-ink text-white" 
+                  : "text-ink-muted hover:text-ink-soft hover:bg-paper-raised/50"
               }`}
             >
-              By Category
+              By topic
             </button>
           </div>
         </div>
 
         {/* Search & Filter Bar */}
-        <div className="space-y-3">
+        <div className="space-y-2 md:space-y-3">
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -466,12 +370,12 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search labels..."
-              className="w-full pl-9 pr-8 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 text-slate-800 placeholder:text-slate-400"
+              className="w-full pl-9 pr-8 py-2 text-sm bg-paper border border-rule rounded-[4px] focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent text-ink placeholder:text-ink-muted"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-soft"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -483,15 +387,15 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
           {/* Category Filter Chips */}
           {availableCategories.length > 1 && (
             <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 shrink-0">Filter:</span>
+              <span className="text-3xs font-bold uppercase tracking-wider text-ink-muted mr-1 shrink-0">Filter:</span>
               {availableCategories.map(cat => (
                 <button
                   key={cat}
                   onClick={() => toggleCategoryFilter(cat)}
-                  className={`text-[11px] font-medium px-2.5 py-1 rounded-full border transition-all ${
+                  className={`border px-2.5 py-1 text-2xs font-medium transition-colors ${
                     activeCategories.has(cat)
-                      ? "bg-blue-100 border-blue-300 text-blue-800"
-                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                      ? "bg-accent-soft border-accent text-accent"
+                      : "bg-paper-raised border-rule text-ink-muted hover:border-rule-strong hover:text-ink-soft"
                   }`}
                 >
                   {CATEGORY_SHORT_LABELS[cat] || cat}
@@ -503,7 +407,7 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
               {hasActiveFilters && (
                 <button
                   onClick={clearAllFilters}
-                  className="text-[11px] font-medium px-2.5 py-1 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition-all"
+                  className="border border-punch-300 px-2.5 py-1 text-2xs font-medium text-punch-ink transition-colors hover:bg-punch-soft"
                 >
                   Clear all
                 </button>
@@ -512,128 +416,127 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
           )}
         </div>
 
-        {/* Legend Row */}
-        <div className="flex flex-col sm:flex-row gap-4 text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
-          <div className="flex flex-col gap-2 flex-1">
-            <span className="text-slate-400 uppercase tracking-wider text-[10px] font-bold">Certainty (Ring)</span>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                <CertaintyRing certainty={0} size={16} /> Not Sure
+        {/* Legend — explains only what is actually on screen. The tier pill
+            appears in the topic view alone (the importance view names the tier
+            in its card heading), so the pill key only appears there too. */}
+        <div className="flex flex-col gap-2 border border-rule bg-paper p-2.5 lg:flex-row lg:items-center lg:gap-6">
+          {viewMode === "category" && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span
+                aria-hidden="true"
+                className="shrink-0 rounded-[2px] bg-muted-soft px-1.5 py-0.5 text-3xs font-semibold leading-none text-ink-soft"
+              >
+                {TOLERANCE_TEXT[1]}
               </span>
-              <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                <CertaintyRing certainty={1} size={16} /> Leaning
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                <CertaintyRing certainty={2} size={16} /> Pretty Sure
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                <CertaintyRing certainty={3} size={16} /> Certain
+              <span className="text-2xs text-ink-muted">
+                = how essential, <span className="num">1/5</span> core to{" "}
+                <span className="num">5/5</span> optional
               </span>
             </div>
-          </div>
-          <div className="flex flex-col gap-2 flex-1">
-            <span className="text-slate-400 uppercase tracking-wider text-[10px] font-bold">Dogmatic Weight (Color)</span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {TOLERANCE_TEXT.map((text, i) => (
-                <span key={text} className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${TOLERANCE_STYLES[i]}`}>
-                  {TOLERANCE_ICONS[i]} {text}
-                </span>
-              ))}
-            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="meta shrink-0">Ticks = how sure</span>
+            {CERTAINTY_TEXT.map((text, i) => (
+              <span key={text} className="flex items-center gap-1 text-2xs text-ink-muted">
+                <CertaintyMeter value={i} size="sm" />
+                {text}
+              </span>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* ─── TIER SUMMARY BAR (Importance view only) ─── */}
+      {/* TIER SUMMARY BAR (Importance view only) */}
       {viewMode === "importance" && totalLabels > 0 && (
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Belief Distribution</span>
+        <div className="border border-rule bg-paper-raised p-4 sm:p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-3xs font-bold uppercase tracking-wider text-ink-muted">Belief Distribution</span>
             {dominantTier && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-                All beliefs are {dominantTier.icon} {dominantTier.name}
+              <span className="border border-rule bg-paper px-2 py-0.5 text-3xs font-bold text-ink-soft">
+                All beliefs are {dominantTier.name}
               </span>
             )}
           </div>
-          {/* Stacked Bar */}
-          <div className="flex h-4 rounded-full overflow-hidden bg-slate-100">
-            {tierCounts.map((count, i) => {
-              if (count === 0) return null;
-              const pct = (count / totalLabels) * 100;
+          {/* A ranked table, not a five-segment bar. The bar needed a legend to
+              be read at all, and the legend was the only place the tier names
+              appeared; here each name sits on its own row and the bar carries
+              length, which needs no key. Rows run most -> least essential, so
+              the order is the scale. */}
+          <div className="space-y-1.5">
+            {IMPORTANCE_ORDER.map((i) => {
+              const count = tierCounts[i];
+              const pct = totalLabels > 0 ? Math.round((count / totalLabels) * 100) : 0;
               return (
-                <div
-                  key={i}
-                  className={`${TOLERANCE_BAR_COLORS[i]} transition-all duration-500`}
-                  style={{ width: `${pct}%` }}
-                  title={`${TOLERANCE_TEXT[i]}: ${count}`}
-                />
+                <div key={i} className="flex items-center gap-2">
+                  <span className="num w-7 shrink-0 font-mono text-3xs text-ink-muted">
+                    {i + 1}/5
+                  </span>
+                  <span className="w-24 shrink-0 truncate text-2xs font-semibold text-ink sm:w-32">
+                    {TOLERANCE_TEXT[i]}
+                  </span>
+                  <div className="h-2 min-w-0 flex-1 overflow-hidden bg-muted-soft">
+                    <div className="h-full bg-ink" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="num w-6 shrink-0 text-right font-mono text-3xs text-ink-muted">
+                    {count}
+                  </span>
+                  <span className="num hidden w-8 shrink-0 text-right font-mono text-3xs text-ink-muted sm:inline-block">
+                    {pct}%
+                  </span>
+                </div>
               );
             })}
-          </div>
-          {/* Tier Labels Row */}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-            {IMPORTANCE_ORDER.map((i) => (
-              <div key={i} className="flex items-center gap-1.5 text-xs">
-                <span className={`w-2.5 h-2.5 rounded-full ${TOLERANCE_DOT_COLORS[i]}`} />
-                <span className="text-slate-500 font-medium">
-                  {TOLERANCE_ICONS[i]} {TOLERANCE_TEXT[i]}
-                </span>
-                <span className="text-slate-400 font-mono">{tierCounts[i]}</span>
-              </div>
-            ))}
           </div>
         </div>
       )}
 
       {/* ─── LABEL CLOUD ─── */}
-      <div className="space-y-3">
+      <div key={viewMode} className="animate-fade-in space-y-2 md:space-y-3">
         {viewMode === "importance" ? (
-          allImportanceGroups.length === 0 ? (
-            <div className="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm text-center">
-              <p className="text-slate-400 font-medium">No labels match your current filters.</p>
+          allImportanceGroups.every((group) => group.labels.length === 0) ? (
+            <div className="bg-paper-raised p-8 sm:p-12 rounded-[4px] border border-rule text-center">
+              <p className="text-ink-muted font-medium">No labels match your current filters.</p>
               {hasActiveFilters && (
-                <button onClick={clearAllFilters} className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                <button onClick={clearAllFilters} className="mt-2 text-sm text-accent hover:text-accent font-medium">
                   Clear all filters
                 </button>
               )}
             </div>
           ) : (
             /* ─── IMPORTANCE VIEW: Persistent Tier Cards ─── */
-            <div className="space-y-3">
-              {allImportanceGroups.map((group) => {
-                const isEmpty = group.labels.length === 0;
+            <div className="space-y-2 md:space-y-3">
+              {allImportanceGroups.filter((group) => group.labels.length > 0).map((group) => {
                 return (
                   <div
                     key={group.tolerance}
-                    className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all ${
-                      isEmpty ? "opacity-50" : ""
-                    } border-l-4 ${group.borderColor}`}
+                    className="overflow-hidden border border-rule bg-paper-raised"
                   >
-                    {/* Card Header */}
-                    <div className="flex items-center gap-3 px-5 py-3.5 bg-slate-50/80 border-b border-slate-100">
-                      <span className={`w-3 h-3 rounded-full ${TOLERANCE_DOT_COLORS[group.tolerance]}`} />
-                      <span className="font-bold text-slate-800">{group.icon} {group.title}</span>
-                      <span className="text-xs text-slate-400 ml-1 hidden sm:inline">{TOLERANCE_DESCRIPTIONS[group.tolerance]}</span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        isEmpty
-                          ? "bg-slate-100 text-slate-400"
-                          : "bg-white text-slate-500 border border-slate-200"
-                      }`}>
-                        {group.labels.length}
-                      </span>
+                    {/* Card Header — the tier's place in the scale (1/5 … 5/5)
+                        and its meaning, on every width. The numeral replaces
+                        the colour rail: a number is ordinal without being a
+                        shade anyone has to tell apart. */}
+                    <div className="border-b border-rule bg-paper/80 px-3 py-2.5 sm:px-5 sm:py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="num flex shrink-0 items-center rounded-[2px] bg-ink px-1.5 py-0.5 font-mono text-3xs font-bold leading-none text-paper">
+                          {group.tolerance + 1}/5
+                        </span>
+                        <span className="font-serif font-bold text-ink">{group.title}</span>
+                        <span className="num ml-auto font-mono text-3xs text-ink-muted">
+                          {group.labels.length} {group.labels.length === 1 ? "label" : "labels"}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-2xs leading-snug text-ink-muted">
+                        {TOLERANCE_DESCRIPTIONS[group.tolerance]}
+                      </p>
                     </div>
 
                     {/* Card Body */}
-                    <div className="px-5 py-3">
-                      {isEmpty ? (
-                        <p className="text-xs text-slate-400 italic">No beliefs in this tier</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {group.labels.map((labelObj, idx) =>
-                            renderLabelPill(labelObj, `imp-${group.tolerance}`, idx)
-                          )}
-                        </div>
-                      )}
+                    <div className="px-3 py-3 sm:px-5 sm:py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {group.labels.map((labelObj, idx) =>
+                          renderLabelPill(labelObj, `imp-${group.tolerance}`, idx, false)
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -641,10 +544,10 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
             </div>
           )
         ) : categoryGroups.length === 0 ? (
-          <div className="bg-white p-10 rounded-2xl border border-slate-200 shadow-sm text-center">
-            <p className="text-slate-400 font-medium">No labels match your current filters.</p>
+          <div className="bg-paper-raised p-8 sm:p-12 rounded-[4px] border border-rule text-center">
+            <p className="text-ink-muted font-medium">No labels match your current filters.</p>
             {hasActiveFilters && (
-              <button onClick={clearAllFilters} className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
+              <button onClick={clearAllFilters} className="mt-2 text-sm text-accent hover:text-accent font-medium">
                 Clear all filters
               </button>
             )}
@@ -655,20 +558,25 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
             {categoryGroups.map((group) => {
               const isExpanded = expandedGroups.has(group.title);
               return (
-                <div key={group.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+                <div key={group.id} className="bg-paper-raised rounded-[4px] border border-rule overflow-hidden transition-all">
                   {/* Accordion Header */}
                   <button
                     onClick={() => toggleGroup(group.title)}
-                    className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors text-left"
+                    className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-paper sm:px-5 sm:py-3.5"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-slate-800">{group.shortTitle}</span>
-                      <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: HUE_BASE[group.id] ?? HUE_BASE.GEN }}
+                      />
+                      <span className="font-bold text-ink">{group.shortTitle}</span>
+                      <span className="rounded-[3px] bg-muted-soft px-2 py-0.5 text-3xs font-medium text-ink-muted">
                         {group.labels.length}
                       </span>
                     </div>
                     <svg
-                      className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                      className={`w-4 h-4 text-ink-muted transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
                       fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -679,7 +587,7 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
                   <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
                     isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
                   }`}>
-                    <div className="px-5 pb-4 pt-1">
+                    <div className="px-3 pb-3 pt-1 sm:px-5 sm:pb-4">
                       <div className="flex flex-wrap gap-2">
                         {group.labels.map((labelObj, idx) =>
                           renderLabelPill(labelObj, `cat-${group.id}`, idx)
@@ -694,7 +602,7 @@ export default function TheologicalLabelCloud({ userLabels, className = "" }: Th
         )}
 
         {/* Result summary */}
-        <div className="text-center text-xs text-slate-400 pt-1">
+        <div className="text-center text-xs text-ink-muted pt-1">
           Showing {filteredLabels.length} of {totalLabels} labels
           {hasActiveFilters && ` (filtered)`}
         </div>

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { parse } = require('csv-parse/sync'); 
 
 // Since the script is in /scripts, __dirname is the scripts folder. 
@@ -399,6 +400,35 @@ function computeToleranceScore(profileAnswers, activeQids = null) {
   return totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 25 * 1000) / 1000 : 50;
 }
 
+/**
+ * The 14th Axis: Certainty (0-3 scale mapped to 0-100).
+ *
+ * Mirrors computeToleranceScore's shape (affirmed-only weighted average), but
+ * weights each affirmed answer by the QUESTION's priority instead of by
+ * tolerance severity. Being certain about the Trinity should outweigh being
+ * certain about a minor question.
+ *
+ * Note: a denomination that answers "Certain" to every question will always
+ * score exactly 100, regardless of weights -- that is semantically correct,
+ * not a tie-break bug. Priority weighting only re-ranks traditions that are
+ * selectively certain.
+ */
+function computeCertaintyScore(profileAnswers, activeQids = null) {
+  let weightedSum = 0, totalWeight = 0;
+  for (const question of theoData.questions) {
+    if (activeQids && !activeQids.has(question.Question_ID)) continue;
+    const entry = profileAnswers[question.Question_ID];
+    if (!entry || entry.posture !== TC.POSTURE.AFFIRMED) continue;
+
+    const cVal = entry.C ?? 0;                            // 0 Not Sure -> 3 Certain
+    const wC = baseWeight(question.Priority_Score ?? 5);  // same baseWeight as the dims
+
+    weightedSum += cVal * wC;
+    totalWeight += wC;
+  }
+  return totalWeight > 0 ? Math.round((weightedSum / totalWeight) * (100 / 3) * 1000) / 1000 : 50;
+}
+
 
 function buildLabelProfile(profileAnswers, activeQids = null) {
   const labels = [];
@@ -493,6 +523,7 @@ function buildProfiles() {
       modes[mode] = {
         dimCoords: computeDimCoords(profile, activeQids),
         toleranceScore: computeToleranceScore(profile, activeQids),
+        certaintyScore: computeCertaintyScore(profile, activeQids),
         dimensionStats: aggregateDimensionStats(profile, activeQids),
         labels: buildLabelProfile(profile, activeQids)
       };
@@ -563,14 +594,29 @@ function writeOverallMatrixCsv(pairwiseMode, denoms, outPath) {
 }
 
 function writeSummaryCsv(profiles, outPath) {
-  const lines = [[ 'Denomination_ID','Denomination_Name','Mode','ToleranceScore', ...TC.DIMS.map(d => `${d}_avg`) ].join(',')];
+  const lines = [[ 'Denomination_ID','Denomination_Name','Mode','ToleranceScore','CertaintyScore', ...TC.DIMS.map(d => `${d}_avg`) ].join(',')];
   for (const [denomId, obj] of Object.entries(profiles)) {
     for (const [mode, modeData] of Object.entries(obj.modes)) {
-      const row = [csvEscape(denomId), csvEscape(obj.denomination.name), csvEscape(mode), csvEscape(modeData.toleranceScore), ...TC.DIMS.map(d => csvEscape(modeData.dimensionStats[d]?.avg))];
+      const row = [csvEscape(denomId), csvEscape(obj.denomination.name), csvEscape(mode), csvEscape(modeData.toleranceScore), csvEscape(modeData.certaintyScore), ...TC.DIMS.map(d => csvEscape(modeData.dimensionStats[d]?.avg))];
       lines.push(row.join(','));
     }
   }
   fs.writeFileSync(outPath, lines.join('\n'));
+}
+
+// Parse textual membership estimates (e.g. '~1.3 Billion', '~600,000',
+// '~2-6 Million', 'N/A (Historic)') into a number. Returns null if unknown.
+function parseMembers(val) {
+  if (val === undefined || val === null) return null;
+  let s = String(val).trim().toLowerCase().replace(/,/g, '');
+  if (['', 'unknown', 'n/a', 'none', '-', '?'].includes(s)) return null;
+  s = s.replace(/\(.*?\)/g, '').trim().replace(/~/g, '').replace(/\+/g, '').replace(/[\u2013\u2014]/g, '-').trim();
+  const m = s.match(/^([0-9]*\.?[0-9]+)(?:\s*-\s*([0-9]*\.?[0-9]+))?\s*(thousand|million|billion|k|m|b)?$/);
+  if (!m) return null;
+  const mult = { thousand: 1e3, k: 1e3, million: 1e6, m: 1e6, billion: 1e9, b: 1e9 }[m[3]] || 1;
+  const low = parseFloat(m[1]);
+  if (m[2]) return ((low + parseFloat(m[2])) / 2) * mult;
+  return low * mult;
 }
 
 // Notice we still accept rawFamilies as the second argument
@@ -586,7 +632,7 @@ function buildFamilyProfiles(profiles, rawFamilies) {
         familyMetaMap[row.Family_Name.trim()] = {
           founded: row.Founded_Century,
           region: row.Region_Origin,
-          members: row.Est_Members_Global,
+          members: parseMembers(row.Est_Members_Global),
           description: row.Description
         };
       }
@@ -651,7 +697,32 @@ function buildFamilyProfiles(profiles, rawFamilies) {
   return result;
 }
 
+// 0.6: deterministic dataset version (date + short hash of raw source CSVs).
+// Order matches generate_sql_seed.py's fallback so the two agree even without the txt file.
+const DATA_FILES = [
+  'TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv',   // answers
+  'TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.tsv', // doctrines
+  'TheoCompass (v2.0) - FAMILIES.csv',                          // families
+  'TheoCompass (v2.0) - Hidden Dimensions.csv',                 // hidden_dims
+  'TheoCompass (v2.0) - QUESTION_MASTER.csv',                   // questions
+  'TheoCompass (v2.0) - QUIZ_SEQUENCE.csv',                     // sequence
+];
+function computeDataVersion() {
+  const h = crypto.createHash('sha256');
+  DATA_FILES.forEach(name => {
+    const p = path.join(DATA_DIR, name);
+    if (fs.existsSync(p)) h.update(fs.readFileSync(p));
+  });
+  const d = new Date();
+  const ymd = `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}`;
+  return `${ymd}-${h.digest('hex').slice(0, 8)}`;
+}
+
 function main() {
+  const dataVersion = computeDataVersion();
+  // Persist so the Python seed generator stamps the identical version into D1 app_meta
+  fs.writeFileSync(path.join(OUT_DIR, 'dataset_version.txt'), dataVersion + '\n');
+
   const profiles = buildProfiles();
   const pairwise = buildPairwise();
 
@@ -661,7 +732,8 @@ function main() {
   
   const exportData = {
     denominations: profiles,
-    families: familyProfiles
+    families: familyProfiles,
+    meta: { dataVersion, generatedAt: new Date().toISOString() }
   };
   
   fs.writeFileSync(path.join(OUT_DIR, 'denomination_profiles.json'), JSON.stringify(exportData, null, 2));
@@ -706,6 +778,7 @@ function main() {
   // 4. Build manifest
   const manifest = {
     generatedAt: new Date().toISOString(),
+    dataVersion,
     denominations: theoData.denominations.length,
     questions: theoData.questions.length,
     modes: Object.fromEntries(Object.entries(theoData.quizSequences).map(([k, v]) => [k, v.length])),

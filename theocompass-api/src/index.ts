@@ -1,7 +1,18 @@
 // Add KV to your Env interface
+import { computeCertaintyAxis } from "./axis-scores";
+import { handleGetRoadmap, handlePatchRoadmapTask, handleUnlockRoadmap } from "./roadmap";
+import { handleGetStats, handlePostQuizEvent } from "./quiz-stats";
+
 export interface Env {
   DB: D1Database;
   THEOCOMPASS_CACHE: KVNamespace; // <-- ADD THIS
+  /**
+   * Moderator code for roadmap status edits. Set it in production with
+   * `wrangler secret put ADMIN_CODE`; when unset the worker falls back to "mod"
+   * so a fresh clone can edit locally. It only guards the roadmap, never
+   * anything sensitive.
+   */
+  ADMIN_CODE?: string;
 }
 
 export interface UserResponse {
@@ -16,6 +27,19 @@ export interface UserResponse {
 // <-- ADD THIS GLOBAL CACHE VARIABLE
 let cachedProfiles: any = null;
 let cachedScoringData: any = null; // We can cache the scoring/dimensions too!
+let cachedDataVersion: string | null = null;
+
+// 0.6: dataset version stamp, read once from app_meta and cached per isolate.
+async function getDataVersion(env: Env): Promise<string> {
+  if (cachedDataVersion) return cachedDataVersion;
+  try {
+    const row = await env.DB.prepare("SELECT value FROM app_meta WHERE key = 'dataset_version'").first();
+    cachedDataVersion = row && (row as any).value ? String((row as any).value) : "unknown";
+  } catch {
+    cachedDataVersion = "unknown";
+  }
+  return cachedDataVersion!;
+}
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -24,8 +48,8 @@ export default {
     // Set up CORS headers so your Next.js frontend can fetch this data
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
+      "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Admin-Code, X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
       "Access-Control-Expose-Headers": "X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
       "Content-Type": "application/json",
     };
@@ -49,6 +73,7 @@ export default {
             c.mode,
             c.family,
             c.tolerance_score,
+            c.certainty_score,
             c.theol_cons_lib_avg,
             c.social_cons_lib_avg,
             c.counter_pro_modern_avg,
@@ -65,7 +90,9 @@ export default {
             d.family,
             d.region_origin as origin, 
             d.founded_year as year, 
-            d.description
+            d.description,
+            d.is_active,
+            d.est_members_global
           FROM denomination_compass_coordinates c
           LEFT JOIN denominations d ON c.denomination_id = d.id
           WHERE c.mode = ?
@@ -266,8 +293,51 @@ export default {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
+      // -----------------------------------------------------------------
+      // ENDPOINT: Dataset meta (version stamp)
+      // -----------------------------------------------------------------
+      if (url.pathname === "/api/meta") {
+        const dataVersion = await getDataVersion(env);
+        return new Response(JSON.stringify({ status: "success", dataVersion, apiVersion: "2.0" }), { headers: corsHeaders });
+      }
+
       if (request.method === "POST" && url.pathname === "/api/calculate") {
         return await handleCalculate(request, env, corsHeaders);
+      }
+
+      // -----------------------------------------------------------------
+      // ENDPOINT 7: Roadmap - content + moderator status edits
+      // -----------------------------------------------------------------
+      if (request.method === "GET" && url.pathname === "/api/roadmap") {
+        return await handleGetRoadmap(env, corsHeaders);
+      }
+
+      // Validates the moderator code without writing anything, so the UI can
+      // unlock before the first edit.
+      if (request.method === "POST" && url.pathname === "/api/roadmap/unlock") {
+        return await handleUnlockRoadmap(request, env, corsHeaders);
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/roadmap/tasks/")) {
+        const taskId = decodeURIComponent(url.pathname.slice("/api/roadmap/tasks/".length));
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(taskId)) {
+          return new Response(JSON.stringify({ error: "Invalid task id." }), {
+            status: 400,
+            headers: corsHeaders,
+          });
+        }
+        return await handlePatchRoadmapTask(request, env, corsHeaders, taskId);
+      }
+
+      // -----------------------------------------------------------------
+      // ENDPOINT 8: Quiz completion events + aggregate stats
+      // -----------------------------------------------------------------
+      if (request.method === "POST" && url.pathname === "/api/quiz/events") {
+        return await handlePostQuizEvent(request, env, corsHeaders, await getDataVersion(env));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/stats") {
+        return await handleGetStats(env, corsHeaders);
       }
 
       // -----------------------------------------------------------------
@@ -601,7 +671,10 @@ results.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
     // Sort families by highest average match
     familyMatches.sort((a, b) => b.matchPercentage - a.matchPercentage);
 
-    const topMatches = results.slice(0, 10);
+    // Return the FULL ranked list (all denominations) so the client can filter
+    // (e.g. "active only") and still re-rank / refill the visible top 10. This
+    // also powers a future premium "full ranking" view.
+    const allMatches = results;
 
     // ==========================================
     // CALCULATE USER'S THEOLOGICAL FINGERPRINT
@@ -674,6 +747,25 @@ if (tolTotalWeight > 0) {
   console.log(`FINAL TOLERANCE -> Sum: ${tolWeightedSum.toFixed(2)} | Weight: ${tolTotalWeight.toFixed(2)} | Score: ${userTolerance}`);
 }
 
+// 2b. Calculate the 14th Axis: Certainty Score (0-3 scale mapped to 0-100)
+//     Affirmed-only, priority-weighted mean of the user's C values -- the same
+//     shape the precompute engine uses for denominations (computeCertaintyScore
+//     in scripts/build_precomputed.js), so user and tradition are comparable.
+const certAxis = computeCertaintyAxis(
+  userAnswersArray.map(userAns => {
+    const qMeta = qMap[userAns.questionId];
+    const priority = Number(qMeta?.priorityscore || qMeta?.priority_score || 5);
+    return {
+      certainty: Number(userAns.certainty ?? 2),
+      weight: baseWeight(priority),
+      isSilence: userAns.isSilence,
+    };
+  })
+);
+
+const userCertainty = certAxis.score;
+console.log(`FINAL CERTAINTY -> Sum: ${certAxis.weightedSum.toFixed(2)} | Weight: ${certAxis.totalWeight.toFixed(2)} | Samples: ${certAxis.count} | Score: ${userCertainty}`);
+
 // ==========================================
 // 3. GENERATE USER THEOLOGICAL LABELS
 // ==========================================
@@ -742,10 +834,12 @@ if (affirmedAnswers.length === 0) {
 
     return new Response(JSON.stringify({
       status: "success",
-      matches: topMatches,
-      familyMatches: familyMatches.slice(0, 10),
+      dataVersion: await getDataVersion(env),
+      matches: allMatches,
+      familyMatches: familyMatches,
       userDimCoords: userDimCoords,
       userTolerance: userTolerance,
+      userCertainty: userCertainty,
       userLabels: theologicalLabels
     }), {
       status: 200,

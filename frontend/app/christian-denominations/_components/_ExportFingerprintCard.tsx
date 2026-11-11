@@ -1,20 +1,88 @@
 "use client";
 
-import Image from "next/image";
+import { CONVICTION_LEVELS, CONVICTION_RAMP } from "../../../lib/palette";
 import { FINGERPRINT_CATEGORIES, AXIS_LABELS } from "../_constants";
-import { getConvictionStyle } from "../_helpers";
+import { getConvictionStyle, axisPosition, formatSigned, modeLabel } from "../_helpers";
+import ExportFrame from "./_ExportFrame";
 
 export interface ExportFingerprintCardProps {
   userCoords: Record<string, number>;
   userTolerance: number;
+  userCertainty: number;
   selectedMode: "quick" | "standard" | "deep" | null;
   questionCount: number;
   onRef: (el: HTMLDivElement | null) => void;
 }
 
+/**
+ * One axis, drawn the way the results page draws it.
+ *
+ * The export used to invent its own chart - a flat rail, a dot on it, and the
+ * pole names pressed against the far edges - so the PNG and the panel it was
+ * exported from were two different pictures of the same fourteen numbers. This
+ * mirrors `FingerprintPanel`'s `AxisRow`: pole names above the rail with your
+ * score between them, and a bar that grows from the neutral centre toward
+ * whichever pole you lean to.
+ *
+ * Left out are the three things that need a pointer: the hover verdict, the
+ * comparison diamond, and the expanded description.
+ */
+function AxisRow({ axis, score }: { axis: string; score: number | undefined }) {
+  const labels = AXIS_LABELS[axis];
+  if (!labels || score === undefined || score === null) return null;
+
+  const isInverted = labels.invert === true;
+  // Same mapping as the in-app panel: the dot and the numeral come from one
+  // function, so the PNG cannot drift from the screen.
+  const { pct, signed } = axisPosition(score, isInverted);
+  const isLeft = pct < 50;
+  const conviction = getConvictionStyle(score);
+  // Bar grows from the centre (neutral) toward the pole you lean to.
+  const barLeft = Math.min(pct, 50);
+  const barWidth = Math.abs(pct - 50);
+
+  return (
+    <div className="border-b border-rule py-1.5 last:border-b-0">
+      <div className="flex items-baseline justify-between gap-2">
+        <span
+          className={`text-3xs uppercase leading-tight tracking-wide ${
+            isLeft ? "font-semibold text-ink" : "text-ink-muted"
+          }`}
+        >
+          {labels.left}
+        </span>
+        <span className="num shrink-0 font-mono text-2xs font-semibold text-ink">
+          {formatSigned(signed)}
+        </span>
+        <span
+          className={`text-right text-3xs uppercase leading-tight tracking-wide ${
+            !isLeft ? "font-semibold text-ink" : "text-ink-muted"
+          }`}
+        >
+          {labels.right}
+        </span>
+      </div>
+
+      <div className="relative mt-1 h-6">
+        <div className="absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-cerulean-100" />
+        <div className="absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-cerulean-300" />
+        <div
+          className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full"
+          style={{ left: `${barLeft}%`, width: `${barWidth}%`, backgroundColor: conviction.hex }}
+        />
+        <div
+          className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-paper"
+          style={{ left: `${pct}%`, backgroundColor: conviction.hex }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ExportFingerprintCard({
   userCoords,
   userTolerance,
+  userCertainty,
   selectedMode,
   questionCount,
   onRef,
@@ -22,14 +90,8 @@ export default function ExportFingerprintCard({
   const exportCoords: Record<string, number> = {
     ...userCoords,
     tolerance: userTolerance,
+    certainty: userCertainty,
   };
-
-  const modeLabel =
-    selectedMode === "quick"
-      ? "Quick Mode"
-      : selectedMode === "standard"
-        ? "Standard Mode"
-        : "Deep Dive";
 
   const now = new Date();
   const timestamp = now.toLocaleDateString("en-US", {
@@ -39,125 +101,62 @@ export default function ExportFingerprintCard({
   });
 
   return (
-    <div
+    <ExportFrame
       ref={onRef}
-      className="absolute w-[960px] bg-white text-slate-900 overflow-hidden shadow-2xl ring-1 ring-slate-200 font-sans"
-      style={{ left: "-9999px", top: "0" }}
+      artefact="Fingerprint Report"
+      modeLabel={modeLabel(selectedMode)}
+      questionCount={questionCount}
+      timestamp={timestamp}
     >
-      {/* ─── HEADER ─── */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-10 py-6 flex justify-between items-center border-b-4 border-purple-500/40">
-        <div>
-          <div className="text-3xl font-bold font-serif tracking-tight">
-            TheoCompass <span className="text-purple-300 text-lg font-sans tracking-widest ml-2">Open Beta</span>
-          </div>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="text-purple-300 text-sm font-bold uppercase tracking-widest">
-              Theological Fingerprint Report
-            </span>
-            <span className="bg-purple-600/30 text-purple-100 text-xs font-bold px-3 py-0.5 rounded-full border border-purple-400/30">
-              {modeLabel} • {questionCount} questions
-            </span>
-          </div>
-        </div>
-        <div className="w-16 h-16 bg-white rounded-full flex-shrink-0 flex items-center justify-center shadow-lg border-2 border-slate-700 overflow-hidden">
-          <Image src="/logo.png" alt="Logo" width={56} height={56} className="object-contain p-1" />
-        </div>
-      </div>
-
       {/* ─── INTRO ─── */}
-      <div className="relative bg-white text-center py-8 px-10 border-b border-slate-200 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-50/50 via-white to-white pointer-events-none" />
-        <div className="relative z-10">
-          <div className="text-base font-bold text-slate-400 uppercase tracking-widest mb-2">
-            Your 13-Axis Theological Fingerprint
-          </div>
-          <p className="text-sm text-slate-500 max-w-xl mx-auto leading-relaxed">
-            Your positions on 13 bipolar dimensions of Christian theology. Dots are colored by conviction strength.
-          </p>
-          {/* Conviction legend */}
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-1.5 mt-4 text-xs font-bold">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full bg-purple-500 ring-1 ring-purple-300" />
-              <span className="text-slate-500">Extreme</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full bg-red-500 ring-1 ring-red-300" />
-              <span className="text-slate-500">Strong</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full bg-amber-500 ring-1 ring-amber-300" />
-              <span className="text-slate-500">Moderate</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-full bg-slate-500 ring-1 ring-slate-300" />
-              <span className="text-slate-500">Neutral</span>
-            </span>
-          </div>
-        </div>
-      </div>
+      <div className="chart-grid border-b border-rule bg-paper-raised px-10 py-6 text-center">
+        <p className="meta">Your 14-axis theological fingerprint</p>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">
+          Your position on each dimension, with the strength of your conviction shown
+          by the bar and the dot.
+        </p>
+        {/* A saved file cannot be explained by hovering, so the scale is stated
+            once: the sign names the end you lean to, the magnitude how far. */}
+        <p className="num mx-auto mt-1 font-mono text-2xs text-ink-muted">
+          -100 left pole &middot; 0 neutral &middot; +100 right pole
+        </p>
 
-      {/* ─── FINGERPRINT CATEGORIES ─── */}
-      <div className="bg-white border-b border-slate-200 px-10 py-8">
-        <div className="space-y-10">
-          {Object.entries(FINGERPRINT_CATEGORIES).map(([catKey, catData]) => (
-            <div key={catKey}>
-              <div className="flex items-center gap-3 mb-5 border-b border-slate-100 pb-2">
-                <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">
-                  {catData.label}
-                </span>
-                <span className="text-xs text-slate-400">{catData.desc}</span>
-              </div>
-              <div className="space-y-5">
-                {catData.axes.map((axis) => {
-                  const labels = AXIS_LABELS[axis];
-                  const score = exportCoords[axis];
-                  if (score === undefined || score === null) return null;
-                  const isLeft = score > 50;
-                  const conviction = getConvictionStyle(score);
-                  const dotPercent = 100 - score;
-                  return (
-                    <div key={axis}>
-                      {/* Pole labels */}
-                      <div className="flex justify-between text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5 px-1">
-                        <span className={isLeft ? "text-slate-800" : ""}>{labels.left}</span>
-                        <span className={!isLeft ? "text-slate-800" : ""}>{labels.right}</span>
-                      </div>
-
-                      {/* Bar + Dot */}
-                      <div className="relative h-12 flex items-center">
-                        {/* Track */}
-                        <div className="absolute inset-y-0 left-0 right-0 flex items-center">
-                          <div className="w-full h-2.5 rounded-full bg-gradient-to-r from-slate-300 via-slate-200 to-blue-400">
-                            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-6 bg-slate-400" />
-                          </div>
-                        </div>
-
-                        {/* Conviction dot */}
-                        <div
-                          className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white shadow-sm z-10 ${conviction.dotColor} ${conviction.animate ? conviction.animate : ""} ring-2 ${conviction.ringColor} ring-offset-1`}
-                          style={{ left: `${dotPercent}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+        {/* The same four names, in the same descending order as the panel's own
+            key, and read straight off the ramp the rails are drawn from. */}
+        <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-1">
+          {[3, 2, 1, 0].map((index) => (
+            <span key={index} className="flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-rule-strong"
+                style={{ backgroundColor: CONVICTION_RAMP[index] }}
+              />
+              <span className="text-2xs text-ink-soft">{CONVICTION_LEVELS[index]}</span>
+            </span>
           ))}
         </div>
       </div>
 
-      {/* ─── FOOTER ─── */}
-      <div className="bg-slate-900 px-10 py-8 text-center border-t-4 border-slate-800">
-        <p className="font-serif italic text-base text-slate-300 mb-3">
-          &ldquo;He is before all things, and in him all things hold together.&rdquo; — Colossians 1:17
-        </p>
-        <div className="w-12 h-px bg-slate-700 mx-auto my-3" />
-        <p className="text-xs text-slate-400 mb-1">Built for informed decision, not persuasion.</p>
-        <p className="text-xs text-slate-500 font-mono mt-2">
-          theocompass.com • Generated {timestamp}
-        </p>
+      {/* ─── CATEGORIES ───
+          Four cards in two columns, because that is how the panel shows them:
+          fourteen full-width rails is a different diagram. */}
+      <div className="border-b border-rule bg-paper px-8 py-6">
+        <div className="grid grid-cols-2 items-start gap-3">
+          {Object.entries(FINGERPRINT_CATEGORIES).map(([catKey, catData]) => (
+            <section key={catKey} className="card">
+              <div className="px-3.5 py-2">
+                <p className="text-sm font-medium text-ink">{catData.label}</p>
+                <p className="meta">{catData.desc}</p>
+              </div>
+              <div className="border-t border-rule px-3 pb-1 pt-0.5">
+                {catData.axes.map((axis) => (
+                  <AxisRow key={axis} axis={axis} score={exportCoords[axis]} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       </div>
-    </div>
+    </ExportFrame>
   );
 }

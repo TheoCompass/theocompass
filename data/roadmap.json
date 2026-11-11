@@ -1,0 +1,679 @@
+{
+  "source": "roadmap.csv",
+  "phases": [
+    {
+      "index": 0,
+      "title": "Phase 0 — Beta Hardening & Quick Wins",
+      "label": "Beta Hardening & Quick Wins",
+      "goal": "Fix immediate UX gaps and implement the most requested feature (Multiple Choice).",
+      "tasks": [
+        {
+          "id": "p0-01",
+          "sheetId": "0.1",
+          "index": 1,
+          "name": "Multiple Choice Logic",
+          "description": "Update engine to allow multiple selections per question (calculated exactly like split views).",
+          "type": "Code",
+          "role": "Debug math edge cases.",
+          "status": "not_started"
+        },
+        {
+          "id": "p0-02",
+          "sheetId": "0.2",
+          "index": 2,
+          "name": "Multiple Choice UI",
+          "description": "Add multiple choices (optional; one choice is preferred) + none of the above option (same calculation as apathetic silence)",
+          "type": "UI",
+          "role": "Ensure mobile tap targets.",
+          "status": "not_started"
+        },
+        {
+          "id": "p0-03",
+          "sheetId": "0.3",
+          "index": 3,
+          "name": "14th Axis UI",
+          "description": "Add Certainty axis to Fingerprint chart & Compare tool.",
+          "type": "UI",
+          "role": "Update Recharts layout.",
+          "status": "implemented_local"
+        },
+        {
+          "id": "p0-04",
+          "sheetId": "0.4",
+          "index": 4,
+          "name": "Roadmap & Stats",
+          "description": "Create a detailed roadmap page. Add aggregate quiz stats on main page (total taken, etc.).",
+          "type": "UI/Code",
+          "role": "Link D1/KV data.",
+          "status": "in_progress"
+        },
+        {
+          "id": "p0-05",
+          "sheetId": "0.5",
+          "index": 5,
+          "name": "Filter ongoing denominations",
+          "description": "Filter ongoing or not (check if the estimate member global is 0 in the data + filter UI in the results",
+          "type": "UI/Code",
+          "role": "",
+          "status": "implemented_local"
+        },
+        {
+          "id": "p0-06",
+          "sheetId": "0.6",
+          "index": 6,
+          "name": "Data versioning",
+          "description": "Add data_version to DB schema and API outputs.",
+          "type": "UI/Code",
+          "role": "",
+          "status": "implemented_local"
+        },
+        {
+          "id": "p0-07",
+          "sheetId": "0.7",
+          "index": 7,
+          "name": "frontend rework",
+          "description": "rebuild the frontend for a better quiz experience",
+          "type": "UI/Code",
+          "role": "",
+          "status": "implemented_local"
+        },
+        {
+          "id": "p0-08",
+          "sheetId": "0.8",
+          "index": 8,
+          "name": "In-Quiz Flag",
+          "description": "Small \"Report issue\" icon per question (typo, bad mapping).",
+          "type": "Code",
+          "role": "Triage inbox setup.",
+          "status": "not_started"
+        },
+        {
+          "id": "p0-09",
+          "sheetId": "0.9",
+          "index": 9,
+          "name": "Post-Quiz Feedback",
+          "description": "Rating 1-5, Accuracy Y/N, Free text.",
+          "type": "Code/UI",
+          "role": "Write copy, test DB save.",
+          "status": "not_started"
+        },
+        {
+          "id": "p0-10",
+          "sheetId": "0.10",
+          "index": 10,
+          "name": "Reddit Post",
+          "description": "Announce multiple choice + feedback mechanics.",
+          "type": "Comm",
+          "role": "Post & engage.",
+          "status": "not_started"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "title": "Phase 1 — Standard Mode (60 Questions)",
+      "label": "Standard Mode (60 Questions)",
+      "goal": "Extend the quiz to 60 questions. This is heavily data-dependent.",
+      "tasks": [
+        {
+          "id": "p1-01",
+          "sheetId": "1.1",
+          "index": 1,
+          "name": "30 New Qs",
+          "description": "Draft 30 new questions, map dimensions, answers, descriptions.",
+          "type": "Data",
+          "role": "Deep theological review.",
+          "status": "not_started"
+        },
+        {
+          "id": "p1-02",
+          "sheetId": "1.2",
+          "index": 2,
+          "name": "Denom Data (Q31-60)",
+          "description": "Generate answers, C, & T for 230 denominations for Qs 31-60.",
+          "type": "Data",
+          "role": "Manual spot-checking (XL).",
+          "status": "not_started"
+        },
+        {
+          "id": "p1-03",
+          "sheetId": "1.3",
+          "index": 3,
+          "name": "Upgrade Path",
+          "description": "\"Answer 30 more Qs\" state transfer logic from Quick to Standard.",
+          "type": "Code",
+          "role": "Debug state persistence.",
+          "status": "not_started"
+        },
+        {
+          "id": "p1-04",
+          "sheetId": "1.4",
+          "index": 4,
+          "name": "UI Updates",
+          "description": "Progress bar, interstitials, category badges for 60 Qs.",
+          "type": "UI",
+          "role": "Mobile check.",
+          "status": "not_started"
+        },
+        {
+          "id": "p1-05",
+          "sheetId": "1.5",
+          "index": 5,
+          "name": "Precompute & Deploy",
+          "description": "Run ETL scripts, update D1/KV.",
+          "type": "Code",
+          "role": "Run scripts, smoke test.",
+          "status": "not_started"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "title": "Phase 2 — Results Depth & Creedal Alignment",
+      "label": "Results Depth & Creedal Alignment",
+      "goal": "Add the 14th axis, Creedal engine, timelines, and deep-dive stats.",
+      "tasks": [
+        {
+          "id": "p2-01",
+          "sheetId": "2.1",
+          "index": 1,
+          "name": "Creed Data Entry",
+          "description": "Add Creeds (Nicene, Apostles, etc.) to Master Sheet (Nulls for silence).",
+          "type": "Data",
+          "role": "Verify historical accuracy.",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-02",
+          "sheetId": "2.2",
+          "index": 2,
+          "name": "Creed Engine Math",
+          "description": "Implement Null-Skip logic in distance calculation.",
+          "type": "Code",
+          "role": "Verify math manually.",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-03",
+          "sheetId": "2.3",
+          "index": 3,
+          "name": "Creed UI results",
+          "description": "Creed alignment in the results",
+          "type": "UI",
+          "role": "Design polish.",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-04",
+          "sheetId": "2.4",
+          "index": 4,
+          "name": "Results Summary",
+          "description": "Concise, clear header at top of results page.",
+          "type": "UI",
+          "role": "Design polish.",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-05",
+          "sheetId": "2.5",
+          "index": 5,
+          "name": "LOO calculator",
+          "description": "LOO calculator for hero match",
+          "type": "Code/UI",
+          "role": "Testing and debugging",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-06",
+          "sheetId": "2.6",
+          "index": 6,
+          "name": "Permalinks",
+          "description": "Sherable URL for results",
+          "type": "Code/UI",
+          "role": "Testing and debugging",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-07",
+          "sheetId": "2.7",
+          "index": 7,
+          "name": "Post-Quiz Stats",
+          "description": "Click back to questions → see % of users who picked that answer.",
+          "type": "Code/UI",
+          "role": "Build D1 aggregation queries.",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-08",
+          "sheetId": "2.8",
+          "index": 8,
+          "name": "Creed Links",
+          "description": "Link post-quiz answers to specific Creeds/Confessions.",
+          "type": "Code",
+          "role": "Map IDs.",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-09",
+          "sheetId": "2.9",
+          "index": 9,
+          "name": "Historical Timeline Data",
+          "description": "Curate historical/creedal roots for the 60 Qs.",
+          "type": "Data",
+          "role": "Historical fact-checking.",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-10",
+          "sheetId": "2.10",
+          "index": 10,
+          "name": "Timeline Tree UI",
+          "description": "Precompute and render the timeline tree. Show user placement.",
+          "type": "UI",
+          "role": "D3.js/Recharts debugging.",
+          "status": "not_started"
+        },
+        {
+          "id": "p2-11",
+          "sheetId": "2.11",
+          "index": 11,
+          "name": "Reddit Post",
+          "description": "Announce Creedal Scores & Timelines.",
+          "type": "Comm",
+          "role": "Post & engage.",
+          "status": "not_started"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "title": "Phase 3 — The Museum & SEO (Content Moat)",
+      "label": "The Museum & SEO (Content Moat)",
+      "goal": "Turn the quiz into a destination site and acquire organic traffic.",
+      "tasks": [
+        {
+          "id": "p3-01",
+          "sheetId": "3.1",
+          "index": 1,
+          "name": "Museum Template",
+          "description": "Clean UI for Museum pages (origin, adherents, sources).",
+          "type": "UI",
+          "role": "Final design polish.",
+          "status": "not_started"
+        },
+        {
+          "id": "p3-02",
+          "sheetId": "3.2",
+          "index": 2,
+          "name": "Import Quiz Data",
+          "description": "Pull descriptions/labels from Phase 1 into Museum UI.",
+          "type": "Code",
+          "role": "Test mapping.",
+          "status": "not_started"
+        },
+        {
+          "id": "p3-03",
+          "sheetId": "3.3",
+          "index": 3,
+          "name": "Label Glossary",
+          "description": "Canonical ontology of all theological labels. + links",
+          "type": "Data",
+          "role": "Review definitions.",
+          "status": "not_started"
+        },
+        {
+          "id": "p3-04",
+          "sheetId": "3.4",
+          "index": 4,
+          "name": "Museum Feedback",
+          "description": "Add feedback UI specifically for Museum pages.",
+          "type": "Code",
+          "role": "Triage setup.",
+          "status": "not_started"
+        },
+        {
+          "id": "p3-05",
+          "sheetId": "3.5",
+          "index": 5,
+          "name": "Curate 12 Pages",
+          "description": "Write 12 flagship Museum pages.",
+          "type": "Content",
+          "role": "Edit for tone & cite sources.",
+          "status": "not_started"
+        },
+        {
+          "id": "p3-06",
+          "sheetId": "3.6",
+          "index": 6,
+          "name": "Static/ISR Setup",
+          "description": "Pre-render Museum pages for SEO.",
+          "type": "Code",
+          "role": "Debug Next.js build.",
+          "status": "not_started"
+        },
+        {
+          "id": "p3-07",
+          "sheetId": "3.7",
+          "index": 7,
+          "name": "Methodology Page",
+          "description": "Visual, intuitive explanation of the math.",
+          "type": "UI",
+          "role": "Ensure clarity.",
+          "status": "not_started"
+        },
+        {
+          "id": "p3-08",
+          "sheetId": "3.8",
+          "index": 8,
+          "name": "Reddit Post",
+          "description": "\"The Museum is open\" announcement.",
+          "type": "Comm",
+          "role": "Post & engage.",
+          "status": "not_started"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "title": "Phase 4 — Accounts & Premium Infrastructure",
+      "label": "Accounts & Premium Infrastructure",
+      "goal": "Auth, data retention, Stripe, and demographics.",
+      "tasks": [
+        {
+          "id": "p4-01",
+          "sheetId": "4.1",
+          "index": 1,
+          "name": "Auth System",
+          "description": "Magic-link email authentication.",
+          "type": "Code",
+          "role": "Test edge cases.",
+          "status": "not_started"
+        },
+        {
+          "id": "p4-02",
+          "sheetId": "4.2",
+          "index": 2,
+          "name": "Demographics Form",
+          "description": "End-of-quiz optional form (Location, Age, Church). Requires 18+ gate.",
+          "type": "Code/UI",
+          "role": "Draft privacy/GDPR text.",
+          "status": "not_started"
+        },
+        {
+          "id": "p4-03",
+          "sheetId": "4.3",
+          "index": 3,
+          "name": "Multiple Saves",
+          "description": "Associate results with User ID. (testing for fun vs real views)",
+          "type": "Code",
+          "role": "DB migrations.",
+          "status": "not_started"
+        },
+        {
+          "id": "p4-04",
+          "sheetId": "4.4",
+          "index": 4,
+          "name": "Progression Chart",
+          "description": "UI to compare saves over time.",
+          "type": "UI",
+          "role": "Verify math.",
+          "status": "not_started"
+        },
+        {
+          "id": "p4-05",
+          "sheetId": "4.5",
+          "index": 5,
+          "name": "Since Last Save",
+          "description": "In-app notification of changes since last login.",
+          "type": "Code",
+          "role": "Write copy.",
+          "status": "not_started"
+        },
+        {
+          "id": "p4-06",
+          "sheetId": "4.6",
+          "index": 6,
+          "name": "Retention/Delete",
+          "description": "UI/API for users to delete data.",
+          "type": "Code",
+          "role": "GDPR check.",
+          "status": "not_started"
+        },
+        {
+          "id": "p4-07",
+          "sheetId": "4.7",
+          "index": 7,
+          "name": "Stripe Setup",
+          "description": "Paywall routes, premium flags, subscription management.",
+          "type": "Code",
+          "role": "Test purchase flows.",
+          "status": "not_started"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "title": "Phase 5 — Premium Analytics",
+      "label": "Premium Analytics",
+      "goal": "Deliver advanced visual stats.",
+      "tasks": [
+        {
+          "id": "p5-01",
+          "sheetId": "5.1",
+          "index": 1,
+          "name": "Demographics Stats",
+          "description": "Public dashboard (where users come from).",
+          "type": "UI",
+          "role": "Build charts.",
+          "status": "not_started"
+        },
+        {
+          "id": "p5-02",
+          "sheetId": "5.2",
+          "index": 2,
+          "name": "Per-Question Stats",
+          "description": "Detailed demo breakdown for each question (Premium only).",
+          "type": "UI/Code",
+          "role": "Build premium gate.",
+          "status": "not_started"
+        },
+        {
+          "id": "p5-03",
+          "sheetId": "5.3",
+          "index": 3,
+          "name": "Better export",
+          "description": "Generate PNG/PDF of Analytics for Reddit or other sharing.",
+          "type": "UI/Code",
+          "role": "Test canvas rendering.",
+          "status": "not_started"
+        },
+        {
+          "id": "p5-04",
+          "sheetId": "5.4",
+          "index": 4,
+          "name": "Centerless t-SNE",
+          "description": "Centerless network cluster for families.",
+          "type": "Code/UI",
+          "role": "Debug D3/Canvas.",
+          "status": "not_started"
+        },
+        {
+          "id": "p5-05",
+          "sheetId": "5.5",
+          "index": 5,
+          "name": "Topical Heatmaps",
+          "description": "See exactly how \"split\" the field is on any given question.",
+          "type": "Code/UI",
+          "role": "Debugging and polish",
+          "status": "not_started"
+        },
+        {
+          "id": "p5-06",
+          "sheetId": "5.6",
+          "index": 6,
+          "name": "Venn Diagrams",
+          "description": "Visually overlap your beliefs with specific denominations.",
+          "type": "Code/UI",
+          "role": "Debugging and polish",
+          "status": "not_started"
+        },
+        {
+          "id": "p5-07",
+          "sheetId": "5.7",
+          "index": 7,
+          "name": "Similarity Dendrogram (Theological Tree)",
+          "description": "A phylogenetic tree showing the \"living tree\" of denominations, with your node included.",
+          "type": "Code/UI",
+          "role": "Debugging and polish",
+          "status": "not_started"
+        },
+        {
+          "id": "p5-08",
+          "sheetId": "5.8",
+          "index": 8,
+          "name": "Bullseye Charts",
+          "description": "A new visualization showing you as the center, with denominations radiating outward.",
+          "type": "Code/UI",
+          "role": "Debugging and polish",
+          "status": "not_started"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "title": "Phase 6 — Deep Dive Mode (125 Questions)",
+      "label": "Deep Dive Mode (125 Questions)",
+      "goal": "The maximum-depth quiz, with the full creedal and confessional depth.",
+      "tasks": [
+        {
+          "id": "p6-01",
+          "sheetId": "6.1",
+          "index": 1,
+          "name": "65 New Qs",
+          "description": "Draft 65 new questions + dimensions + labels.",
+          "type": "Data",
+          "role": "Heavy theological review.",
+          "status": "not_started"
+        },
+        {
+          "id": "p6-02",
+          "sheetId": "6.2",
+          "index": 2,
+          "name": "Denom Data",
+          "description": "Generate answers, C, & T for 230 denominations for 65 Qs.",
+          "type": "Data",
+          "role": "Massive manual review.",
+          "status": "not_started"
+        },
+        {
+          "id": "p6-03",
+          "sheetId": "6.3",
+          "index": 3,
+          "name": "Upgrade Path 2",
+          "description": "\"Answer 65 more Qs\" state transfer logic from Standard to Deep dive.",
+          "type": "Code",
+          "role": "Debug state persistence.",
+          "status": "not_started"
+        },
+        {
+          "id": "p6-04",
+          "sheetId": "6.4",
+          "index": 4,
+          "name": "Historical Roots",
+          "description": "Add historical timelines for ALL 125 questions.",
+          "type": "Data",
+          "role": "Fact-checking.",
+          "status": "not_started"
+        },
+        {
+          "id": "p6-05",
+          "sheetId": "6.5",
+          "index": 5,
+          "name": "More Creeds & Confessions",
+          "description": "Extend the creed engine past Nicene/Apostles to the major confessions (Westminster, Augsburg, Heidelberg, 39 Articles, Trent) and score Deep Dive against them.",
+          "type": "Data",
+          "role": "Verify historical accuracy.",
+          "status": "not_started"
+        },
+        {
+          "id": "p6-06",
+          "sheetId": "6.6",
+          "index": 6,
+          "name": "Reddit Post",
+          "description": "\"Deep Dive Mode is Live\".",
+          "type": "Comm",
+          "role": "Post & engage.",
+          "status": "not_started"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "title": "Phase 7 — Community, Advanced Tools & Argument Ranking",
+      "label": "Community, Advanced Tools & Argument Ranking",
+      "goal": "Standalone argument tools and 3D visuals.",
+      "tasks": [
+        {
+          "id": "p7-01",
+          "sheetId": "8.1",
+          "index": 1,
+          "name": "Tier List Maker",
+          "description": "Drag-and-drop UI for ranking views.",
+          "type": "UI",
+          "role": "Build React DnD.",
+          "status": "not_started"
+        },
+        {
+          "id": "p7-02",
+          "sheetId": "8.2",
+          "index": 2,
+          "name": "Steelman Pages",
+          "description": "Add Steelman pages to the Museum.",
+          "type": "Content",
+          "role": "Edit & cite sources.",
+          "status": "not_started"
+        },
+        {
+          "id": "p7-03",
+          "sheetId": "8.3",
+          "index": 3,
+          "name": "Export to Image",
+          "description": "Generate PNG/PDF of tier lists for Reddit sharing.",
+          "type": "Code",
+          "role": "Test canvas rendering.",
+          "status": "not_started"
+        },
+        {
+          "id": "p7-04",
+          "sheetId": "8.4",
+          "index": 4,
+          "name": "Side-by-Side",
+          "description": "Compare user vs denomination or denomination vs denomination.",
+          "type": "UI/Code",
+          "role": "Reuse existing engine.",
+          "status": "not_started"
+        },
+        {
+          "id": "p7-05",
+          "sheetId": "8.5",
+          "index": 5,
+          "name": "3D Cube",
+          "description": "3-axis visualization of theological space.",
+          "type": "UI",
+          "role": "Three.js debugging.",
+          "status": "not_started"
+        },
+        {
+          "id": "p7-06",
+          "sheetId": "8.6",
+          "index": 6,
+          "name": "Reddit Share",
+          "description": "Auto-generate post text for subreddit.",
+          "type": "Code",
+          "role": "Test URL generation.",
+          "status": "not_started"
+        }
+      ]
+    }
+  ]
+}

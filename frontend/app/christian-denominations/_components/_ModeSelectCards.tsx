@@ -1,103 +1,132 @@
 "use client";
 
+import { Compass, Microscope, MoveRight, Zap } from "lucide-react";
+
 interface ModeSelectCardsProps {
   savedMode: string | null;
   onSelectQuick: () => void;
 }
 
+/**
+ * The first screen of the quiz.
+ *
+ * Same language as the rest of the flow: hairline cards, no gradients, no emoji,
+ * and metadata in the small-caps line so the three modes are comparable at a
+ * glance instead of three competing colours.
+ */
 export function ModeSelectCards({ savedMode, onSelectQuick }: ModeSelectCardsProps) {
+  const comingSoon = () =>
+    alert(
+      "Standard Mode (60 questions, ~60 min) and Deep Mode (120 questions, ~120 min) are coming soon. Subscribe on r/TheoCompass for updates!"
+    );
+
+  const modes = [
+    {
+      key: "quick",
+      name: "Quick",
+      questions: "30 questions",
+      minutes: "~30 min",
+      blurb: "A streamlined overview of the most defining Christian doctrines.",
+      note: "Best for first-timers",
+      icon: Zap,
+      available: true,
+      onClick: onSelectQuick,
+    },
+    {
+      key: "standard",
+      name: "Standard",
+      questions: "60 questions",
+      minutes: "~60 min",
+      blurb: "The recommended TheoCompass experience.",
+      note: "Balanced",
+      icon: Compass,
+      available: false,
+      onClick: comingSoon,
+    },
+    {
+      key: "deep",
+      name: "Deep",
+      questions: "120 questions",
+      minutes: "~120 min",
+      blurb: "The ultimate theological audit.",
+      note: "Deep dive",
+      icon: Microscope,
+      available: false,
+      onClick: comingSoon,
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-      {/* Quick Mode */}
-      <button 
-        onClick={onSelectQuick} 
-        className={`relative p-6 rounded-2xl border-2 shadow-md hover:shadow-xl transition-all text-left group overflow-hidden ${
-          savedMode === "quick" 
-            ? "border-blue-600 ring-2 ring-blue-200 bg-gradient-to-br from-blue-50 to-white" 
-            : "border-blue-300 hover:border-blue-600 bg-gradient-to-br from-white to-blue-50/30"
-        }`}
-      >
-        {/* Decorative icon overlay */}
-        <div className="absolute -bottom-3 -right-3 text-6xl opacity-[0.08] group-hover:opacity-[0.12] transition-opacity select-none pointer-events-none">
-          ⚡
-        </div>
-        {savedMode === "quick" && (
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold px-3 py-0.5 rounded-full whitespace-nowrap shadow">
-            Resume Quiz →
-          </div>
-        )}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
-            ⚡
-          </span>
-          <h2 className="font-bold text-2xl text-slate-800 group-hover:text-blue-700 transition-colors">Quick</h2>
-          <span className="bg-blue-100 text-blue-900 text-[10px] font-bold px-2 py-1 rounded-full ml-auto">30 Qs</span>
-        </div>
-        <p className="text-slate-600 text-sm mb-2 leading-relaxed">A streamlined overview of the most defining Christian doctrines.</p>
-        <div className="flex items-center gap-2 text-xs font-medium">
-          <span className="text-slate-400 flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2"/><path d="M12 6v6l4 2" strokeWidth="2" strokeLinecap="round"/></svg>
-            ~30 min
-          </span>
-          <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-semibold">Best for first-timers</span>
-        </div>
-      </button>
+    <div className="grid w-full grid-cols-1 gap-2 md:grid-cols-3 md:gap-4">
+      {modes.map((mode) => {
+        const Icon = mode.icon;
+        const isPrimary = mode.key === "quick";
 
-      {/* Standard Mode */}
-      <button 
-        onClick={() => alert("Standard Mode (60 questions, ~60 min) and Deep Mode (120 questions, ~120 min) are coming soon. Subscribe on r/TheoCompass for updates!")}
-        className="p-6 rounded-2xl border-2 border-slate-200 shadow-sm text-left relative overflow-hidden cursor-pointer hover:border-amber-300 hover:shadow-md transition-all w-full bg-gradient-to-br from-white to-amber-50/20 group"
-      >
-        <div className="absolute -bottom-3 -right-3 text-6xl opacity-[0.06] group-hover:opacity-[0.1] transition-opacity select-none pointer-events-none">
-          🧭
-        </div>
-        <div className="absolute top-3 right-3 bg-amber-100 text-amber-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
-          Coming Soon
-        </div>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
-            🧭
-          </span>
-          <h2 className="font-bold text-2xl text-slate-600">Standard</h2>
-          <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-1 rounded-full ml-auto">60 Qs</span>
-        </div>
-        <p className="text-slate-400 text-sm mb-2 leading-relaxed">The recommended TheoCompass experience.</p>
-        <div className="flex items-center gap-2 text-xs font-medium">
-          <span className="text-slate-400 flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2"/><path d="M12 6v6l4 2" strokeWidth="2" strokeLinecap="round"/></svg>
-            ~60 min
-          </span>
-          <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full text-[10px] font-semibold">Balanced</span>
-        </div>
-      </button>
+        return (
+          <button
+            key={mode.key}
+            type="button"
+            onClick={mode.onClick}
+            aria-disabled={!mode.available}
+            className={`flex items-center gap-3 border-l-2 p-3 text-left transition-colors md:flex-col md:items-stretch md:gap-0 md:p-6 ${
+              isPrimary
+                ? "border-l-accent bg-paper-raised hover:bg-cerulean-50"
+                : "border-l-rule bg-paper-raised/60 hover:border-l-rule-strong hover:bg-cerulean-50/60"
+            } ${mode.available ? "" : "opacity-70"}`}
+          >
+            <Icon
+              aria-hidden="true"
+              className={`h-4 w-4 shrink-0 ${isPrimary ? "text-accent" : "text-ink-muted"}`}
+              strokeWidth={1.75}
+            />
 
-      {/* Deep Mode */}
-      <button 
-        onClick={() => alert("Standard Mode (60 questions, ~60 min) and Deep Mode (120 questions, ~120 min) are coming soon. Subscribe on r/TheoCompass for updates!")}
-        className="p-6 rounded-2xl border-2 border-slate-200 shadow-sm text-left relative overflow-hidden cursor-pointer hover:border-purple-300 hover:shadow-md transition-all w-full bg-gradient-to-br from-white to-purple-50/20 group"
-      >
-        <div className="absolute -bottom-3 -right-3 text-6xl opacity-[0.06] group-hover:opacity-[0.1] transition-opacity select-none pointer-events-none">
-          🔬
-        </div>
-        <div className="absolute top-3 right-3 bg-amber-100 text-amber-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
-          Coming Soon
-        </div>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
-            🔬
-          </span>
-          <h2 className="font-bold text-2xl text-slate-600">Deep</h2>
-          <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-1 rounded-full ml-auto">120 Qs</span>
-        </div>
-        <p className="text-slate-400 text-sm mb-2 leading-relaxed">The ultimate theological audit.</p>
-        <div className="flex items-center gap-2 text-xs font-medium">
-          <span className="text-slate-400 flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2"/><path d="M12 6v6l4 2" strokeWidth="2" strokeLinecap="round"/></svg>
-            ~120 min
-          </span>
-          <span className="text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full text-[10px] font-semibold">Deep dive</span>
-        </div>
-      </button>
+            <div className="min-w-0 flex-1 md:mt-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <h2
+                  className={`font-display text-base md:text-xl ${
+                    isPrimary ? "text-ink" : "text-ink-soft"
+                  }`}
+                >
+                  {mode.name}
+                </h2>
+                <span className="meta num md:hidden">{mode.questions}</span>
+              </div>
+
+              {/* Phone shows one line of orientation so all three modes fit on
+                  screen; from sm up the full blurb has room. */}
+              <p className="mt-1 hidden text-sm leading-relaxed text-ink-soft sm:block">
+                {mode.blurb}
+              </p>
+
+              <div className="meta mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 md:mt-6 md:border-t md:border-rule md:pt-3">
+                <span className="num hidden md:inline">{mode.questions}</span>
+                <span aria-hidden="true" className="hidden text-rule-strong md:inline">
+                  /
+                </span>
+                <span className="num">{mode.minutes}</span>
+                <span aria-hidden="true" className="text-rule-strong">
+                  /
+                </span>
+                <span>{mode.available ? mode.note : "Coming soon"}</span>
+              </div>
+
+              {isPrimary && (
+                <span className="meta mt-1 hidden text-accent sm:block">
+                  {savedMode === "quick" ? "Resume where you left off" : "Start here"}
+                </span>
+              )}
+            </div>
+
+            <MoveRight
+              aria-hidden="true"
+              className={`h-4 w-4 shrink-0 md:hidden ${
+                isPrimary ? "text-accent" : "text-rule-strong"
+              }`}
+              strokeWidth={1.75}
+            />
+          </button>
+        );
+      })}
     </div>
   );
 }

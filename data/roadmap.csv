@@ -1,0 +1,92 @@
+Phase 0 — Beta Hardening & Quick Wins,,,,,
+Goal: Fix immediate UX gaps and implement the most requested feature (Multiple Choice).,,,,,
+ID,Task Name,Description,Type,My Role,Progress
+0.1,Multiple Choice Logic,Update engine to allow multiple selections per question (calculated exactly like split views).,Code,Debug math edge cases.,Not started
+0.2,Multiple Choice UI,Add multiple choices (optional; one choice is preferred) + none of the above option (same calculation as apathetic silence),UI,Ensure mobile tap targets.,Not started
+0.3,14th Axis UI,Add Certainty axis to Fingerprint chart & Compare tool.,UI,Update Recharts layout.,Implemented locally
+0.4,Roadmap & Stats,"Create a detailed roadmap page. Add aggregate quiz stats on main page (total taken, etc.).",UI/Code,Link D1/KV data.,In progress
+0.5,Filter ongoing denominations,Filter ongoing or not (check if the estimate member global is 0 in the data + filter UI in the results,UI/Code,,Implemented locally
+0.6,Data versioning,Add data_version to DB schema and API outputs.,UI/Code,,Implemented locally
+0.7,frontend rework,rebuild the frontend for a better quiz experience,UI/Code,,Implemented locally
+0.8,In-Quiz Flag,"Small ""Report issue"" icon per question (typo, bad mapping).",Code,Triage inbox setup.,Not started
+0.9,Post-Quiz Feedback,"Rating 1-5, Accuracy Y/N, Free text.",Code/UI,"Write copy, test DB save.",Not started
+0.10,Reddit Post,Announce multiple choice + feedback mechanics.,Comm,Post & engage.,Not started
+
+Phase 1 — Standard Mode (60 Questions),,,,,
+Goal: Extend the quiz to 60 questions. This is heavily data-dependent.,,,,,
+ID,Task Name,Description,Type,My Role,Progress
+1.1,30 New Qs,"Draft 30 new questions, map dimensions, answers, descriptions.",Data,Deep theological review.,Not started
+1.2,Denom Data (Q31-60),"Generate answers, C, & T for 230 denominations for Qs 31-60.",Data,Manual spot-checking (XL).,Not started
+1.3,Upgrade Path,"""Answer 30 more Qs"" state transfer logic from Quick to Standard.",Code,Debug state persistence.,Not started
+1.4,UI Updates,"Progress bar, interstitials, category badges for 60 Qs.",UI,Mobile check.,Not started
+1.5,Precompute & Deploy,"Run ETL scripts, update D1/KV.",Code,"Run scripts, smoke test.",Not started
+
+Phase 2 — Results Depth & Creedal Alignment,,,,,
+"Goal: Add the 14th axis, Creedal engine, timelines, and deep-dive stats.",,,,,
+ID,Task Name,Description,Type,My Role,Progress
+2.1,Creed Data Entry,"Add Creeds (Nicene, Apostles, etc.) to Master Sheet (Nulls for silence).",Data,Verify historical accuracy.,Not started
+2.2,Creed Engine Math,Implement Null-Skip logic in distance calculation.,Code,Verify math manually.,Not started
+2.3,Creed UI results,Creed alignment in the results,UI,Design polish.,Not started
+2.4,Results Summary,"Concise, clear header at top of results page.",UI,Design polish.,Not started
+2.5,LOO calculator,LOO calculator for hero match,Code/UI,Testing and debugging,Not started
+2.6,Permalinks,Sherable URL for results,Code/UI,Testing and debugging,Not started
+2.7,Post-Quiz Stats,Click back to questions → see % of users who picked that answer.,Code/UI,Build D1 aggregation queries.,Not started
+2.8,Creed Links,Link post-quiz answers to specific Creeds/Confessions.,Code,Map IDs.,Not started
+2.9,Historical Timeline Data,Curate historical/creedal roots for the 60 Qs.,Data,Historical fact-checking.,Not started
+2.10,Timeline Tree UI,Precompute and render the timeline tree. Show user placement.,UI,D3.js/Recharts debugging.,Not started
+2.11,Reddit Post,Announce Creedal Scores & Timelines.,Comm,Post & engage.,Not started
+
+Phase 3 — The Museum & SEO (Content Moat),,,,,
+Goal: Turn the quiz into a destination site and acquire organic traffic.,,,,,
+ID,Task Name,Description,Type,My Role,Progress
+3.1,Museum Template,"Clean UI for Museum pages (origin, adherents, sources).",UI,Final design polish.,Not started
+3.2,Import Quiz Data,Pull descriptions/labels from Phase 1 into Museum UI.,Code,Test mapping.,Not started
+3.3,Label Glossary,Canonical ontology of all theological labels. + links,Data,Review definitions.,Not started
+3.4,Museum Feedback,Add feedback UI specifically for Museum pages.,Code,Triage setup.,Not started
+3.5,Curate 12 Pages,Write 12 flagship Museum pages.,Content,Edit for tone & cite sources.,Not started
+3.6,Static/ISR Setup,Pre-render Museum pages for SEO.,Code,Debug Next.js build.,Not started
+3.7,Methodology Page,"Visual, intuitive explanation of the math.",UI,Ensure clarity.,Not started
+3.8,Reddit Post,"""The Museum is open"" announcement.",Comm,Post & engage.,Not started
+
+Phase 4 — Accounts & Premium Infrastructure,,,,,
+"Goal: Auth, data retention, Stripe, and demographics.",,,,,
+ID,Task Name,Description,Type,My Role,Progress
+4.1,Auth System,Magic-link email authentication.,Code,Test edge cases.,Not started
+4.2,Demographics Form,"End-of-quiz optional form (Location, Age, Church). Requires 18+ gate.",Code/UI,Draft privacy/GDPR text.,Not started
+4.3,Multiple Saves,Associate results with User ID. (testing for fun vs real views),Code,DB migrations.,Not started
+4.4,Progression Chart,UI to compare saves over time.,UI,Verify math.,Not started
+4.5,Since Last Save,In-app notification of changes since last login.,Code,Write copy.,Not started
+4.6,Retention/Delete,UI/API for users to delete data.,Code,GDPR check.,Not started
+4.7,Stripe Setup,"Paywall routes, premium flags, subscription management.",Code,Test purchase flows.,Not started
+
+Phase 5 — Premium Analytics,,,,,
+Goal: Deliver advanced visual stats.,,,,,
+ID,Task Name,Description,Type,My Role,Progress
+5.1,Demographics Stats,Public dashboard (where users come from).,UI,Build charts.,Not started
+5.2,Per-Question Stats,Detailed demo breakdown for each question (Premium only).,UI/Code,Build premium gate.,Not started
+5.3,Better export,Generate PNG/PDF of Analytics for Reddit or other sharing.,UI/Code,Test canvas rendering.,Not started
+5.4,Centerless t-SNE,Centerless network cluster for families.,Code/UI,Debug D3/Canvas.,Not started
+5.5,Topical Heatmaps,"See exactly how ""split"" the field is on any given question.",Code/UI,Debugging and polish,Not started
+5.6,Venn Diagrams,Visually overlap your beliefs with specific denominations.,Code/UI,Debugging and polish,Not started
+5.7,Similarity Dendrogram (Theological Tree),"A phylogenetic tree showing the ""living tree"" of denominations, with your node included.",Code/UI,Debugging and polish,Not started
+5.8,Bullseye Charts,"A new visualization showing you as the center, with denominations radiating outward.",Code/UI,Debugging and polish,Not started
+
+Phase 6 — Deep Dive Mode (125 Questions),,,,,
+"Goal: The maximum-depth quiz, with the full creedal and confessional depth.",,,,,
+ID,Task Name,Description,Type,My Role,Progress
+6.1,65 New Qs,Draft 65 new questions + dimensions + labels.,Data,Heavy theological review.,Not started
+6.2,Denom Data,"Generate answers, C, & T for 230 denominations for 65 Qs.",Data,Massive manual review.,Not started
+6.3,Upgrade Path 2,"""Answer 65 more Qs"" state transfer logic from Standard to Deep dive.",Code,Debug state persistence.,Not started
+6.4,Historical Roots,Add historical timelines for ALL 125 questions.,Data,Fact-checking.,Not started
+6.5,More Creeds & Confessions,"Extend the creed engine past Nicene/Apostles to the major confessions (Westminster, Augsburg, Heidelberg, 39 Articles, Trent) and score Deep Dive against them.",Data,Verify historical accuracy.,Not started
+6.6,Reddit Post,"""Deep Dive Mode is Live"".",Comm,Post & engage.,Not started
+
+"Phase 7 — Community, Advanced Tools & Argument Ranking",,,,,
+Goal: Standalone argument tools and 3D visuals.,,,,,
+ID,Task Name,Description,Type,My Role,Progress
+8.1,Tier List Maker,Drag-and-drop UI for ranking views.,UI,Build React DnD.,Not started
+8.2,Steelman Pages,Add Steelman pages to the Museum.,Content,Edit & cite sources.,Not started
+8.3,Export to Image,Generate PNG/PDF of tier lists for Reddit sharing.,Code,Test canvas rendering.,Not started
+8.4,Side-by-Side,Compare user vs denomination or denomination vs denomination.,UI/Code,Reuse existing engine.,Not started
+8.5,3D Cube,3-axis visualization of theological space.,UI,Three.js debugging.,Not started
+8.6,Reddit Share,Auto-generate post text for subreddit.,Code,Test URL generation.,Not started

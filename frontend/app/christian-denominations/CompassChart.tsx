@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, ReferenceLine } from 'recharts';
-import { FAMILY_COLORS, FAMILY_GROUPS, GROUP_COLORS, FAMILY_TO_GROUP } from '../../lib/taxonomy';
+import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, ResponsiveContainer, ReferenceArea, ReferenceLine } from 'recharts';
+import { FAMILY_COLORS, FAMILY_GROUPS, GROUP_COLORS, FAMILY_TO_GROUP, USER_MARKER_COLOR, USER_MARKER_RING } from '../../lib/taxonomy';
+import { INK } from '../../lib/palette';
 
 const AXIS_OPTIONS = [
     { key: 'theol_cons_lib_avg', label: 'Theology: Progressive ↔ Orthodox', minLabel: 'Progressive', maxLabel: 'Orthodox' },
@@ -17,6 +18,7 @@ const AXIS_OPTIONS = [
     { key: 'literal_crit_avg', label: 'Scripture: Critical ↔ Literal', minLabel: 'Critical', maxLabel: 'Literal' },
     { key: 'intellect_exper_avg', label: 'Practice: Experiential ↔ Intellectual', minLabel: 'Experiential', maxLabel: 'Intellectual' },
     { key: 'tolerance_score', label: 'Posture: Accepting ↔ Dogmatic', minLabel: 'Accepting', maxLabel: 'Dogmatic' },
+    { key: 'certainty_score', label: 'Conviction: Unsure ↔ Certain', minLabel: 'Unsure', maxLabel: 'Certain', invert: true },
 ];
 
 // Transitional shim: maps old D1 family_name values → new taxonomy keys
@@ -50,12 +52,12 @@ const getFamilyKey = (family: string): string | null => {
 
 const getFamilyColor = (family: string, viewMode?: 'families' | 'denominations') => {
     const key = getFamilyKey(family);
-    if (!key) return '#64748b';
+    if (!key) return '#556a7e';
     if (viewMode === 'families') {
         const group = FAMILY_TO_GROUP[key];
-        return group ? (GROUP_COLORS[group] || '#64748b') : '#64748b';
+        return group ? (GROUP_COLORS[group] || '#556a7e') : '#556a7e';
     }
-    return FAMILY_COLORS[key] || '#64748b';
+    return FAMILY_COLORS[key] || '#556a7e';
 };
 
 // Family metadata now fetched live from /api/families instead of static FAMILY_METADATA
@@ -101,91 +103,45 @@ const CustomDot = (props: any) => {
     else if (payload.isFamily) r = (isActive ? 9 : 7) * scale;
     else r = (isActive ? 7 : 5) * scale;
 
-    const fill = isUser ? '#ef4444' : getFamilyColor(payload.family, viewMode);
-    const stroke = isUser ? '#7f1d1d' : (isActive ? '#0f172a' : '#ffffff');
-    const strokeWidth = isUser ? 3 : (isActive ? 2 : 1);
-    const opacity = isUser ? 1 : (isActive ? 1 : 0.7);
+    // The user is the only Punch Red mark on the chart, ringed in navy so it
+    // stays legible even where a Charismatic family is also red.
+    const fill = isUser ? USER_MARKER_COLOR : getFamilyColor(payload.family, viewMode);
+    const stroke = isUser ? USER_MARKER_RING : (isActive ? INK.base : '#ffffff');
+    const strokeWidth = isUser ? 2.5 : (isActive ? 2 : 1);
+    const opacity = isUser ? 1 : (isActive ? 1 : 0.75);
 
     return (
-        <circle 
-            cx={cx} cy={cy} r={r} 
-            fill={fill} stroke={stroke} strokeWidth={strokeWidth} fillOpacity={opacity}
-            className={isUser ? "drop-shadow-lg" : ""}
-            style={{ cursor: payload.isFamily ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
-        />
+        <g style={{ cursor: payload.isFamily ? 'pointer' : 'default' }}>
+            {isUser && (
+                <circle
+                    cx={cx} cy={cy} r={r + 4}
+                    className="halo-breathe"
+                    fill="none" stroke={USER_MARKER_COLOR} strokeWidth={1.5} opacity={0.35}
+                />
+            )}
+            <circle
+                cx={cx} cy={cy} r={r}
+                fill={fill} stroke={stroke} strokeWidth={strokeWidth} fillOpacity={opacity}
+                style={{ transition: 'fill-opacity 0.2s ease' }}
+            />
+        </g>
     );
 };
 
-const CustomTooltip = ({ active, payload, familyMetaMap }: { active?: boolean; payload?: any[] | readonly any[]; familyMetaMap: Record<string, { century: string; region: string; members: string; desc: string }> }) => {
-    if (active && payload && payload.length) {
-        const data = payload[0].payload;
-        
-        // Fetch family meta if it's a family node
-        const meta = data.isFamily ? familyMetaMap[data.name] : null;
-
-        return (
-            <div className="bg-slate-900 text-white p-2.5 sm:p-3.5 rounded-xl shadow-2xl border border-slate-700 text-xs sm:text-sm max-w-[240px] sm:max-w-[320px] w-[240px] sm:w-[320px] z-50 relative pointer-events-none">
-                <p className="font-bold text-base mb-1 text-blue-200 leading-tight">{data.name}</p>
-                
-                {data.isUser ? (
-                    <p className="text-xs text-slate-300 italic mb-3 border-b border-slate-700 pb-3">This is your calculated position!</p>
-                ) : data.isFamily ? (
-                    <>
-                        <p className="text-[10px] text-slate-400 mb-2 uppercase tracking-wider font-bold">Family Average ({data.count} traditions)</p>
-                        {meta && (
-                            <div className="mb-3 border-b border-slate-700 pb-3">
-                                <p className="text-xs text-slate-300 leading-relaxed mb-3">{meta.desc}</p>
-                                <div className="grid grid-cols-2 gap-y-1.5 text-[10px] text-slate-400 font-mono">
-                                    <span className="flex items-center gap-1.5 truncate">🗓 {meta.century}</span>
-                                    <span className="flex items-center gap-1.5 truncate">🌍 {meta.region}</span>
-                                    <span className="flex items-center gap-1.5 col-span-2">👥 {meta.members} est. members</span>
-                                </div>
-                            </div>
-                        )}
-                    </>
-                ) : (
-                    <>
-                        <p className="text-[10px] text-slate-400 mb-2 uppercase tracking-wider font-bold">{data.family} Family</p>
-                        
-                        {(data.description || data.origin || data.year || data.members) && (
-                            <div className="mb-3 border-b border-slate-700 pb-3">
-                                {/* Optional description text */}
-                                {data.description && (
-                                    <p className="text-xs text-slate-300 leading-relaxed mb-3">{data.description}</p>
-                                )}
-                                
-                                {/* Metadata Grid mirroring the family layout */}
-                                <div className="grid grid-cols-2 gap-y-1.5 text-[10px] text-slate-400 font-mono">
-                                    {data.year && (
-                                        <span className="flex items-center gap-1.5 truncate">🗓 {data.year}</span>
-                                    )}
-                                    {data.origin && (
-                                        <span className="flex items-center gap-1.5 truncate">🌍 {data.origin}</span>
-                                    )}
-                                    {data.members && (
-                                        <span className="flex items-center gap-1.5 col-span-2">👥 {data.members} est. members</span>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </>
-                )}
-                
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/50">
-                    <span className="text-slate-400">X-Axis:</span>
-                    <span className="text-right font-mono font-bold text-blue-100">{Number(payload[0].value).toFixed(1)}</span>
-                    <span className="text-slate-400">Y-Axis:</span>
-                    <span className="text-right font-mono font-bold text-blue-100">{Number(payload[1].value).toFixed(1)}</span>
-                </div>
-            </div>
-        );
-    }
-    return null;
-};
+/**
+ * There is no hover tooltip any more.
+ *
+ * It used to be a 300px panel floating over the plot: on a phone that was most
+ * of the chart, and on a desktop it hid the node you were trying to look at.
+ * Every node's details now land in one detail card under the plot — hovering
+ * previews it, tapping pins it — so the same information arrives at every
+ * screen size, in the same place, without covering the data.
+ */
 
 interface CompassProps {
     userCoords: Record<string, number>;
     userTolerance: number;
+    userCertainty?: number;
     isExport?: boolean;
     selectedMode?: string | null;
     familyMatches?: any[];
@@ -195,14 +151,17 @@ interface CompassProps {
     showTrails?: boolean;
     onToggleRings?: () => void;
     onToggleTrails?: () => void;
+    hideInactive?: boolean;
+    /** When true the component drops its own outer card (the panel supplies it). */
+    embedded?: boolean;
 }
 
-export default function CompassChart({ userCoords, userTolerance, isExport = false, selectedMode = 'quick', familyMatches = [] }: CompassProps) {
+export default function CompassChart({ userCoords, userTolerance, userCertainty = 50, isExport = false, selectedMode = 'quick', familyMatches = [], hideInactive = false, embedded = false }: CompassProps) {
     const rawFamilyMetaMap = useFamilyMeta();
     const familyMetaMap = useMemo(() => rawFamilyMetaMap, [rawFamilyMetaMap]);
     const [rawMapData, setRawMapData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<'families' | 'denominations'>('families');
+    const [viewMode, setViewMode] = useState<'families' | 'denominations'>('denominations');
     
     const [xAxis, setXAxis] = useState('theol_cons_lib_avg');
     const [yAxis, setYAxis] = useState('liturg_spont_avg');
@@ -308,17 +267,22 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
             return averagedItem;
         });
 
+        // 0.5 Filter: optionally hide inactive / historical traditions from the map
+        const visibleData = hideInactive
+            ? cleanData.filter((d: any) => d.is_active === 1 || d.is_active === true)
+            : cleanData;
+
         if (process.env.NODE_ENV === 'development') {
             console.log(`[TheoCompass] cleanData: ${cleanData.length} denominations across ${new Set(cleanData.map((d: any) => d.family)).size} families`);
         }
 
         // Step 3: Build family centroids OR use individual dots
-        let finalBackgroundData = cleanData;
+        let finalBackgroundData = visibleData;
 
         if (viewMode === 'families') {
             const familyGroups = new Map<string, any>();
 
-            cleanData.forEach((item: any) => {
+            visibleData.forEach((item: any) => {
                 const fam = item.family ?? 'Unknown';
                 if (!familyGroups.has(fam)) {
                     familyGroups.set(fam, {
@@ -382,13 +346,19 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
             isUser: true,
             z: 200,
             ...AXIS_OPTIONS.reduce((acc, opt) => {
-                const chartKey = opt.key === 'tolerance_score'
-                    ? 'tolerance_score'
-                    : opt.key.replace(/_avg$/, '');
+                // Meta-axes (tolerance/certainty) are served as separate scalars and
+                // are not part of userCoords.
+                const metaAxisValues: Record<string, number> = {
+                    tolerance_score: userTolerance,
+                    certainty_score: userCertainty,
+                };
+                if (opt.key in metaAxisValues) {
+                    acc[opt.key] = metaAxisValues[opt.key];
+                    return acc;
+                }
+                const chartKey = opt.key.replace(/_avg$/, '');
                 // Try chart key directly first, then the API underscore-stripped version
-                const value = opt.key === 'tolerance_score'
-                    ? userTolerance
-                    : (userCoords[chartKey] ?? userCoords[CHART_KEY_TO_API_KEY[chartKey]] ?? 50);
+                const value = userCoords[chartKey] ?? userCoords[CHART_KEY_TO_API_KEY[chartKey]] ?? 50;
                 acc[opt.key] = value;
                 return acc;
             }, {} as Record<string, number>),
@@ -402,17 +372,28 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
         }
         return compiledData;
 
-    }, [rawMapData, viewMode, userCoords, userTolerance, selectedFamilies]);
+    }, [rawMapData, viewMode, userCoords, userTolerance, userCertainty, selectedFamilies, hideInactive]);
 
     const xObj = AXIS_OPTIONS.find(o => o.key === xAxis);
     const yObj = AXIS_OPTIONS.find(o => o.key === yAxis);
+
+    // Every axis is reversed so that a high value plots on the left, which is where
+    // minLabel is drawn (e.g. Theol 95 = Unitarian = "Progressive" on the left).
+    // Certainty is the exception: its affirmative pole ("Certain") is a HIGH value,
+    // so reversing it would strand the dots opposite their label. Axes flagged
+    // `invert` therefore plot unreversed, putting "Certain" and its dots on the right.
+    const xReversed = !xObj?.invert;
+    const yReversed = !yObj?.invert;
 
     const rawX = xAxis.replace('_avg', '');
     const rawY = yAxis.replace('_avg', '');
     const topFamily = familyMatches?.[0];
     
     const hasFamilyBounds = selectedMode === 'quick' && topFamily?.coordinates?.[rawX] && topFamily?.coordinates?.[rawY];
-    const showDefaultBounds = hasFamilyBounds && !activeNode?.isFamily;
+    // The box is context, not a selection: it used to disappear the moment a
+    // family was hovered (which is also what made an orange square flicker on
+    // top of the plot). It stays put now.
+    const showDefaultBounds = Boolean(hasFamilyBounds);
 
     const toggleLegendFilter = (familyName: string) => {
         if (viewMode !== 'denominations') return;
@@ -422,63 +403,77 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
     };
 
     if (loading) {
-        return <div className="p-10 text-center text-slate-500 animate-pulse">Loading Theological Landscape...</div>;
+        return <div className="p-10 text-center text-ink-muted animate-pulse">Loading Theological Landscape...</div>;
+    }
+
+    // Guard: if the coordinates API returned no rows, show an explicit message
+    // instead of a blank chart (e.g. stale local D1 / API error).
+    if (rawMapData.length === 0) {
+        return (
+            <div className="p-10 text-center text-ink-muted">
+                Could not load the theological landscape. Please check your connection and try again.
+            </div>
+        );
     }
 
     return (
-        <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200 shadow-sm mt-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 pb-6">
+        <div className={`card p-4 md:p-6 ${embedded ? "" : "mt-8"}`}>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-rule pb-6">
                 <div>
                     <div className="flex items-center gap-4 mb-2">
-                        <h3 className="font-serif text-2xl font-bold text-slate-800">Your Theological Compass</h3>
+                        <h3 className="font-display text-lg text-ink">Theological compass</h3>
                         {!isExport && (
-                            <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200 ml-4">
+                            <div className="flex border border-rule-strong">
                                 <button 
                                     onClick={() => setViewMode('families')}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'families' ? 'bg-white text-blue-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                                    aria-pressed={viewMode === 'families'}
+                                    className={`px-2.5 py-1 text-2xs font-medium transition-colors ${viewMode === 'families' ? 'bg-cerulean-900 text-white' : 'text-ink-muted hover:bg-cerulean-50 hover:text-ink'}`}
                                 >
                                     Families
                                 </button>
                                 <button 
                                     onClick={() => setViewMode('denominations')}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'denominations' ? 'bg-white text-blue-700 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                                    aria-pressed={viewMode === 'denominations'}
+                                    className={`px-2.5 py-1 text-2xs font-medium transition-colors ${viewMode === 'denominations' ? 'bg-cerulean-900 text-white' : 'text-ink-muted hover:bg-cerulean-50 hover:text-ink'}`}
                                 >
-                                    Specific Traditions
+                                    Traditions
                                 </button>
                             </div>
                         )}
                     </div>
-                    <p className="text-sm text-slate-500">
-                        {viewMode === 'families' ? 'Hover or tap a family to view its theological range.' : 'A visual projection of specific theological coordinates.'}
+                    <p className="mt-1.5 text-xs text-ink-muted">
+                        {viewMode === 'families'
+                            ? 'Hover or tap a cluster to see its theological range.'
+                            : 'Every dot is a tradition. The red marker with the halo is you.'}
                     </p>
                 </div>
 
                 {!isExport ? (
-                    <div className="flex flex-col gap-2 w-full md:w-auto">
-                        <div className="flex items-center gap-2 text-sm">
-                            <span className="font-bold text-slate-700 w-12">Y-Axis:</span>
-                            <select className="border border-slate-300 rounded p-1 text-slate-700 w-full md:w-72" value={yAxis} onChange={(e) => setYAxis(e.target.value)}>
+                    <div className="flex w-full flex-col gap-2 md:w-auto">
+                        <label className="flex items-center gap-2">
+                            <span className="meta w-12 shrink-0">Y-axis</span>
+                            <select className="w-full border border-rule-strong bg-paper-raised px-2 py-1.5 text-xs text-ink md:w-64" value={yAxis} onChange={(e) => setYAxis(e.target.value)}>
                                 {AXIS_OPTIONS.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
                             </select>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                            <span className="font-bold text-slate-700 w-12">X-Axis:</span>
-                            <select className="border border-slate-300 rounded p-1 text-slate-700 w-full md:w-72" value={xAxis} onChange={(e) => setXAxis(e.target.value)}>
+                        </label>
+                        <label className="flex items-center gap-2">
+                            <span className="meta w-12 shrink-0">X-axis</span>
+                            <select className="w-full border border-rule-strong bg-paper-raised px-2 py-1.5 text-xs text-ink md:w-64" value={xAxis} onChange={(e) => setXAxis(e.target.value)}>
                                 {AXIS_OPTIONS.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
                             </select>
-                        </div>
+                        </label>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-3 w-full md:w-auto">
-                        <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-700 text-sm w-20">Y-Axis:</span>
-                            <span className="font-semibold text-slate-900 px-4 py-2.5 bg-white border-2 border-slate-400 rounded-lg shadow-md text-sm max-w-[280px] truncate bg-gradient-to-r from-slate-50 to-white">
+                    <div className="flex w-full flex-col gap-2 md:w-auto">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="meta w-14 shrink-0">Y-axis</span>
+                            <span className="max-w-[280px] truncate border border-rule bg-paper-raised px-3 py-2 text-mini font-semibold text-ink">
                                 {yObj?.label || 'Loading...'}
                             </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-700 text-sm w-20">X-Axis:</span>
-                            <span className="font-semibold text-slate-900 px-4 py-2.5 bg-white border-2 border-slate-400 rounded-lg shadow-md text-sm max-w-[280px] truncate bg-gradient-to-r from-slate-50 to-white">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="meta w-14 shrink-0">X-axis</span>
+                            <span className="max-w-[280px] truncate border border-rule bg-paper-raised px-3 py-2 text-mini font-semibold text-ink">
                                 {xObj?.label || 'Loading...'}
                             </span>
                         </div>
@@ -486,46 +481,39 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                 )}
             </div>
 
-            <div className="border border-slate-100 rounded-lg overflow-hidden bg-slate-50 relative">
-                <ResponsiveContainer width="100%" aspect={1} minHeight={0}>
+            <div className={isExport
+                ? 'chart-grid relative w-full border border-rule bg-paper'
+                : 'chart-grid relative mx-auto h-[18rem] w-full max-w-[54rem] border border-rule bg-paper sm:h-[22rem] md:h-[26rem]'}>
+                {/* Adaptive, not square. A fixed square wasted the width of a wide
+                    panel and forced a tall, thin window on a phone; the height
+                    now steps with the breakpoint. The detail card below is given
+                    the identical max-width, so the two always line up. */}
+                <ResponsiveContainer width="100%" height={isExport ? 440 : '100%'}>
                     <ScatterChart 
-                        margin={isMobile ? { top: 14, right: 8, bottom: 14, left: 8 } : { top: 40, right: 30, bottom: 30, left: 40 }}
+                        margin={isMobile ? { top: 14, right: 8, bottom: 14, left: 8 } : { top: 22, right: 16, bottom: 16, left: 16 }}
                         onClick={() => {
                             if (lockedNode) setLockedNode(null);
                         }}
                     >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis type="number" dataKey={xAxis} domain={[0, 100]} reversed={true} hide />
-                        <YAxis type="number" dataKey={yAxis} domain={[0, 100]} reversed={true} hide />
+                        <CartesianGrid strokeDasharray="2 4" stroke="#d7e3e0" />
+                        <XAxis type="number" dataKey={xAxis} domain={[0, 100]} reversed={xReversed} hide />
+                        <YAxis type="number" dataKey={yAxis} domain={[0, 100]} reversed={yReversed} hide />
                         <ZAxis type="number" dataKey="z" range={[60, 400]} />
-                        <Tooltip content={(props) => <CustomTooltip {...props} familyMetaMap={familyMetaMap} />} cursor={{ strokeDasharray: '3 3' }} />
-                        
                         {showDefaultBounds && (
                             <ReferenceArea 
                                 x1={topFamily.coordinates[rawX].min} x2={topFamily.coordinates[rawX].max}
                                 y1={topFamily.coordinates[rawY].min} y2={topFamily.coordinates[rawY].max}
-                                fillOpacity={0.10} fill="#3b82f6" stroke="#2563eb" strokeOpacity={0.3} strokeDasharray="3 3"
+                                fillOpacity={0.10} fill="#457b9d" stroke="#457b9d" strokeOpacity={0.3} strokeDasharray="3 3"
                             />
                         )}
 
-                        {activeNode?.isFamily && activeNode[`${xAxis}Min`] !== undefined && (
-                            <ReferenceArea 
-                                x1={activeNode[`${xAxis}Min`]} x2={activeNode[`${xAxis}Max`]}
-                                y1={activeNode[`${yAxis}Min`]} y2={activeNode[`${yAxis}Max`]}
-                                fillOpacity={0.15} fill={getFamilyColor(activeNode.family, viewMode)} 
-                                stroke={getFamilyColor(activeNode.family, viewMode)} strokeOpacity={0.6} strokeDasharray="3 3"
-                            />
-                        )}
-
-                        <ReferenceLine x={50} stroke="#94a3b8" strokeWidth={2} opacity={0.5} />
-                        <ReferenceLine y={50} stroke="#94a3b8" strokeWidth={2} opacity={0.5} />
+                        <ReferenceLine x={50} stroke="#b6c9cb" strokeWidth={1.5} strokeDasharray="4 4" />
+                        <ReferenceLine y={50} stroke="#b6c9cb" strokeWidth={1.5} strokeDasharray="4 4" />
                         
                         <Scatter 
                             data={chartData} 
                             shape={(props) => <CustomDot {...props} activeNodeName={activeNode?.name} isMobile={isMobile} viewMode={viewMode} />} 
-                            isAnimationActive={true} 
-                            animationDuration={600} 
-                            animationEasing="ease-out"
+                            isAnimationActive={false}
                             onMouseEnter={(data: any) => {
                                 if (data?.payload) setHoveredNode(data.payload);
                             }}
@@ -540,65 +528,136 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                     </ScatterChart>
                 </ResponsiveContainer>
 
-                <div className="absolute bottom-0.5 sm:bottom-2 left-1 sm:left-16 text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-0.5 sm:px-1 rounded pointer-events-none">{xObj?.minLabel}</div>
-                <div className="absolute bottom-0.5 sm:bottom-2 right-0.5 sm:right-4 text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-0.5 sm:px-1 rounded pointer-events-none">{xObj?.maxLabel}</div>
-                <div className="absolute top-1 sm:top-15 left-0.5 sm:left-4 text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-0.5 sm:px-1 rounded origin-top-left -rotate-90 translate-y-10 sm:translate-y-20 pointer-events-none">{yObj?.maxLabel}</div>
-                <div className="absolute bottom-2 sm:bottom-16 left-0.5 sm:left-8 text-[7px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-white/70 px-0.5 sm:px-1 rounded origin-bottom-left -rotate-90 pointer-events-none">{yObj?.minLabel}</div>
+                <div className="absolute bottom-0.5 sm:bottom-1 left-1 sm:left-2 text-4xs sm:text-3xs font-bold uppercase tracking-wide text-ink-muted bg-paper-raised/70 px-0.5 sm:px-1 pointer-events-none">{xObj?.minLabel}</div>
+                <div className="absolute bottom-0.5 sm:bottom-1 right-1 sm:right-2 text-4xs sm:text-3xs font-bold uppercase tracking-wide text-ink-muted bg-paper-raised/70 px-0.5 sm:px-1 pointer-events-none">{xObj?.maxLabel}</div>
+                <div className="absolute left-2 top-1/4 -translate-x-1/2 -translate-y-1/2 -rotate-90 whitespace-nowrap text-4xs sm:text-3xs font-bold text-ink-muted uppercase tracking-wide bg-paper-raised/70 px-0.5 sm:px-1 pointer-events-none">{yObj?.maxLabel}</div>
+                <div className="absolute left-2 top-3/4 -translate-x-1/2 -translate-y-1/2 -rotate-90 whitespace-nowrap text-4xs sm:text-3xs font-bold text-ink-muted uppercase tracking-wide bg-paper-raised/70 px-0.5 sm:px-1 pointer-events-none">{yObj?.minLabel}</div>
             </div>
 
-            <div className="mt-8 border-t border-slate-100 pt-6">
+            {/* One card, every screen size, and always exactly as wide as the
+                plot above it. Touch has no hover, and a floating panel covered
+                the plot on a desktop; hovering previews here and tapping pins
+                it. The height is a floor, not a cap: a long tradition
+                description used to be clamped to three lines on a phone. */}
+            {!isExport && (
+                <div
+                    key={activeNode?.name ?? 'empty'}
+                    className="mx-auto min-h-[5.5rem] w-full max-w-[54rem] animate-fade-in border-x border-b border-rule bg-paper-raised p-3 sm:min-h-[7rem] sm:p-3.5"
+                >
+                    {activeNode ? (
+                        <>
+                            <div className="flex items-start justify-between gap-2">
+                                <p className="min-w-0 break-words text-mini font-semibold leading-tight text-ink">
+                                    {activeNode.name}
+                                    {lockedNode && (
+                                        <span className="ml-1.5 align-middle text-3xs font-medium uppercase tracking-wide text-ink-muted">
+                                            pinned
+                                        </span>
+                                    )}
+                                </p>
+                                {lockedNode && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setLockedNode(null)}
+                                        aria-label="Close details"
+                                        className="shrink-0 border border-rule px-2 py-1 text-2xs text-ink-muted"
+                                    >
+                                        Close
+                                    </button>
+                                )}
+                            </div>
+                            <p className="mt-0.5 text-2xs text-ink-muted">
+                                {activeNode.isUser
+                                    ? 'Your calculated position'
+                                    : activeNode.isFamily
+                                    ? `Family average of ${activeNode.count} traditions`
+                                    : `${activeNode.family} family`}
+                            </p>
+                            {(activeNode.isFamily ? familyMetaMap[activeNode.name]?.desc : activeNode.description) && (
+                                <p className="mt-1.5 break-words text-2xs leading-relaxed text-ink-soft sm:text-mini">
+                                    {activeNode.isFamily ? familyMetaMap[activeNode.name]?.desc : activeNode.description}
+                                </p>
+                            )}
+                            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-rule pt-2 font-mono text-2xs text-ink-muted">
+                                <span>{Number(activeNode[xAxis] ?? 0).toFixed(0)} / {Number(activeNode[yAxis] ?? 0).toFixed(0)}</span>
+                                {(activeNode.isFamily ? familyMetaMap[activeNode.name]?.region : activeNode.origin) && (
+                                    <span>{activeNode.isFamily ? familyMetaMap[activeNode.name]?.region : activeNode.origin}</span>
+                                )}
+                                {(activeNode.isFamily ? familyMetaMap[activeNode.name]?.century : activeNode.year) && (
+                                    <span>{activeNode.isFamily ? familyMetaMap[activeNode.name]?.century : activeNode.year}</span>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-2xs leading-relaxed text-ink-muted">
+                            <span className="hidden sm:inline">
+                                Hover a tradition to preview it here; click to pin its details.
+                            </span>
+                            <span className="sm:hidden">Tap a tradition to see its details here.</span>
+                        </p>
+                    )}
+                </div>
+            )}
+
+            <div className="mt-8 border-t border-rule pt-6">
                 {viewMode === 'denominations' && !isExport && (
-                    <p className="text-xs text-slate-500 mb-4 font-medium italic bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md border border-blue-100 text-center">
+                    <p className="mb-3 border border-cerulean-200 bg-cerulean-50 px-3 py-1.5 text-center text-2xs font-medium text-cerulean-800">
                         Click on the traditions below to isolate them on the chart.
                     </p>
                 )}
                 
-                <div className="flex items-center gap-2 mb-4 justify-center">
-                    <span className="flex items-center gap-1.5 font-bold text-[11px]">
-                        <div className="w-4 h-4 rounded-full bg-[#ef4444] border-2 border-[#7f1d1d]"></div>You
+                <div className="mb-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
+                    <span className="flex items-center gap-1.5 text-2xs font-semibold text-ink">
+                        <span aria-hidden="true" className="h-2.5 w-2.5 border-2 border-ink bg-punch" />
+                        You
                     </span>
                 </div>
 
                 {viewMode === 'families' || isExport ? (
                     <div className="flex items-center justify-center gap-x-5 gap-y-2 flex-wrap max-w-2xl mx-auto">
                         {FAMILY_GROUPS.map((group) => {
-                            const groupColor = GROUP_COLORS[group.category] || '#64748b';
+                            const groupColor = GROUP_COLORS[group.category] || '#556a7e';
                             return (
-                                <span key={group.category} className="flex items-center gap-1.5 text-xs font-medium text-slate-600 whitespace-nowrap">
-                                    <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: groupColor }}></div>
+                                <span key={group.category} className="flex items-center gap-1.5 text-xs font-medium text-ink-soft whitespace-nowrap">
+                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: groupColor }}></div>
                                     {group.category}
                                 </span>
                             );
                         })}
                     </div>
                 ) : (
-                    <div className="space-y-2 max-w-2xl mx-auto">
+                    <div className="mx-auto max-w-2xl space-y-1">
                         {FAMILY_GROUPS.map((group) => {
                             const groupKey = group.category;
+                            const groupColor = GROUP_COLORS[group.category] || '#556a7e';
                             const isExpanded = expandedGroups.includes(groupKey) || isExport;
                             const allFamiliesSelected = selectedFamilies.length === 0 || group.families.some(f => selectedFamilies.includes(f));
                             
                             return (
-                                <div key={groupKey} className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                                <div key={groupKey} className="border border-rule overflow-hidden bg-paper-raised">
                                     <button
                                         onClick={() => {
                                             if (!isExport) {
                                                 setExpandedGroups(prev => prev.includes(groupKey) ? prev.filter(g => g !== groupKey) : [...prev, groupKey]);
                                             }
                                         }}
-                                        className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-colors ${allFamiliesSelected ? 'text-slate-800 hover:bg-slate-50' : 'text-slate-400'} cursor-pointer`}
+                                        className={`flex w-full cursor-pointer items-center justify-between px-2.5 py-1.5 text-xs font-semibold transition-colors ${allFamiliesSelected ? 'text-ink hover:bg-muted-soft' : 'text-ink-muted'} `}
                                     >
                                         <span className="flex items-center gap-2">
                                             <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                                             </svg>
+                                            <span
+                                                className="h-2.5 w-2.5 rounded-full"
+                                                style={{ backgroundColor: groupColor }}
+                                            />
                                             {group.category}
-                                            <span className="text-[10px] text-slate-400 font-normal ml-2">{group.families.length} traditions</span>
+                                            <span className="text-3xs text-ink-muted font-normal ml-2">{group.families.length} traditions</span>
                                         </span>
                                     </button>
                                     
                                     {isExpanded && (
-                                        <div className="px-3 pb-2.5 pt-1 flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] bg-slate-50/50 border-t border-slate-100">
+                                        <div className="px-3 pb-2.5 pt-1 flex flex-wrap gap-x-3 gap-y-1.5 text-2xs bg-paper/50 border-t border-rule">
                                             {group.families.map(famName => {
                                                 const famKey = getFamilyKey(famName) || famName;
                                                 const color = getFamilyColor(famName);
@@ -610,7 +669,7 @@ export default function CompassChart({ userCoords, userTolerance, isExport = fal
                                                         onClick={() => toggleLegendFilter(famKey)}
                                                         className={`flex items-center gap-1.5 font-medium whitespace-nowrap transition-opacity duration-200 cursor-pointer hover:opacity-80 ${isSelected ? 'opacity-100' : 'opacity-30'}`}
                                                     >
-                                                        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: color }}></div>
+                                                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
                                                         {famName.replace(' / ', '/')}
                                                     </span>
                                                 );

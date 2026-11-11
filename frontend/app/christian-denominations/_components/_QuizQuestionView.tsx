@@ -1,9 +1,127 @@
 "use client";
 
+import { ArrowRight, Check, ChevronLeft, Info, Minus, X } from "lucide-react";
 import type { Question, Answer, UserResponse } from "../_types";
-import { QUIZ_CATEGORY_COLORS, QUIZ_CATEGORY_COLORS_DEFAULT, QUIZ_CATEGORY_LABELS, CERTAINTY_LABELS, TOLERANCE_LABELS, TOLERANCE_DESCRIPTIONS } from "../_constants";
+import {
+  QUIZ_CATEGORY_COLORS,
+  QUIZ_CATEGORY_COLORS_DEFAULT,
+  QUIZ_CATEGORY_LABELS,
+  CERTAINTY_LABELS,
+  TOLERANCE_LABELS,
+  TOLERANCE_DESCRIPTIONS,
+} from "../_constants";
+
+/* Compact tick labels — the full label is shown above the rail. */
+const CERTAINTY_SHORT = ["Not sure", "Leaning", "Pretty sure", "Certain"];
+const TOLERANCE_SHORT = ["None", "No fellowship", "A few", "Most", "All"];
+
+/**
+ * A stepped slider with a painted track, tick marks and a live readout.
+ *
+ * Restored from the previous design at the user's request: dragging along a
+ * scale reads as "more or less" far faster than picking from a list of buttons.
+ * The native input stays on top (z-10) so keyboard, screen readers and touch
+ * all keep working; the track underneath is purely cosmetic.
+ */
+export function AxisSlider({
+  legend,
+  labels,
+  shortLabels,
+  value,
+  onChange,
+  hint,
+}: {
+  legend: string;
+  labels: string[];
+  shortLabels: string[];
+  value: number;
+  onChange: (value: number) => void;
+  hint?: string;
+}) {
+  const id = `axis-${legend.replace(/[^a-z]+/gi, "-").toLowerCase()}`;
+  const max = labels.length - 1;
+  const pct = max > 0 ? (value / max) * 100 : 0;
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={id} className="meta">
+          {legend}
+        </label>
+        <span className="num text-xs font-semibold text-cerulean-900">
+          {labels[value]}
+        </span>
+      </div>
+
+      <div className="relative mt-2 h-9">
+        {/* track */}
+        <div className="pointer-events-none absolute inset-x-2.5 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-cerulean-100" />
+        {/* fill */}
+        <div className="pointer-events-none absolute inset-x-2.5 top-1/2 h-1.5 -translate-y-1/2">
+          <div
+            className="h-full rounded-full bg-cerulean-600 transition-[width] duration-150 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        {/* step ticks */}
+        <div className="pointer-events-none absolute inset-x-2.5 top-1/2 flex -translate-y-1/2 justify-between">
+          {labels.map((_, index) => (
+            <span
+              key={index}
+              className={`h-2.5 w-0.5 rounded-full transition-colors ${
+                index <= value ? "bg-paper" : "bg-cerulean-300"
+              }`}
+            />
+          ))}
+        </div>
+
+        <input
+          id={id}
+          type="range"
+          min={0}
+          max={max}
+          step={1}
+          value={value}
+          aria-valuetext={labels[value]}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="absolute inset-0 z-10 h-9 w-full cursor-pointer appearance-none bg-transparent
+            [&::-webkit-slider-runnable-track]:h-9 [&::-webkit-slider-runnable-track]:bg-transparent
+            [&::-webkit-slider-thumb]:mt-2 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
+            [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
+            [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-paper
+            [&::-webkit-slider-thumb]:bg-cerulean-900 [&::-webkit-slider-thumb]:shadow-none
+            [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110
+            [&::-moz-range-track]:h-9 [&::-moz-range-track]:bg-transparent
+            [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full
+            [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-paper
+            [&::-moz-range-thumb]:bg-cerulean-900 [&::-moz-range-thumb]:shadow-none"
+        />
+      </div>
+
+      <div className="mt-1 flex justify-between gap-1 text-3xs leading-tight text-ink-muted">
+        {shortLabels.map((label, index) => {
+          const alignment =
+            index === 0 ? "text-left" : index === shortLabels.length - 1 ? "text-right" : "text-center";
+          return (
+            <span
+              key={label}
+              className={`flex-1 ${alignment} ${
+                index === value ? "font-semibold text-cerulean-900" : ""
+              }`}
+            >
+              {label}
+            </span>
+          );
+        })}
+      </div>
+
+      {hint && <p className="mt-2 text-2xs leading-snug text-ink-muted">{hint}</p>}
+    </div>
+  );
+}
 
 export interface QuizQuestionViewProps {
+
   currentQuestion: Question;
   questions: Question[];
   currentQuestionIndex: number;
@@ -23,6 +141,8 @@ export interface QuizQuestionViewProps {
   transitionCategoryName: string;
   transitionCategoryCode: string;
   quizAnimKey: number;
+  /** Which way the reader is travelling. Back must not animate as forward. */
+  quizAnimDir: "next" | "prev";
   userAnswers: Record<string, UserResponse>;
   onStandardAnswerClick: (answerId: string) => void;
   onToggleInfo: (e: React.MouseEvent, answerId: string) => void;
@@ -40,7 +160,6 @@ export function QuizQuestionView({
   questions,
   currentQuestionIndex,
   totalQuestions,
-  progressPercentage,
   hasPrimaryKeyword,
   displayAnswers,
   selectedAnswer,
@@ -53,8 +172,8 @@ export function QuizQuestionView({
   showShortcutHint,
   showCategoryTransition,
   transitionCategoryName,
-  transitionCategoryCode,
   quizAnimKey,
+  quizAnimDir,
   userAnswers,
   onStandardAnswerClick,
   onToggleInfo,
@@ -66,367 +185,367 @@ export function QuizQuestionView({
   onDismissShortcutHint,
   onDismissCategoryTransition,
 }: QuizQuestionViewProps) {
+  const colors =
+    QUIZ_CATEGORY_COLORS[currentQuestion.category] || QUIZ_CATEGORY_COLORS_DEFAULT;
+  const categoryLabel =
+    QUIZ_CATEGORY_LABELS[currentQuestion.category] || currentQuestion.category;
+
+  const answeredCount = Object.keys(userAnswers).length;
+  const progress =
+    totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
+  const canAdvance = Boolean(selectedAnswer) || isSilenceSelected;
+  const isLastQuestion = currentQuestionIndex === questions.length - 1;
+  const showConviction = Boolean(selectedAnswer) && !isSilenceSelected;
+
   return (
-    <main className="flex-grow w-full max-w-2xl mx-auto px-4 py-8 md:py-12 flex flex-col">
-      {/* Question content with slide transition */}
-      <div key={quizAnimKey} className="animate-slide-in-right flex flex-col flex-grow">
-        {(() => {
-          const cat = currentQuestion.category;
-          const colors = QUIZ_CATEGORY_COLORS[cat] || QUIZ_CATEGORY_COLORS_DEFAULT;
-          return (
-            <div className="flex justify-between items-center mb-4">
-              <div className={`text-xs font-bold uppercase tracking-wider ${colors.text} bg-white px-3 py-1 rounded-full border ${colors.border.replace('border-l-', 'border-')} shadow-sm`}>
-                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle ${colors.dot}`} />
-                {QUIZ_CATEGORY_LABELS[cat] || cat}
-              </div>
-              <div className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full">
-                Q {currentQuestionIndex + 1} / {totalQuestions}
-              </div>
-            </div>
-          );
-        })()}
+    <main
+      id="main-content"
+      className="mx-auto flex w-full max-w-[64rem] flex-grow flex-col px-5 py-8 md:px-8 md:py-10 lg:px-10"
+    >
+      {/* ── Progress: one thin rule, not 30 dots ──────────────────────── */}
+      <div className="flex items-center gap-3">
+        <div className="h-[2px] flex-1 bg-rule" role="presentation">
+          <div
+            className="h-full bg-ink transition-[width] duration-300 ease-out"
+            style={{ width: `${Math.max(progress, 2)}%` }}
+          />
+        </div>
+        <span className="meta num shrink-0">
+          <span
+            key={currentQuestionIndex}
+            className="inline-block animate-number-tick"
+          >
+            {String(currentQuestionIndex + 1).padStart(2, "0")}
+          </span>{" "}
+          / {totalQuestions}
+        </span>
+      </div>
 
-        {/* Keyboard shortcut hint (first question only) */}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-rule pb-2">
+        <span className="meta flex items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className={`inline-block h-2 w-2 rounded-full ${colors.dot}`}
+          />
+          {categoryLabel}
+        </span>
+        <span className="meta num">{answeredCount} answered</span>
+      </div>
+
+      <div
+        key={quizAnimKey}
+        className={`flex flex-grow flex-col ${
+          quizAnimDir === "prev" ? "animate-slide-in-left" : "animate-slide-in-right"
+        }`}
+      >
+        {/* Keyboard hint — first question only */}
         {currentQuestionIndex === 0 && showShortcutHint && (
-          <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-700 flex items-center justify-between animate-fade-in-up">
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              <span><kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px] min-w-[18px] text-center">1</kbd>–<kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px] min-w-[18px] text-center">4</kbd> Select answer</span>
-              <span><kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px]">Enter</kbd> Confirm</span>
-              <span><kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px]">S</kbd> Apathetic silence</span>
-              <span><kbd className="inline-block bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded font-bold text-[10px]">H</kbd> Hostile silence</span>
+          <div className="mt-3 flex items-start justify-between gap-3 border border-rule bg-muted-soft px-3 py-2 animate-fade-in">
+            <div className="meta flex flex-wrap gap-x-3 gap-y-1 normal-case tracking-normal">
+              <span>
+                <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">1</kbd>
+                –
+                <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">4</kbd>{" "}
+                select
+              </span>
+              <span>
+                <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">Enter</kbd>{" "}
+                confirm
+              </span>
+              <span>
+                <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">S</kbd>{" "}
+                apathetic
+              </span>
+              <span>
+                <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">H</kbd>{" "}
+                hostile
+              </span>
             </div>
             <button
+              type="button"
               onClick={onDismissShortcutHint}
-              className="text-indigo-400 hover:text-indigo-600 ml-2 flex-shrink-0"
-              aria-label="Dismiss shortcut hint"
+              aria-label="Dismiss keyboard shortcuts"
+              className="shrink-0 text-ink-muted transition-colors hover:text-ink"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {/* Category transition banner */}
-        {showCategoryTransition && (() => {
-          const tcColors = QUIZ_CATEGORY_COLORS[transitionCategoryCode] || QUIZ_CATEGORY_COLORS_DEFAULT;
-          return (
-          <div className={`mb-5 p-3 rounded-xl animate-fade-in-up flex items-center justify-between gap-3 ${tcColors.bg} border ${tcColors.border.replace('border-l-', 'border-')} border-opacity-50`}>
-            <div className="flex-1 text-left">
-              <div className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${tcColors.text}`}>New Section</div>
-              <div className="text-sm font-bold text-slate-800">{transitionCategoryName}</div>
-            </div>
-            <button
-              onClick={onDismissCategoryTransition}
-              className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-white/80 hover:bg-white text-slate-400 hover:text-slate-600 transition-colors border border-slate-200"
-              aria-label="Dismiss category transition"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          );
-        })()}
+        )}
 
-        {/* Question navigation dots (color-coded by category) */}
-        <div className="flex items-center justify-center gap-1.5 mb-4">
-          {questions.map((q, i) => {
-            const dotColors = QUIZ_CATEGORY_COLORS[q.category] || QUIZ_CATEGORY_COLORS_DEFAULT;
-            const isCurrent = i === currentQuestionIndex;
-            const isAnswered = !!userAnswers[q.id];
-            return (
-              <div
-                key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  isCurrent
-                    ? "w-5 bg-blue-600"
-                    : isAnswered
-                    ? `w-1.5 ${dotColors.dot}`
-                    : "w-1.5 bg-slate-300"
-                }`}
-              />
-            );
-          })}
-        </div>
-
-        <h1 className="font-serif text-2xl md:text-3xl font-bold text-slate-900 mb-8 leading-snug">
-          {currentQuestion.question}
-        </h1>
-
-        {/* ANSWERS */}
-        <div className={`flex flex-col gap-3 mb-6 transition-opacity duration-300 ${isSilenceSelected ? "opacity-40" : ""}`}>
-          {displayAnswers.map((ans) => {
-            const isSelected = selectedAnswer === ans.id;
-            const isInfoOpen = expandedInfo === ans.id;
-            
-            return (
-              <div key={ans.id} className="flex flex-col">
-                <button
-                  onClick={() => onStandardAnswerClick(ans.id)}
-                  className={`text-left p-4 rounded-xl border-2 transition-all flex justify-between items-center ${
-                    isSelected ? "border-blue-600 bg-blue-50 shadow-md" : "border-slate-200 bg-white hover:border-slate-300"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    {isSelected && (
-                      <svg className="w-5 h-5 text-blue-600 animate-checkmark-bounce flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                    <span className={`font-medium ${isSelected ? "text-blue-800" : "text-slate-700"}`}>
-                      {ans.text}
-                    </span>
-                  </span>
-                  <div 
-                    onClick={(e) => onToggleInfo(e, ans.id)}
-                    className={`flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0 px-3 py-1.5 rounded-full ${
-                      isInfoOpen ? "bg-blue-600 text-white" : "bg-slate-100 text-blue-600 border border-blue-200 hover:bg-blue-50 hover:border-blue-300"
-                    } ${
-                      !hasShownFirstInfoPulse && currentQuestionIndex === 0 ? "animate-pulse-slow ring-2 ring-blue-300" : ""
-                    }`}
-                  >
-                    <span className="text-xs whitespace-nowrap">{isInfoOpen ? "Close" : "Learn more"}</span>
-                  </div>
-                </button>
-                {isInfoOpen && (
-                  <div className="mt-2 p-4 bg-white rounded-lg text-sm text-slate-600 border border-slate-200 shadow-inner animate-fade-in-up">
-                    <strong className="text-slate-800">Further Context:</strong> <br/>{ans.desc}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* SILENCE CARDS — integrated as answer-style cards */}
-        <div className="space-y-3 mb-10 border-t border-slate-200 pt-6">
-          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider text-center">Or choose silence</p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Apathetic Silence Card */}
-            <button 
-              onClick={() => onSilenceClick("apathetic")}
-              className={`flex-1 text-left p-4 rounded-xl border-2 transition-all flex items-start gap-3 ${
-                silenceType === "apathetic" 
-                  ? "bg-slate-100 border-slate-400 shadow-md" 
-                  : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50"
-              }`}
-            >
-              <span className="text-2xl flex-shrink-0">🤷</span>
-              <span className="text-left">
-                <span className={`block font-medium text-sm ${silenceType === "apathetic" ? "text-slate-800" : "text-slate-600"}`}>
-                  Apathetic Silence
-                </span>
-                <span className="block text-xs text-slate-400 mt-0.5">
-                  Not theologically relevant to me.
-                </span>
-              </span>
-              {silenceType === "apathetic" && (
-                <svg className="w-5 h-5 text-slate-500 ml-auto flex-shrink-0 mt-0.5 animate-checkmark-bounce" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-
-            {/* Hostile Silence Card */}
-            <button 
-              onClick={() => onSilenceClick("hostile")}
-              className={`flex-1 text-left p-4 rounded-xl border-2 transition-all flex items-start gap-3 ${
-                silenceType === "hostile" 
-                  ? "bg-red-50 border-red-300 shadow-md" 
-                  : "border-slate-200 bg-slate-50/50 hover:border-red-100 hover:bg-red-50/50"
-              }`}
-            >
-              <span className="text-2xl flex-shrink-0">✋</span>
-              <span className="text-left">
-                <span className={`block font-medium text-sm ${silenceType === "hostile" ? "text-red-800" : "text-slate-600"}`}>
-                  Hostile Silence
-                </span>
-                <span className="block text-xs text-slate-400 mt-0.5">
-                  I reject this question's framing.
-                </span>
-              </span>
-              {silenceType === "hostile" && (
-                <svg className="w-5 h-5 text-red-500 ml-auto flex-shrink-0 mt-0.5 animate-checkmark-bounce" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* CERTAINTY / TOLERANCE SLIDERS */}
-        {selectedAnswer && !isSilenceSelected && (
-          <div className="bg-white p-6 md:p-8 rounded-xl border border-slate-200 shadow-sm mb-8 overflow-hidden animate-slide-down-in">
-            
-            {/* Certainty Slider */}
-            <div className="mb-8">
-              <p className="text-sm text-slate-500 italic mb-4">How confident are you in this particular stance?</p>
-              <div className="flex justify-between text-sm mb-2 font-medium">
-                <span className="text-slate-800 font-bold flex items-center gap-2">
-                  <svg className="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  Certainty
-                </span>
-                <span className={`font-bold transition-colors duration-300 px-2.5 py-0.5 rounded-full text-xs ${
-                  certainty === 0 ? "bg-slate-100 text-slate-500" : 
-                  certainty === 1 ? "bg-blue-50 text-blue-600" : 
-                  certainty === 2 ? "bg-blue-100 text-blue-700" : 
-                  "bg-blue-200 text-blue-800"
-                }`}>{CERTAINTY_LABELS[certainty]}</span>
-              </div>
-              <div className="relative">
-                {/* Gradient track */}
-                <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 rounded-lg pointer-events-none bg-gradient-to-r from-slate-300 via-blue-400 to-blue-600" />
-                {/* Tick marks */}
-                <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 flex justify-between px-[2px] pointer-events-none">
-                  {[0, 1, 2, 3].map(i => (
-                    <div key={i} className={`w-0.5 h-3 -translate-y-0.5 rounded-full ${i <= certainty ? 'bg-white' : 'bg-white/60'}`} />
-                  ))}
-                </div>
-                <input 
-                  type="range" min="0" max="3" step="1" 
-                  value={certainty} 
-                  onChange={(e) => onSetCertainty(Number(e.target.value))} 
-                  className="w-full h-8 appearance-none cursor-pointer bg-transparent relative z-10
-                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 
-                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 
-                    [&::-webkit-slider-thumb]:border-blue-500 [&::-webkit-slider-thumb]:shadow-md 
-                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:mt-1
-                    [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full 
-                    [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-500 
-                    [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400 mt-1.5 px-0.5">
-                <span>Not Sure</span><span>Leaning</span><span>Pretty Sure</span><span>Certain</span>
+        {/* Section-change banner */}
+        {showCategoryTransition && (
+          <div className="mt-3 flex items-center justify-between gap-3 border-l-2 border-cerulean-600 bg-cerulean-50 py-2 pl-3 pr-2 animate-slide-down-in">
+            <div className="min-w-0">
+              <div className="meta">New section</div>
+              <div className="truncate text-sm font-medium text-ink">
+                {transitionCategoryName}
               </div>
             </div>
-
-            {/* Separator */}
-            <div className="border-t border-slate-100 mb-8" />
-            
-            {/* Tolerance Slider */}
-            <div>
-              <p className="text-sm text-slate-500 italic mb-4">
-                {hasPrimaryKeyword 
-                  ? "How many of the other options are acceptable alternatives to your primary view?" 
-                  : "How many of the other options listed do you consider valid?"}
-              </p>
-              
-              <div className="mb-3">
-                <div className="flex justify-between items-end mb-1">
-                  <span className="text-slate-800 text-sm font-bold flex items-center gap-2">
-                    <svg className="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                    </svg>
-                    Tolerance
-                  </span>
-                  <span className={`text-xs font-bold transition-colors duration-300 px-2.5 py-0.5 rounded-full ${
-                    tolerance === 0 ? "bg-red-50 text-red-600" : 
-                    tolerance === 1 ? "bg-orange-50 text-orange-600" : 
-                    tolerance === 2 ? "bg-yellow-50 text-yellow-600" : 
-                    tolerance === 3 ? "bg-green-50 text-green-600" : 
-                    "bg-sky-100 text-sk-700"
-                  }`}>
-                    {TOLERANCE_LABELS[tolerance]}
-                  </span>
-                </div>
-                
-                <div className="h-5">
-                  <span className="text-xs text-slate-500 italic transition-all duration-200">
-                    {TOLERANCE_DESCRIPTIONS[tolerance]}
-                  </span>
-                </div>
-              </div>
-
-              <div className="relative">
-                {/* Gradient track */}
-                <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 rounded-lg pointer-events-none bg-gradient-to-r from-red-400 via-yellow-400 via-green-400 to-sky-400" />
-                {/* Tick marks */}
-                <div className="absolute top-1/2 left-0 right-0 h-2 -translate-y-1/2 flex justify-between px-[2px] pointer-events-none">
-                  {[0, 1, 2, 3, 4].map(i => (
-                    <div key={i} className={`w-0.5 h-3 -translate-y-0.5 rounded-full ${i <= tolerance ? 'bg-white' : 'bg-white/60'}`} />
-                  ))}
-                </div>
-                <input 
-                  type="range" min="0" max="4" step="1" 
-                  value={tolerance} 
-                  onChange={(e) => onSetTolerance(Number(e.target.value))} 
-                  className="w-full h-8 appearance-none cursor-pointer bg-transparent relative z-10
-                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 
-                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 
-                    [&::-webkit-slider-thumb]:border-emerald-500 [&::-webkit-slider-thumb]:shadow-md 
-                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110 [&::-webkit-slider-thumb]:mt-1
-                    [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full 
-                    [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-emerald-500 
-                    [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
-                />
-              </div>
-              
-              <div className="relative w-full mt-1.5 text-[10px] text-slate-400">
-                <div className="flex justify-between h-5 leading-tight">
-                  <span>None</span>
-                  <span className="text-center leading-tight -ml-7">
-                    None for<br />Fellowship
-                  </span>
-                  <span className="-ml-8">A Few</span>
-                  <span className="-ml-3">Most</span>
-                  <span>All</span>
-                </div>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={onDismissCategoryTransition}
+              aria-label="Dismiss section notice"
+              className="shrink-0 text-ink-muted transition-colors hover:text-ink"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         )}
 
-        {/* NAV FOOTER */}
-        <div className="mt-auto pt-4 pb-8 flex justify-between items-center border-t border-slate-200">
-          <button onClick={onBack} className={`font-bold text-slate-500 hover:text-blue-700 transition-colors ${currentQuestionIndex === 0 ? "invisible" : ""}`}>← Back</button>
-          
-          {/* Certainty / Tolerance summary badges (only when answer selected) */}
-          {(selectedAnswer || isSilenceSelected) && (
-            <div className="flex items-center gap-2 text-[10px] font-semibold">
-              {selectedAnswer && !isSilenceSelected && (
-                <>
-                  <span className="px-2 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-700">
-                    {CERTAINTY_LABELS[certainty]}
-                  </span>
-                  <span className={`px-2 py-1 rounded-md border ${
-                    tolerance === 0 ? "bg-red-50 border-red-200 text-red-700" : 
-                    tolerance === 1 ? "bg-orange-50 border-orange-200 text-orange-700" : 
-                    tolerance === 2 ? "bg-yellow-50 border-yellow-200 text-yellow-700" : 
-                    tolerance === 3 ? "bg-green-50 border-green-200 text-green-700" : 
-                    "bg-emerald-50 border-emerald-200 text-emerald-700"
-                  }`}>
-                    {TOLERANCE_LABELS[tolerance]}
-                  </span>
-                </>
-              )}
-              {isSilenceSelected && (
-                <span className={`px-2 py-1 rounded-md border ${
-                  silenceType === "apathetic" ? "bg-slate-100 border-slate-300 text-slate-600" : "bg-red-50 border-red-200 text-red-600"
-                }`}>
-                  {silenceType === "apathetic" ? "Apathetic" : "Hostile"}
-                </span>
-              )}
+
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start lg:gap-8">
+          {/* ── Question + answers ─────────────────────────────────── */}
+          <div className="min-w-0">
+            <h1 className="mt-6 font-display text-[clamp(1.25rem,2.6vw,1.7rem)] leading-[1.25] text-ink">
+              {currentQuestion.question}
+            </h1>
+
+            <div
+              className={`mt-6 flex flex-col gap-2 transition-opacity duration-200 ${
+                isSilenceSelected ? "opacity-40" : ""
+              }`}
+            >
+              {displayAnswers.map((ans) => {
+                const isSelected = selectedAnswer === ans.id;
+                const isInfoOpen = expandedInfo === ans.id;
+
+                return (
+                  <div key={ans.id}>
+                    <div className="flex items-stretch gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onStandardAnswerClick(ans.id)}
+                        aria-pressed={isSelected}
+                        className={`group relative flex min-w-0 flex-1 items-center gap-2.5 border py-2.5 pl-2.5 pr-3 text-left transition-colors sm:py-3 ${
+                          isSelected
+                            ? "border-cerulean-600 bg-cerulean-50 ring-1 ring-cerulean-600"
+                            : "border-rule bg-paper-raised hover:border-cerulean-400 hover:bg-cerulean-50/60"
+                        }`}
+                      >
+                        {/* The tap acknowledges itself: 2px of accent running
+                            down the inside edge, then the tick pops. A colour
+                            change alone was too quiet to register on a phone. */}
+                        {isSelected && (
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-y-0 left-0 w-[2px] origin-top animate-keyline-in bg-cerulean-600"
+                          />
+                        )}
+                        {/* Radio affordance — the row must look clickable. */}
+                        <span
+                          aria-hidden="true"
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                            isSelected
+                              ? "border-cerulean-600 bg-cerulean-600"
+                              : "border-rule-strong group-hover:border-cerulean-400"
+                          }`}
+                        >
+                          {isSelected && (
+                            <Check
+                              className="h-3 w-3 animate-tick-pop text-white"
+                              strokeWidth={3}
+                            />
+                          )}
+                        </span>
+                        <span
+                          className={`min-w-0 flex-1 text-mini leading-snug ${
+                            isSelected ? "font-semibold text-ink" : "text-ink-soft"
+                          }`}
+                        >
+                          {ans.text}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(event) => onToggleInfo(event, ans.id)}
+                        aria-expanded={isInfoOpen}
+                        aria-label="Further context for this answer"
+                        className={`flex shrink-0 items-center gap-1 border px-2 text-2xs font-medium transition-colors ${
+                          isInfoOpen
+                            ? "border-cerulean-900 bg-cerulean-900 text-white"
+                            : "border-rule bg-paper-raised text-ink-muted hover:border-cerulean-400 hover:text-cerulean-800"
+                        } ${
+                          !hasShownFirstInfoPulse && currentQuestionIndex === 0
+                            ? "ring-1 ring-punch/40"
+                            : ""
+                        }`}
+                      >
+                        <Info aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.75} />
+                        <span className="hidden sm:inline">
+                          {isInfoOpen ? "Hide" : "Context"}
+                        </span>
+                      </button>
+                    </div>
+
+                    {isInfoOpen && (
+                      <div className="mt-2 border border-cerulean-200 bg-cerulean-50 p-3 text-sm leading-relaxed text-ink-soft">
+                        <span className="meta block">Further context</span>
+                        <p className="mt-1">{ans.desc}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          )}
-          <button 
-            onClick={onNext} 
-            disabled={!selectedAnswer && !isSilenceSelected} 
-            className={`py-3 px-8 rounded-full font-bold text-lg transition-all ${
-              (selectedAnswer || isSilenceSelected) 
-                ? currentQuestionIndex === questions.length - 1 
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/25 hover:-translate-y-1 animate-glow-pulse scale-105" 
-                  : "bg-slate-900 text-white hover:bg-black shadow-lg hover:-translate-y-1" 
-                : "bg-slate-200 text-slate-400 cursor-not-allowed"
+
+
+            {/* ── Silence ───────────────────────────────────────────── */}
+            <div className="mt-7 border-t border-rule pt-4">
+              <div className="meta">Or declare the question out of scope</div>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {/* Same radio affordance as the answers above: these are two
+                    more choices, not an aside. The glyph inside the radio says
+                    which kind of silence it is - dash = irrelevant, X = reject. */}
+                <button
+                  type="button"
+                  onClick={() => onSilenceClick("apathetic")}
+                  aria-pressed={silenceType === "apathetic"}
+                  className={`flex items-center gap-2.5 border py-2.5 pl-2.5 pr-3 text-left transition-colors ${
+                    silenceType === "apathetic"
+                      ? "border-cerulean-600 bg-cerulean-50 ring-1 ring-cerulean-600"
+                      : "border-rule bg-paper-raised hover:border-cerulean-400 hover:bg-cerulean-50/60"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                      silenceType === "apathetic"
+                        ? "border-cerulean-600 bg-cerulean-600"
+                        : "border-rule-strong"
+                    }`}
+                  >
+                    <Minus
+                      className={`h-3 w-3 ${silenceType === "apathetic" ? "text-white" : "text-ink-muted"}`}
+                      strokeWidth={3}
+                    />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-mini font-medium leading-tight text-ink">
+                      Apathetic silence
+                    </span>
+                    <span className="mt-0.5 block text-2xs leading-snug text-ink-muted">
+                      Not theologically relevant to me
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onSilenceClick("hostile")}
+                  aria-pressed={silenceType === "hostile"}
+                  className={`flex items-center gap-2.5 border py-2.5 pl-2.5 pr-3 text-left transition-colors ${
+                    silenceType === "hostile"
+                      ? "border-punch-700 bg-punch-soft ring-1 ring-punch-700"
+                      : "border-rule bg-paper-raised hover:border-punch-300 hover:bg-punch-soft/60"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                      silenceType === "hostile"
+                        ? "border-punch-700 bg-punch-700"
+                        : "border-rule-strong"
+                    }`}
+                  >
+                    <X
+                      className={`h-3 w-3 ${silenceType === "hostile" ? "text-white" : "text-ink-muted"}`}
+                      strokeWidth={3}
+                    />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-mini font-medium leading-tight text-ink">
+                      Hostile silence
+                    </span>
+                    <span className="mt-0.5 block text-2xs leading-snug text-ink-muted">
+                      I reject the framing of this question
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+
+          {/* ── Conviction rail (desktop sticky / mobile inline) ─────── */}
+          <aside className="mt-8 lg:mt-6 lg:sticky lg:top-24">
+            {showConviction ? (
+              <div className="card animate-fade-in-up p-4 sm:p-5">
+                <AxisSlider
+                  legend="How sure are you?"
+                  labels={CERTAINTY_LABELS}
+                  shortLabels={CERTAINTY_SHORT}
+                  value={certainty}
+                  onChange={onSetCertainty}
+                />
+
+                <div className="rule my-5" />
+
+                <AxisSlider
+                  legend="How many views are acceptable?"
+                  labels={TOLERANCE_LABELS}
+                  shortLabels={TOLERANCE_SHORT}
+                  value={tolerance}
+                  onChange={onSetTolerance}
+                  hint={
+                    hasPrimaryKeyword
+                      ? "How many of the other options are acceptable alternatives to your primary view?"
+                      : TOLERANCE_DESCRIPTIONS[tolerance]
+                  }
+                />
+              </div>
+            ) : (
+              <p className="border-l-2 border-cerulean-300 py-2 pl-3 text-2xs leading-snug text-ink-muted">
+                Pick an answer (or declare silence) and you can weight how sure you
+                are. Sensible defaults are pre-filled, so you can also just continue.
+              </p>
+            )}
+          </aside>
+        </div>
+
+        {/* ── Nav: always reachable ─────────────────────────────────── */}
+        <div className="sticky bottom-0 z-10 -mx-5 mt-auto flex items-center justify-between gap-3 border-t border-rule bg-paper/95 px-5 py-2.5 backdrop-blur md:-mx-8 md:px-8 lg:static lg:mx-0 lg:mt-10 lg:border-t lg:bg-transparent lg:px-0 lg:py-4">
+          <button
+            type="button"
+            onClick={onBack}
+            className={`group inline-flex items-center gap-1 text-sm font-medium text-ink-muted transition-colors hover:text-ink ${
+              currentQuestionIndex === 0 ? "invisible" : ""
             }`}
           >
-            {currentQuestionIndex === questions.length - 1 ? "See Results" : "Next →"}
+            <ChevronLeft
+              aria-hidden="true"
+              className="h-4 w-4 transition-transform group-hover:-translate-x-0.5"
+              strokeWidth={1.75}
+            />
+            Back
+          </button>
+
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={!canAdvance}
+            className={`group inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-[background-color,transform] duration-150 active:translate-y-px ${
+              canAdvance
+                ? "bg-accent text-white hover:bg-accent-deep"
+                : "cursor-not-allowed bg-blue-100 text-ink-muted"
+            }`}
+          >
+            {isLastQuestion ? "See results" : "Next"}
+            <ArrowRight
+              aria-hidden="true"
+              className={`h-4 w-4 transition-transform ${
+                canAdvance ? "group-hover:translate-x-0.5" : ""
+              }`}
+              strokeWidth={1.75}
+            />
           </button>
         </div>
       </div>
     </main>
   );
 }
+

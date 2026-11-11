@@ -2,6 +2,7 @@ import pandas as pd
 import math
 import re
 import os
+import hashlib
 
 # ==========================================
 # CONFIGURATION - Dynamic File Paths
@@ -45,6 +46,78 @@ def clean_num(val):
     except ValueError:
         return 'NULL'
 
+def parse_members(val):
+    """Parse textual membership estimates into a REAL for SQL.
+
+    Handles the formats present in the source TSV, e.g.:
+        '~600,000'        -> 600000.0
+        '~1.3 Billion'    -> 1300000000.0
+        '~4.5 Million'    -> 4500000.0
+        '~20,000 (Monks)' -> 20000.0   (parenthetical dropped)
+        '~2-6 Million'    -> 4000000.0 (range -> midpoint)
+        'Unknown'/blank   -> NULL
+    """
+    if pd.isna(val):
+        return 'NULL'
+    s = str(val).strip().lower().replace(',', '')
+    if s in ('', 'unknown', 'n/a', 'none', '-', '?'):
+        return 'NULL'
+    s = re.sub(r'\(.*?\)', '', s).strip()               # drop '(Monks)' etc.
+    s = s.replace('~', '').replace('+', '')
+    s = s.replace('\u2013', '-').replace('\u2014', '-').strip()  # en/em dash -> hyphen
+    m = re.match(r'^([0-9]*\.?[0-9]+)(?:\s*-\s*([0-9]*\.?[0-9]+))?\s*(thousand|million|billion|k|m|b)?$', s)
+    if not m:
+        return 'NULL'
+    mult = {'thousand': 1e3, 'k': 1e3, 'million': 1e6, 'm': 1e6, 'billion': 1e9, 'b': 1e9}.get(m.group(3), 1.0)
+    low = float(m.group(1))
+    if m.group(2):
+        value = (low + float(m.group(2))) / 2.0 * mult
+    else:
+        value = low * mult
+    return str(float(value))
+
+def parse_cert(val):
+    """Map a textual Certainty value to the 0-3 scale used by the API engine."""
+    if pd.isna(val):
+        return None
+    s = str(val).strip().lower()
+    if s == '' or 'uncertain' in s or 'not sure' in s:
+        return 0
+    if 'certain' in s:
+        return 3
+    if 'pretty' in s:
+        return 2
+    if 'leaning' in s:
+        return 1
+    return 0
+
+
+def compute_dataset_version():
+    """Deterministic version = YYYY.MM.DD-<short hash>.
+
+    Prefers the value produced by build_precomputed.js (written to
+    precomputed/dataset_version.txt) so D1 app_meta matches the KV/manifest
+    version exactly. Falls back to recomputing from the raw source files
+    (excluding the derived mode_summary) using the same hash scheme.
+    """
+    version_file = os.path.join(PRECOMP_DIR, 'dataset_version.txt')
+    if os.path.exists(version_file):
+        with open(version_file, 'r', encoding='utf-8') as fh:
+            v = fh.read().strip()
+            if v:
+                return v
+    from datetime import datetime
+    h = hashlib.sha256()
+    for key in sorted(FILES.keys()):
+        if key == 'mode_summary':
+            continue
+        p = FILES[key]
+        if os.path.exists(p):
+            with open(p, 'rb') as fh:
+                h.update(fh.read())
+    return f"{datetime.utcnow().strftime('%Y.%m.%d')}-{h.hexdigest()[:8]}"
+
+
 def main():
     print("🚀 Starting SQL Seed Generation...")
     sql_statements = []
@@ -67,9 +140,10 @@ def main():
     DROP TABLE IF EXISTS hidden_dimensions;
     DROP TABLE IF EXISTS answer_scoring;
     DROP TABLE IF EXISTS denomination_families;
+    DROP TABLE IF EXISTS app_meta;
 
     -- 2. Recreate tables with correct schemas
-    CREATE TABLE denominations (id TEXT PRIMARY KEY, name TEXT, family TEXT, founded_year TEXT, region_origin TEXT, description TEXT);
+    CREATE TABLE denominations (id TEXT PRIMARY KEY, name TEXT, family TEXT, founded_year TEXT, region_origin TEXT, description TEXT, is_active INTEGER DEFAULT 1, est_members_global REAL);
     
     CREATE TABLE questions (
         id TEXT PRIMARY KEY, 
@@ -90,15 +164,23 @@ def main():
     
     CREATE TABLE denomination_selected_options (denomination_id TEXT, question_id TEXT, answer_text TEXT);
     
-    CREATE TABLE denomination_compass_coordinates (denomination_id TEXT, mode TEXT, family TEXT, tolerance_score REAL, theol_cons_lib_avg REAL, social_cons_lib_avg REAL, counter_pro_modern_avg REAL, super_nat_avg REAL, cult_sep_eng_avg REAL, cleric_egal_avg REAL, div_hum_agency_avg REAL, commun_indiv_avg REAL, liturg_spont_avg REAL, sacram_funct_avg REAL, literal_crit_avg REAL, intellect_exper_avg REAL, PRIMARY KEY (denomination_id, mode));
+    CREATE TABLE denomination_compass_coordinates (denomination_id TEXT, mode TEXT, family TEXT, tolerance_score REAL, certainty_score REAL, theol_cons_lib_avg REAL, social_cons_lib_avg REAL, counter_pro_modern_avg REAL, super_nat_avg REAL, cult_sep_eng_avg REAL, cleric_egal_avg REAL, div_hum_agency_avg REAL, commun_indiv_avg REAL, liturg_spont_avg REAL, sacram_funct_avg REAL, literal_crit_avg REAL, intellect_exper_avg REAL, PRIMARY KEY (denomination_id, mode));
     
     CREATE TABLE hidden_dimensions (question_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
     
     CREATE TABLE answer_scoring (answer_id TEXT PRIMARY KEY, theol_cons_lib REAL, social_cons_lib REAL, counter_pro_modern REAL, super_nat REAL, cult_sep_eng REAL, cleric_egal REAL, div_hum_agency REAL, commun_indiv REAL, liturg_spont REAL, sacram_funct REAL, literal_crit REAL, intellect_exper REAL);
+
+    CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT);
     """
 
     
     sql_statements.append(schema_sql)
+
+    # 0.6 Dataset version stamp (used by API responses + feedback/report tagging)
+    dataset_version = compute_dataset_version()
+    sql_statements.append(
+        f"INSERT OR REPLACE INTO app_meta (key, value) VALUES ('dataset_version', {clean_str(dataset_version)});"
+    )
 
     # 1. Denominations & Families
     print("Processing Denominations...")
@@ -113,8 +195,13 @@ def main():
         year = clean_str(row.get('Founded_Year'))
         region = clean_str(row.get('Region_Origin'))
         desc = clean_str(row.get('Description'))
+
+        # 0.5: activity + membership (Est_Members_Global === 0 => inactive/unknown)
+        active_raw = str(row.get('Is_Active', '')).strip().upper()
+        is_active_sql = '1' if active_raw in ('TRUE', 'YES', '1') else '0'
+        members_sql = parse_members(row.get('Est_Members_Global'))
         
-        sql = f"INSERT OR REPLACE INTO denominations (id, name, family, founded_year, region_origin, description) VALUES ({d_id}, {name}, {family}, {year}, {region}, {desc});"
+        sql = f"INSERT OR REPLACE INTO denominations (id, name, family, founded_year, region_origin, description, is_active, est_members_global) VALUES ({d_id}, {name}, {family}, {year}, {region}, {desc}, {is_active_sql}, {members_sql});"
         sql_statements.append(sql)
 
     print("Processing Families...")
@@ -215,6 +302,10 @@ def main():
         if col.endswith('_Answer'):
             q_ids.add(col.replace('_Answer', ''))
 
+    # 0.3: accumulate per-denomination certainty to derive a certainty_score coordinate
+    cert_totals = {}
+    cert_counts = {}
+
     for _, row in df_denoms.iterrows():
         d_id = clean_str(row['Denomination_ID'])
         
@@ -233,6 +324,12 @@ def main():
             certainty = clean_str(row.get(cert_col))
             tolerance = clean_str(row.get(tol_col))
             sql_q_id = clean_str(q_id)
+
+            cert_val = parse_cert(row.get(cert_col))
+            if cert_val is not None:
+                _dn = str(row['Denomination_ID']).strip()
+                cert_totals[_dn] = cert_totals.get(_dn, 0) + cert_val
+                cert_counts[_dn] = cert_counts.get(_dn, 0) + 1
             
             # Insert main answer record
             sql_ans = f"INSERT OR REPLACE INTO denomination_answers (denomination_id, question_id, certainty, tolerance) VALUES ({d_id}, {sql_q_id}, {certainty}, {tolerance});"
@@ -244,6 +341,13 @@ def main():
                 clean_split = clean_str(split_ans)
                 sql_split = f"INSERT OR REPLACE INTO denomination_selected_options (denomination_id, question_id, answer_text) VALUES ({d_id}, {sql_q_id}, {clean_split});"
                 sql_statements.append(sql_split)
+
+    # 0.3: finalize per-denomination certainty coordinate (0-100 scale)
+    certainty_lookup = {}
+    for _dn, _tot in cert_totals.items():
+        _cnt = cert_counts.get(_dn, 0)
+        if _cnt > 0:
+            certainty_lookup[_dn] = round((_tot / _cnt) * (100.0 / 3.0), 1)
 
     # 5. Precomputed Compass Coordinates (Materialized View)
     print("Processing Scattermap Coordinates...")
@@ -267,6 +371,13 @@ def main():
         family = clean_str(family_lookup.get(raw_denom_id, 'Unknown'))
         
         tol_score = clean_num(row['ToleranceScore'])
+        # 0.3: per-mode certainty comes from the precompute engine (priority-weighted),
+        # mirroring how ToleranceScore is sourced. Falls back to the legacy global
+        # plain-mean lookup only if an older mode_summary without the column is used.
+        if 'CertaintyScore' in df_mode.columns:
+            cert_score = clean_num(row['CertaintyScore'])
+        else:
+            cert_score = clean_num(certainty_lookup.get(raw_denom_id))
         
         # Dimensions
         tcl = clean_num(row['Theol_Cons_Lib_avg'])
@@ -284,10 +395,10 @@ def main():
         
         sql = (
             f"INSERT OR REPLACE INTO denomination_compass_coordinates "
-            f"(denomination_id, mode, family, tolerance_score, theol_cons_lib_avg, social_cons_lib_avg, "
+            f"(denomination_id, mode, family, tolerance_score, certainty_score, theol_cons_lib_avg, social_cons_lib_avg, "
             f"counter_pro_modern_avg, super_nat_avg, cult_sep_eng_avg, cleric_egal_avg, div_hum_agency_avg, "
             f"commun_indiv_avg, liturg_spont_avg, sacram_funct_avg, literal_crit_avg, intellect_exper_avg) "
-            f"VALUES ({d_id}, {mode}, {family}, {tol_score}, {tcl}, {scl}, {cpm}, {sn}, {cse}, {ce}, {dha}, {ci}, {ls}, {sf}, {lc}, {ie});"
+            f"VALUES ({d_id}, {mode}, {family}, {tol_score}, {cert_score}, {tcl}, {scl}, {cpm}, {sn}, {cse}, {ce}, {dha}, {ci}, {ls}, {sf}, {lc}, {ie});"
         )
         sql_statements.append(sql)
 
