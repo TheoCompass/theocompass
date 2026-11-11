@@ -20,7 +20,7 @@ Edit your master Google Sheets and export/overwrite the CSV files in the `/data`
 - `TheoCompass (v2.0) - QUESTION_MASTER.csv`
 - `TheoCompass (v2.0) - Hidden Dimensions.csv`
 - `TheoCompass (v2.0) - Unified Answer Scoring Matrix.csv`
-- `TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.csv`
+- `TheoCompass (v2.0) - Denominations & Doctrines_EXPORT.tsv`
 - `TheoCompass (v2.0) - QUIZ_SEQUENCE.csv`
 - `TheoCompass (v2.0) - FAMILIES.csv`
 
