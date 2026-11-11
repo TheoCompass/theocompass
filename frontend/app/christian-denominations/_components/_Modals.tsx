@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ArrowRight, Dices, Target, Terminal, UserCog } from "lucide-react";
-import { DIALOG_BUTTON, Dialog } from "./_Dialog";
+import { DIALOG_BUTTON, Dialog } from "../../_components/_Dialog";
 
 /**
  * The dialogs the quiz opens: leave, restart, developer.
@@ -19,7 +19,8 @@ import { DIALOG_BUTTON, Dialog } from "./_Dialog";
  * that had simply never been visited.
  *
  * Structure is unchanged. What changed is that the shape, the focus behaviour
- * and the buttons now come from `_Dialog`, the destructive action speaks punch,
+ * and the buttons now come from `_Dialog` (shared, in `app/_components`), the
+ * destructive action speaks punch,
  * and the access code is a disclosure instead of a box in the middle of a
  * confirmation dialog, where it read as a required step.
  */
