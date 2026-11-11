@@ -34,6 +34,7 @@ venv/
 # ---------- generated / regenerable artifacts (rebuild via scripts/) ----------
 precomputed/
 theocompass-api/seed.sql
+theocompass-api/roadmap_seed.sql
 
 # ---------- scratch / diagnostic junk ----------
 tsc_*.txt

@@ -65,6 +65,34 @@ npm run kv:update-remote
 
 🎉 **Boom. Your frontend API instantly reflects the new theological data. No frontend redeploy required.**
 
+### Step 5 (occasional): The Roadmap
+
+`data/roadmap.csv` is the roadmap's source of truth — one line per row of the original
+sheet, same six columns (ID, Task Name, Description, Type, My Role, Progress). Edit it
+directly, then rebuild:
+
+```bash
+python3 scripts/build_roadmap_json.py      # csv   -> data/roadmap.json
+python3 scripts/generate_roadmap_seed.py   # json  -> theocompass-api/roadmap_seed.sql
+cd theocompass-api && npm run db:seed-roadmap-local   # or -remote
+```
+
+`data/TheoCompass Roadmap.xlsx` is provenance, not a step. Only when the spreadsheet
+itself has changed do you re-export it:
+
+```bash
+python3 scripts/export_roadmap_csv.py      # xlsx -> data/roadmap.csv (overwrites)
+```
+
+The generated upsert never writes a task's `status`, so statuses changed on `/roadmap`
+survive a content re-sync; pass `--reset-status` to the generator only when you want the
+sheet's statuses to win again. Details in `docs/DEVELOPER_GUIDE.md` §9.
+
+**New tables need migrations first.** `roadmap_phases`, `roadmap_tasks` and the extra
+`quiz_events` columns arrive through `npm run db:migrate-local` / `npm run db:migrate-remote`;
+`data:sync-local` / `data:sync-remote` run the migrations, the reference seed and the roadmap
+seed in one go.
+
 ---
 
 ## Folder Architecture
@@ -104,6 +132,7 @@ git branch -d feat/my-thing
 **Never committed (regenerable — see `.gitignore`)**
 - `precomputed/` — rebuilt by `node scripts/build_precomputed.js` (Step 2).
 - `theocompass-api/seed.sql` — rebuilt by `python scripts/generate_sql_seed.py` (Step 3).
+- `theocompass-api/roadmap_seed.sql` — rebuilt by `python scripts/generate_roadmap_seed.py` (Step 5).
 - `node_modules/`, `.next/`, `.wrangler/`, `.env*`, `.dev.vars*` — local only.
 
 ---
