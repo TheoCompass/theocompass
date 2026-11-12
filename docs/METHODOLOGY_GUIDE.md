@@ -26,14 +26,20 @@ If a user answers "Water baptism is a means of grace that directly causes new bi
 
 ## 2. The 3 User Inputs (Per Question)
 For every question, the user provides three pieces of data:
-1. **The Stance (A):** The actual answer they chose.
+1. **The Stance (A):** The actual answer they chose. Since Phase 0.1 the answers are **checkboxes**, so a user may affirm several options at once — the Stance then becomes a *set*. (The wire format keeps `answerId` for the first choice so saved quizzes and older clients still replay unchanged, and adds `answerIds` for the full set.)
 2. **Certainty (C):** How confident they are (Scale of 0 to 3).
 3. **Tolerance (T):** How strictly they require others to agree (Scale of 0 to 4).
+
+Affirming several options is not free: the engine scores the user's position against the denomination once per affirmed option and then **drags the result toward the mean of those options** (see §5.4). Believing two mutually exclusive things is a weaker identity than believing one, which is exactly why this drag exists.
 
 ## 3. The "Silence" Mechanics (Edge Cases)
 TheoCompass features unique "Silence" buttons to handle questions the user cannot or will not answer. These bypass the standard C and T sliders:
 *   **Apathetic Silence ("Not relevant to me"):** The user skips the question. The system assigns a neutral stance (Dimension score = 50) and forces `Certainty: 0` and `Tolerance: 2`. This creates a soft, moderate mismatch.
 *   **Hostile Silence ("I reject this framing"):** The user rejects the premise of the question entirely. The system assigns a neutral stance (50) but forces `Certainty: 3` and `Tolerance: 1`. If a denomination strongly affirms this question, the Hostile Silence creates a *massive* mathematical penalty against that denomination.
+
+**"None of the above" is not a fifth answer.** The button at the end of the answer list is the same apathetic silence: it means "none of these positions is mine", which is a statement about the question's relevance, not a competing theology. It shares state with the 🤷 button, and silence and affirmations are mutually exclusive — silencing clears the ticks, and ticking clears the silence.
+
+**Silence never removes the question from the average.** A silenced question still contributes one neutral (50) observation to the weighted average, so silencing everything yields a flat ~50 % against everybody rather than an empty result. The same rule is applied to the legacy `"skipped"` answer id, which resolves to the same neutral slot.
 
 ## 4. The Precomputed Denomination Baselines
 In the `/data` folder, we have the "Source of Truth" CSVs. We have manually graded over 230 denominations on how they answer the 120 questions, including their historical levels of Certainty and Tolerance. 
@@ -51,7 +57,9 @@ When a user finishes the quiz, we calculate their "distance" from every denomina
 3.  **Apply Posture Amplifiers:** This is the secret sauce. The distance is mathematically multiplied by the *Certainty* and *Tolerance* of both the User and the Denomination. 
     *   *If both are highly certain and highly intolerant, the penalty for disagreeing is massively multiplied.*
     *   *If both are uncertain and highly tolerant, the penalty for disagreeing is minimized.*
-4.  **Schism Drag (Split Views):** If a denomination officially holds multiple acceptable views on a topic (e.g., Anglicans on the Eucharist), the algorithm calculates the distance to *all* accepted views, takes the best match, but applies a slight "Schism Penalty" because the user is entering a divided house.
+4.  **Schism Drag (Split Views).** A tradition can be a "divided house" in two directions, and both drags use the same factor `F = ((4 - T) / 4) * (C / 3)`, where the score becomes `best - (best - mean) * F`:
+    *   *Denomination-side:* if a denomination officially holds multiple acceptable views on a topic (e.g., Anglicans on the Eucharist), the algorithm calculates the distance to *all* accepted views, takes the best match, but applies a schism penalty proportional to how certain and intolerant the **denomination** is.
+    *   *User-side (multi-select):* if the **user** affirmed several options, the same calculation runs per affirmed option, takes the best of them, and applies a drag proportional to how certain and intolerant the **user** is. A certain, exclusive user who ticks two opposing options ends up exactly on the mean of the two; an uncertain or fully tolerant user keeps their best match untouched. That is the whole point: holding two incompatible positions with conviction is a weaker identity than holding one, but a tolerant reader is allowed to see truth on both sides. The quiz therefore treats this as an exception, not a feature: multi-select is opt-in per question, capped at three options, and the disclaimer tells the reader that a wide selection is read as a spread rather than a position.
 5.  **Final Blend:** All questions are weighted by a "Priority Score" and summed together to create a final 0-100% similarity match.
 
 ## 6. How the API Uses This

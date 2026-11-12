@@ -2,6 +2,13 @@
 import { computeCertaintyAxis } from "./axis-scores";
 import { handleGetRoadmap, handlePatchRoadmapTask, handleUnlockRoadmap } from "./roadmap";
 import { handleGetStats, handlePostQuizEvent } from "./quiz-stats";
+import {
+  resolveAnswerIds,
+  scoredViewIds,
+  schismFactor,
+  applySplitDrag,
+  NEUTRAL_AXIS_VALUE,
+} from "./split-scores";
 
 export interface Env {
   DB: D1Database;
@@ -17,7 +24,18 @@ export interface Env {
 
 export interface UserResponse {
   questionId: string;
+  /**
+   * Primary (first) selection, kept required so saved quizzes written before
+   * multi-select -- and any older client -- still restore. Silence sends
+   * "skipped".
+   */
   answerId: string;
+  /**
+   * Phase 0.1: every option the user affirms on this question, in click order.
+   * When absent the engine falls back to `[answerId]`, which is also what keeps
+   * a single choice bit-identical to the pre-multi-select scoring.
+   */
+  answerIds?: string[];
   certainty: number;
   tolerance: number;
   isSilence: boolean;
@@ -258,7 +276,10 @@ export default {
         const profile: Record<string, any> = {};
         
         res.results.forEach((row: any) => {
-          // If a denomination selected multiple options, grab the first one
+          // Deliberately one answer per question: this endpoint exists to prove
+          // that a tradition's own profile scores 100 %, and a split tradition
+          // replayed as several selections would be dragged on both sides of the
+          // schism. Multi-select is exercised through the quiz itself.
           if (!profile[row.questionId] && row.answerId) {
             profile[row.questionId] = {
               questionId: row.questionId,
@@ -370,9 +391,6 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
       return new Response(JSON.stringify({ error: "No answers provided" }), { status: 400, headers: corsHeaders });
     }
 
-    const questionIds = userAnswersArray.map(a => a.questionId);
-    const placeholders = questionIds.map(() => '?').join(',');
-
     // ==========================================
     // 1. FETCH BASELINES FROM MEMORY OR KV
     // ==========================================
@@ -396,16 +414,19 @@ async function handleCalculate(request: Request, env: Env, corsHeaders: Record<s
     if (!cachedScoringData) {
       console.log("Cold start: Fetching scoring data from D1...");
       const dbStartTime = performance.now();
-      
-      const placeholders = questionIds.map(() => '?').join(',');
+
+      // Deliberately unfiltered: this cache is shared by every request the
+      // isolate serves, so it must not be narrowed to the question subset of
+      // whichever user happened to warm it. `hidden_dimensions` and `questions`
+      // hold one row per question, so the extra rows are cheap.
       const [scoringRes, dimensionsRes, questionsRes] = await env.DB.batch([
         env.DB.prepare(`
           SELECT s.*, a.answer_text as answertext, a.question_id as questionid 
           FROM answer_scoring s 
           LEFT JOIN answer_options a ON s.answer_id = a.id
         `),
-        env.DB.prepare(`SELECT * FROM hidden_dimensions WHERE question_id IN (${placeholders})`).bind(...questionIds),
-        env.DB.prepare(`SELECT * FROM questions WHERE id IN (${placeholders})`).bind(...questionIds)
+        env.DB.prepare("SELECT * FROM hidden_dimensions"),
+        env.DB.prepare("SELECT * FROM questions")
       ]);
       
       totalD1RowsRead = (scoringRes.meta?.rows_read || 0) + (dimensionsRes.meta?.rows_read || 0) + (questionsRes.meta?.rows_read || 0);
@@ -514,16 +535,28 @@ userAnswersArray.forEach((userAns) => {
     });
     if (relevantDims.length === 0) return;
 
-    // Pre-calculate user Z-values and dimension weights
+    // Pre-calculate user Z-values and dimension weights.
+    // Phase 0.1: a question can carry several selections. Each dimension keeps
+    // one Z per selection so the scoring loop can apply the denomination's
+    // schism math to every selection, then drag across the selections too.
+    //
+    // A silenced question scores no selection, but it must still count in the
+    // weighted average (every axis neutral), exactly as it did before
+    // multi-select -- `scoredViewIds` gives it that one neutral slot. Iterating
+    // `resolveAnswerIds` here instead would silently drop the question.
+    const viewIds = scoredViewIds(userAns);
     const processedDims = relevantDims.map((dim) => {
         const dimW = (Number(qDims[dim]) / 100) * bw;
-        const zA = (answerMap[userAns.answerId] && answerMap[userAns.answerId][dim] != null) 
-            ? Number(answerMap[userAns.answerId][dim]) 
-            : 50;
-        return { dim, dimW, cacheDimKey: dimToCacheMap[dim], zA: isNaN(zA) ? 50 : zA };
+        const zA = viewIds.map((answerId) => {
+            const raw = (answerMap[answerId] && answerMap[answerId][dim] != null)
+                ? Number(answerMap[answerId][dim])
+                : NEUTRAL_AXIS_VALUE;
+            return isNaN(raw) ? NEUTRAL_AXIS_VALUE : raw;
+        });
+        return { dim, dimW, cacheDimKey: dimToCacheMap[dim], zA };
     });
 
-    userProfile.set(qid, { bw, uPosture, uC, uT, uImp, processedDims });
+    userProfile.set(qid, { bw, uPosture, uC, uT, uImp, processedDims, ids: viewIds });
 });
 
 // 2. LOOP DENOMINATIONS (NOW LIGHTWEIGHT)
@@ -553,60 +586,68 @@ const results = activeDenominations.map((denom: any) => {
         }
 
         const splitCount = dAnswered ? (dStats.splitCount || 1) : 1;
-        const subScores = [];
 
-        for (let i = 0; i < splitCount; i++) {
-            let dimWeightedSum = 0;
-            let dimTotalWeight = 0;
-            let dDim = 0;
-            let rejectPenalty = 0;
+        // Per-question terms that do not depend on which view is being read.
+        const cAmp = 1 + ((uData.uC + dC) / 6);
+        // Corrected tAmp formula according to Methodology Math
+        const tAmp = 0.5 + (((4 - uData.uT) + (4 - dT)) * 2.5 / 8) + (Math.abs(uData.uT - dT) / 8);
+        const dPost = 5 * (Math.abs(uData.uC - dC) + Math.abs(uData.uT - dT));
 
-            if (silenceCase === 3) dDim = 0;
-            else if (silenceCase === 1) dDim = 50;
-            else if (silenceCase === 2) {
-                dDim = 50;
-                rejectPenalty = 10 * ((uData.uImp + dImp) / 2);
-            }
-
-            for (const pd of uData.processedDims) {
-                let zB = 50;
-                if (dAnswered && dStats.dimensions && dStats.dimensions[pd.cacheDimKey]) {
-                    zB = dStats.dimensions[pd.cacheDimKey].values[i];
-                }
-                const finalZB = (isNaN(zB) || zB === null || zB === undefined) ? 50 : zB;
-                
-                if (silenceCase === 0) dDim = Math.abs(pd.zA - finalZB);
-
-                const cAmp = 1 + ((uData.uC + dC) / 6);
-                
-                // FIX: Corrected tAmp formula according to Methodology Math
-                const tAmp = 0.5 + (((4 - uData.uT) + (4 - dT)) * 2.5 / 8) + (Math.abs(uData.uT - dT) / 8);
-                
-                const dPost = 5 * (Math.abs(uData.uC - dC) + Math.abs(uData.uT - dT));
-                
-                const totalDist = (dDim * cAmp * tAmp) + dPost + rejectPenalty;
-                const ceiling = Math.max(dDim * 6.0 + 35, 215);
-                const sim = Math.max(0, Math.min(100, 100 * (1 - (totalDist / ceiling))));
-
-                dimWeightedSum += sim * pd.dimW;
-                dimTotalWeight += pd.dimW;
-            }
-
-            if (dimTotalWeight > 0) subScores.push(dimWeightedSum / dimTotalWeight);
+        let silenceDim = 0;
+        let rejectPenalty = 0;
+        if (silenceCase === 3) silenceDim = 0;
+        else if (silenceCase === 1) silenceDim = 50;
+        else if (silenceCase === 2) {
+            silenceDim = 50;
+            rejectPenalty = 10 * ((uData.uImp + dImp) / 2);
         }
 
-        if (subScores.length > 0) {
-            const Sbest = Math.max(...subScores);
-            const Savg = subScores.reduce((a, b) => a + b, 0) / subScores.length;
-            
-            // FIX: Proper Schism Architecture
-            const F_A = 0; // The user provides 1 answer, so their internal schism is 0
-            const F_B = splitCount > 1 ? ((4 - dT) / 4) * (dC / 3) : 0;
-            const F_schism = Math.max(F_A, F_B);
-            
-            const qSim = Sbest - ((Sbest - Savg) * F_schism);
-            
-            weightedSum += qSim * effW;
+        // Schism drag for the denomination's accepted views (unchanged math).
+        const fB = schismFactor(dC, dT, splitCount);
+        const selectionScores = [];
+
+        // Phase 0.1: mirror that math for the user's own selections. Each
+        // selection is scored against every branch exactly once, so the answer
+        // to "a denomination with two views" is untouched for a single-answer
+        // user, and a multi-select user is measured against the whole set.
+        for (let s = 0; s < uData.ids.length; s++) {
+            const subScores = [];
+
+            for (let i = 0; i < splitCount; i++) {
+                let dimWeightedSum = 0;
+                let dimTotalWeight = 0;
+
+                for (const pd of uData.processedDims) {
+                    let zB = NEUTRAL_AXIS_VALUE;
+                    if (dAnswered && dStats.dimensions && dStats.dimensions[pd.cacheDimKey]) {
+                        zB = dStats.dimensions[pd.cacheDimKey].values[i];
+                    }
+                    const finalZB = (isNaN(zB) || zB === null || zB === undefined) ? NEUTRAL_AXIS_VALUE : zB;
+                    const zA = pd.zA[s];
+
+                    const dDim = silenceCase === 0 ? Math.abs(zA - finalZB) : silenceDim;
+
+                    const totalDist = (dDim * cAmp * tAmp) + dPost + rejectPenalty;
+                    const ceiling = Math.max(dDim * 6.0 + 35, 215);
+                    const sim = Math.max(0, Math.min(100, 100 * (1 - (totalDist / ceiling))));
+
+                    dimWeightedSum += sim * pd.dimW;
+                    dimTotalWeight += pd.dimW;
+                }
+
+                if (dimTotalWeight > 0) subScores.push(dimWeightedSum / dimTotalWeight);
+            }
+
+            const perSelection = applySplitDrag(subScores, fB);
+            if (perSelection) selectionScores.push(perSelection.score);
+        }
+
+        // F_A was hard-coded to 0 while the user could only give one answer.
+        const fA = schismFactor(uData.uC, uData.uT, uData.ids.length);
+        const questionScore = applySplitDrag(selectionScores, fA);
+
+        if (questionScore) {
+            weightedSum += questionScore.score * effW;
             totalWeight += effW;
         }
     }
@@ -704,10 +745,21 @@ results.sort((a: any, b: any) => b.matchPercentage - a.matchPercentage);
         // (we only plot affirmed stances for coordinates)
         if (uPosture !== 'affirmed') return;
 
-        const ansData = answerMap[userAns.answerId];
-        if (!ansData || isNaN(Number(ansData[dim]))) return;
-        
-        const dimScore = Number(ansData[dim]);
+        // Phase 0.1: a question may carry several selections. Plot their mean
+        // position, but keep one weight per question, so ticking extra options
+        // cannot inflate this question's pull on the fingerprint.
+        const ids = resolveAnswerIds(userAns);
+        let dimScoreSum = 0;
+        let dimScoreCount = 0;
+        for (const answerId of ids) {
+          const ansData = answerMap[answerId];
+          if (!ansData || isNaN(Number(ansData[dim]))) continue;
+          dimScoreSum += Number(ansData[dim]);
+          dimScoreCount += 1;
+        }
+        if (dimScoreCount === 0) return;
+
+        const dimScore = dimScoreSum / dimScoreCount;
         const postureW = postureFactor(uPosture) * tolAmp(userAns.tolerance) * certAmp(userAns.certainty);
         const w = dimWLin * postureW;
 
@@ -775,10 +827,19 @@ const theologicalLabels: any[] = [];
 const affirmedAnswers = userAnswersArray.filter(ans => !ans.isSilence);
 console.log("Affirmed answers count:", affirmedAnswers.length);
 
-if (affirmedAnswers.length === 0) {
+// Phase 0.1: expand each affirmed question into its individual selections, so
+// affirming two options yields two labels. Certainty and tolerance stay those
+// of the question the label came from.
+const labelRequests = affirmedAnswers.flatMap(ans =>
+  resolveAnswerIds(ans)
+    .filter(answerId => answerId !== "")
+    .map(answerId => ({ answerId, ans }))
+);
+
+if (labelRequests.length === 0) {
   console.log("No affirmed answers - no labels generated");
 } else {
-  const userAnswerIds = affirmedAnswers.map(ans => ans.answerId);
+  const userAnswerIds = labelRequests.map(req => req.answerId);
   console.log("Fetching labels for first 3 answer IDs:", userAnswerIds.slice(0, 3));
 
   // Query answer_options for labels and descriptions
@@ -799,16 +860,16 @@ if (affirmedAnswers.length === 0) {
   });
 
   // Build final labels array
-  affirmedAnswers.forEach(userAns => {
-    const data = labelMap[userAns.answerId];
+  labelRequests.forEach(({ answerId, ans }) => {
+    const data = labelMap[answerId];
     if (data) {
       theologicalLabels.push({
         label: data.label,
         desc: data.desc,
-        category: qMap[userAns.questionId]?.categorycode || "GEN",
-        certainty: Number(userAns.certainty ?? 2),
-        tolerance: Number(userAns.tolerance ?? 2),
-        questionId: userAns.questionId
+        category: qMap[ans.questionId]?.categorycode || "GEN",
+        certainty: Number(ans.certainty ?? 2),
+        tolerance: Number(ans.tolerance ?? 2),
+        questionId: ans.questionId
       });
     }
   });
