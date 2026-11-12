@@ -38,7 +38,7 @@ Two lenses on the same product: what **developers** work with, and what the **qu
 
 - Frontend hard-locks **Quick mode**; Standard/Deep buttons `alert("coming soon")`.
 - Mode cards say "60/120 Qs" while `manifest.json` says 58/123.
-- `_InstructionsSteps.tsx` is unused; `lib/api.ts` is only partially adopted; `userLabels` is typed `string[]` but actually returns objects.
+- `_InstructionsSteps.tsx` is unused; `lib/api.ts` is only partially adopted.
 
 ---
 
@@ -70,7 +70,7 @@ A single path: **mode select → tutorial → 30 questions → results dashboard
    - In Quick mode the hero is the closest **denomination family**, with its best individual tradition called out; "Show Specific Traditions" toggles to individual denominations — with an honest disclaimer about 30-question precision.
    - Ranked **top 10 families / denominations**, expandable into the top 5 members.
    - **Your Theological Fingerprint** — 13 axes grouped into *Theology / Practice / Posture*; click any axis for definitions, intensity ("strong conviction" vs "neutral lean"), and a **Compare** dropdown against any of the 230 denominations showing the gap in points ("Well Aligned · 12pt").
-   - **2D compass scatter chart**, and a **Theological Label Cloud** (searchable belief labels with certainty rings).
+   - **2D compass scatter chart**, and a **Theological Label Cloud** (searchable belief labels with certainty rings). The cloud carries one chip per *affirmed option*, so a 3-tick multi-select answer adds up to three; identical label texts arriving from different questions collapse into one chip, and the chip keyed by the higher certainty wins.
    - **Shareable PNGs:** Download Results / Belief Labels / Fingerprint, plus "Post on r/TheoCompass", a Ko-Fi support link, and **Retake Quiz**.
 
 **Overall impression:** a calm, low-friction, one-question-per-screen flow with heavy hand-holding (tutorial, definitions, save/resume) that ends in a dense but well-structured results page — big visual payoff, one clear call to action (download and share).

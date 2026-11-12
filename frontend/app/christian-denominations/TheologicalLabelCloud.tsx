@@ -14,11 +14,48 @@ export interface Label {
   desc?: string;
 }
 
-/** Reads the text out of either shape, without an `any` cast at every call site. */
-export function labelText(value: Label["label"] | undefined | null): string {
+/**
+ * Reads the text out of either shape, without an `any` cast at every call site:
+ * hand it the label field, the whole label object, or the doubly wrapped
+ * `{ label: { label } }` that the API sometimes sends.
+ */
+export function labelText(value: Label | Label["label"] | null | undefined): string {
+  if (!value) return "";
   if (typeof value === "string") return value;
-  if (value && typeof value === "object") return value.label ?? "";
-  return "";
+  return labelText(value.label);
+}
+
+/**
+ * One entry per distinct label text.
+ *
+ * A multi-select answer contributes one label per ticked option, and the same
+ * label text also sits on options in several different questions, so the
+ * payload can legitimately carry the same belief more than once. The dearest
+ * instance wins: highest certainty first, then whichever one carries a
+ * description.
+ *
+ * The results footer counts through this too, so the number it prints matches
+ * the list it is counting.
+ */
+export function uniqueLabels(userLabels: Label[] | null | undefined): Label[] {
+  if (!userLabels || userLabels.length === 0) return [];
+
+  const map = new Map<string, Label>();
+  for (const labelObj of userLabels) {
+    const labelKey = labelText(labelObj.label);
+
+    if (!labelKey) continue;
+
+    const existing = map.get(labelKey);
+    const shouldReplace =
+      !existing ||
+      labelObj.certainty > existing.certainty ||
+      (labelObj.certainty === existing.certainty && Boolean(labelObj.desc) && !existing.desc);
+
+    if (shouldReplace) map.set(labelKey, labelObj);
+  }
+
+  return Array.from(map.values());
 }
 
 interface TheologicalLabelCloudProps {
@@ -85,29 +122,13 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
 
-  // Extract unique labels (deduplicated)
+  // Unique beliefs by label text. The shared helper also feeds the results
+  // footer, so that count and this list can never disagree.
   const labelMap = useMemo(() => {
-    if (!userLabels || userLabels.length === 0) return new Map<string, Label>();
-    
     const map = new Map<string, Label>();
-    userLabels.forEach(labelObj => {
-      const labelKey = labelText(labelObj.label);
-
-      if (!labelKey) return;
-
-      const existing = map.get(labelKey);
-      let shouldReplace = false;
-      if (!existing) {
-        shouldReplace = true;
-      } else {
-        if (labelObj.certainty > existing.certainty) {
-          shouldReplace = true;
-        } else if (labelObj.certainty === existing.certainty && labelObj.desc && !existing.desc) {
-          shouldReplace = true;
-        }
-      }
-      if (shouldReplace) map.set(labelKey, labelObj);
-    });
+    for (const labelObj of uniqueLabels(userLabels)) {
+      map.set(labelText(labelObj.label), labelObj);
+    }
     return map;
   }, [userLabels]);
 

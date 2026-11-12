@@ -28,7 +28,7 @@ The "source of truth" for this project is a series of master CSV files managed b
 ## 4. Database Schema Summary
 The D1 SQLite database contains several key tables:
 * `questions`: Holds the question text, categories, and sequencing flags.
-* `answer_options`: Holds the answers linked to `question_id` and their theological labels.
+* `answer_options`: Holds the answers linked to `question_id` and their theological labels. Labels are **per option**, so a multi-select answer (up to 3 ticks) returns one label per ticked option rather than one per question; the frontend dedupes by label text via `uniqueLabels()` in `TheologicalLabelCloud.tsx`, and the results footer counts through the same helper.
 * `denominations`: Holds denomination metadata (names, families, descriptions).
 * `denomination_answers` / `denomination_selected_options`: Normalized tables handling how every denomination effectively answered the quiz (including split answers) and their historical Certainty/Tolerance.
 * `answer_scoring` / `hidden_dimensions`: The mathematical weights for the backend calculation engine.

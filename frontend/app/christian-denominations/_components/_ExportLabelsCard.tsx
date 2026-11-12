@@ -4,17 +4,9 @@ import { useMemo } from "react";
 import { CERTAINTY_TEXT } from "../../../lib/palette";
 import { TIER_DESCRIPTIONS, TIER_LABELS } from "../_constants";
 import { modeLabel } from "../_helpers";
+import { labelText, uniqueLabels, type Label } from "../TheologicalLabelCloud";
 import { CertaintyMeter } from "./_CertaintyMeter";
 import ExportFrame from "./_ExportFrame";
-
-interface Label {
-  label: string;
-  category: string;
-  certainty: number;
-  tolerance: number;
-  questionId: string;
-  desc?: string;
-}
 
 /**
  * The quiz stores a label either as a bare object or wrapped one level down in
@@ -38,30 +30,31 @@ export default function ExportLabelsCard({
   questionCount: number;
   onRef: (el: HTMLDivElement | null) => void;
 }) {
-  // Parse and deduplicate labels. Keeps the answer the reader was most sure of,
-  // which is the one whose description belongs in the report.
+  // Parse the two payload shapes into real labels first, then hand the
+  // deduplication to the same helper the on-screen cloud uses, so this report
+  // and the page can never disagree about how many beliefs the reader has. The
+  // helper keeps the answer the reader was most sure of, which is the one whose
+  // description belongs in the report.
   const labels = useMemo(() => {
     if (!userLabels || userLabels.length === 0) return [] as Label[];
-    const map = new Map<string, Label>();
+
+    const parsed: Label[] = [];
     for (const raw of userLabels) {
       const wrapped = typeof raw.label === "object" ? raw.label : null;
       const labelKey = typeof raw.label === "string" ? raw.label : wrapped?.label;
       if (!labelKey) continue;
-      const certainty = wrapped?.certainty ?? raw.certainty ?? 0;
-      const existing = map.get(labelKey);
-      if (!existing || certainty > existing.certainty) {
-        map.set(labelKey, {
-          label: labelKey,
-          category: wrapped?.category ?? raw.category ?? "GEN",
-          certainty,
-          tolerance: wrapped?.tolerance ?? raw.tolerance ?? 2,
-          questionId: wrapped?.questionId ?? raw.questionId ?? "",
-          desc: wrapped?.desc ?? raw.desc,
-        });
-      }
+      parsed.push({
+        label: labelKey,
+        category: wrapped?.category ?? raw.category ?? "GEN",
+        certainty: wrapped?.certainty ?? raw.certainty ?? 0,
+        tolerance: wrapped?.tolerance ?? raw.tolerance ?? 2,
+        questionId: wrapped?.questionId ?? raw.questionId ?? "",
+        desc: wrapped?.desc ?? raw.desc,
+      });
     }
-    return Array.from(map.values()).sort((a, b) =>
-      b.certainty - a.certainty || a.label.localeCompare(b.label)
+
+    return uniqueLabels(parsed).sort(
+      (a, b) => b.certainty - a.certainty || labelText(a).localeCompare(labelText(b))
     );
   }, [userLabels]);
 
@@ -75,7 +68,7 @@ export default function ExportLabelsCard({
     return tiered.map((items, i) => ({
       tolerance: i,
       title: TIER_LABELS[i],
-      items: items.sort((a, b) => b.certainty - a.certainty || a.label.localeCompare(b.label)),
+      items: items.sort((a, b) => b.certainty - a.certainty || labelText(a).localeCompare(labelText(b))),
     }));
   }, [labels]);
 
@@ -167,10 +160,10 @@ export default function ExportLabelsCard({
                   const certainty = Math.max(0, Math.min(3, labelObj.certainty ?? 0));
                   return (
                     <div
-                      key={`${group.tolerance}-${idx}-${labelObj.label}`}
+                      key={`${group.tolerance}-${idx}-${labelText(labelObj)}`}
                       className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border border-rule bg-paper-raised py-1.5 pl-2.5 pr-2 text-sm text-ink"
                     >
-                      <span className="min-w-0 leading-tight">{labelObj.label}</span>
+                      <span className="min-w-0 leading-tight">{labelText(labelObj)}</span>
                       <CertaintyMeter value={certainty} size="sm" />
                       <span className="text-3xs text-ink-muted">{CERTAINTY_TEXT[certainty]}</span>
                     </div>

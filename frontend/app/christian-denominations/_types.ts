@@ -1,3 +1,5 @@
+import type { Label } from "./TheologicalLabelCloud";
+
 export interface Answer {
   id: string;
   text: string;
@@ -63,7 +65,11 @@ export interface CalculateResponse {
   userDimCoords: Record<string, number>;
   userTolerance: number;
   userCertainty: number;
-  userLabels: string[];
+  /**
+   * The API sends one entry per affirmed option, so this is `Label[]`, not the
+   * `string[]` the labels were once assumed to be.
+   */
+  userLabels: Label[];
   error?: string;
 }
 

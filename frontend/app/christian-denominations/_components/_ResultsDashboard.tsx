@@ -10,6 +10,7 @@ import { FingerprintPanel } from "./_sections/FingerprintPanel";
 import { CompassPanel } from "./_sections/CompassPanel";
 import { LabelsPanel } from "./_sections/LabelsPanel";
 import { SharePanel } from "./_sections/SharePanel";
+import { uniqueLabels, type Label } from "../TheologicalLabelCloud";
 import {
   ResultSelection,
   ResultsTabId,
@@ -32,7 +33,7 @@ export interface ResultsDashboardProps {
   userCoords: Record<string, number>;
   userTolerance: number;
   userCertainty: number;
-  userLabels: any[];
+  userLabels: Label[];
   selectedMode: "quick" | "standard" | "deep" | null;
   isCalculating: boolean;
   showSpecific: boolean;
@@ -132,6 +133,12 @@ export function ResultsDashboard({
     tolerance: userTolerance,
     certainty: userCertainty,
   };
+
+  // Same dedupe the label cloud applies. A multi-select answer can contribute
+  // three raw entries but only two chips, because two options in the data can
+  // carry the same label text, and this count has to agree with the list it is
+  // counting rather than with the payload's length.
+  const uniqueLabelCount = useMemo(() => uniqueLabels(userLabels).length, [userLabels]);
 
   const familyMatchesFiltered = useMemo(
     () => (activeOnly ? filterFamiliesByActive(familyMatches, allCoordinates) : familyMatches),
@@ -443,7 +450,7 @@ export function ResultsDashboard({
         <span className="meta">
           {compareName ? `Comparing against ${compareName}` : `${total} ${listLabel} ranked`}
         </span>
-        <span className="meta">{userLabels.length} beliefs in your profile</span>
+        <span className="meta">{uniqueLabelCount} beliefs in your profile</span>
       </div>
     </Shell>
   );

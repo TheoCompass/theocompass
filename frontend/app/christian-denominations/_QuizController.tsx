@@ -5,6 +5,7 @@ import Image from "next/image";
 import html2canvas from "html2canvas-pro";
 import CompassChart from "./CompassChart"; 
 import { useRouter } from 'next/navigation';
+import { labelText, type Label } from "./TheologicalLabelCloud";
 import { trackEvent } from '../../lib/gtag';
 import { createQuizSessionId, recordQuizCompletion } from '../../lib/api';
 import { APP_STAGE } from '../../lib/site';
@@ -56,7 +57,7 @@ function persistFinalResults(snapshot: {
   userDimCoords: Record<string, number>;
   userTolerance: number;
   userCertainty: number;
-  userLabels: unknown[];
+  userLabels: Label[];
   selectedMode: "quick" | "standard" | "deep" | null;
   answeredCount: number;
 }) {
@@ -99,7 +100,7 @@ export default function QuizController() {
   const [userTolerance, setUserTolerance] = useState<number>(50);
   // 14th axis: separate meta-axis computed server-side (priority-weighted avg of C).
   const [userCertainty, setUserCertainty] = useState<number>(50);
-  const [userLabels, setUserLabels] = useState([]);
+  const [userLabels, setUserLabels] = useState<Label[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [compareDenomId, setCompareDenomId] = useState<string | null>(null);
   const [expandedAxis, setExpandedAxis] = useState<string | null>(null);
@@ -912,7 +913,9 @@ export default function QuizController() {
 
       trackEvent('download_labels_image', {
         quiz_mode: selectedMode || 'quick',
-        user_labels: userLabels.join(',')
+        // The labels are objects, so join their text: `userLabels.join(',')`
+        // sent "[object Object]" once per belief.
+        user_labels: userLabels.map(labelText).join(',')
       });
 
     } catch (err) {
@@ -1220,7 +1223,8 @@ export default function QuizController() {
 
             <p className="text-xs text-ink-muted mt-2">
               A wide selection is scored as a spread, not a sharper position, and the mode
-              resets on the next question.
+              resets on the next question. Each option you tick still becomes its own belief
+              label in your results.
             </p>
           </div>
         ),
