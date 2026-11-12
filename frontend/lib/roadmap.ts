@@ -138,11 +138,10 @@ export const ROADMAP_MILESTONES: RoadmapMilestone[] = [
       "30-question quiz",
       "230+ denominations",
       "30 denomination families",
-      "13 axes, with the 14th (certainty) in testing",
+      "14 axes, certainty included",
     ],
     next: [
       "Multiple choice answers, including “none of the above”",
-      "The certainty axis in every chart",
       "Report an issue from inside a question",
     ],
   },

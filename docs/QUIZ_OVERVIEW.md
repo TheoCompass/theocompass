@@ -69,7 +69,7 @@ A single path: **mode select → tutorial → 30 questions → results dashboard
    - **#1 hero match** with a tiered badge (Near Perfect Match / Strong Affinity / Significant Overlap…) and a big match %.
    - In Quick mode the hero is the closest **denomination family**, with its best individual tradition called out; "Show Specific Traditions" toggles to individual denominations — with an honest disclaimer about 30-question precision.
    - Ranked **top 10 families / denominations**, expandable into the top 5 members.
-   - **Your Theological Fingerprint** — 13 axes grouped into *Theology / Practice / Posture*; click any axis for definitions, intensity ("strong conviction" vs "neutral lean"), and a **Compare** dropdown against any of the 230 denominations showing the gap in points ("Well Aligned · 12pt").
+   - **Your Theological Fingerprint** — 14 axes grouped into *Theology / Practice / Posture / Conviction*; click any axis for definitions, intensity ("strong conviction" vs "neutral lean"), and a **Compare** dropdown against any of the 230 denominations showing the gap in points ("Well Aligned · 12pt").
    - **2D compass scatter chart**, and a **Theological Label Cloud** (searchable belief labels with certainty rings). The cloud carries one chip per *affirmed option*, so a 3-tick multi-select answer adds up to three; identical label texts arriving from different questions collapse into one chip, and the chip keyed by the higher certainty wins.
    - **Shareable PNGs:** Download Results / Belief Labels / Fingerprint, plus "Post on r/TheoCompass", a Ko-Fi support link, and **Retake Quiz**.
 

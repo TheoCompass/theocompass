@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { CERTAINTY_MARK, CERTAINTY_SLOTS, SURFACE } from "../lib/palette";
 import { APP_STAGE, APP_VERSION } from "../lib/site";
+import { FINGERPRINT_AXIS_COUNT } from "./christian-denominations/_constants";
 import { LiveStats } from "./_components/_LiveStats";
 import { RoadmapMilestones } from "./_components/_RoadmapMilestones";
 
@@ -372,7 +373,7 @@ export default function Home() {
             style={{ animationDelay: "140ms", animationFillMode: "both" }}
           >
             Match your beliefs against <strong className="font-bold text-paper">230+ Christian denominations</strong>{" "}
-            across 13 dimensions. We look at <strong className="font-bold text-paper">what</strong> you believe, your
+            across {FINGERPRINT_AXIS_COUNT} dimensions. We look at <strong className="font-bold text-paper">what</strong> you believe, your
             certainty, and your posture toward everyone else.
           </p>
 
@@ -411,7 +412,7 @@ export default function Home() {
           <dl className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-t border-rule pt-4 text-2xs">
             <div className="flex items-baseline gap-1.5">
               <dt className="text-ink-muted">Dimensions</dt>
-              <dd className="num font-mono font-semibold text-ink">13</dd>
+              <dd className="num font-mono font-semibold text-ink">{FINGERPRINT_AXIS_COUNT}</dd>
             </div>
             <div className="flex items-baseline gap-1.5">
               <dt className="text-ink-muted">Questions</dt>

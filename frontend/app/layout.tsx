@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import ClientLayout from './ClientLayout';
+import { FINGERPRINT_AXIS_COUNT } from './christian-denominations/_constants';
 
 // UI / body copy — a neutral grotesque (deliberately not Inter).
 const archivo = Archivo({
@@ -27,7 +28,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "TheoCompass | Open Beta — Match Your Beliefs to 230+ Christian Denominations",
-  description: "Discover your theological alignment. Take the quiz, match your beliefs against 230+ Christian denominations across 13 dimensions, and find exactly where you stand in the Christian landscape.",
+  description: `Discover your theological alignment. Take the quiz, match your beliefs against 230+ Christian denominations across ${FINGERPRINT_AXIS_COUNT} dimensions, and find exactly where you stand in the Christian landscape.`,
 };
 
 export const viewport: Viewport = {

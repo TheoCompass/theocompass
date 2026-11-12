@@ -51,6 +51,15 @@ export const FINGERPRINT_CATEGORIES: Record<
   },
 };
 
+// The only place the axis total is written down. The landing page, its SEO
+// description and the roadmap all said "13" long after the certainty axis
+// landed, because each of them typed the number by hand and nothing tied it to
+// the list above. Derived, so adding an axis moves every sentence with it.
+export const FINGERPRINT_AXIS_COUNT = Object.values(FINGERPRINT_CATEGORIES).reduce(
+  (total, category) => total + category.axes.length,
+  0,
+);
+
 // --- QUIZ CATEGORY LABELS ---
 export const QUIZ_CATEGORY_LABELS: Record<string, string> = {
   GOD: "The Nature of God, Christ, & the Holy Spirit",
