@@ -3,6 +3,12 @@ import { computeCertaintyAxis } from "./axis-scores";
 import { handleGetRoadmap, handlePatchRoadmapTask, handleUnlockRoadmap } from "./roadmap";
 import { handleGetStats, handlePostQuizEvent } from "./quiz-stats";
 import {
+  handleGetIssueReports,
+  handlePatchIssueReport,
+  handlePostIssueReport,
+  type FlagMailer,
+} from "./issue-reports";
+import {
   resolveAnswerIds,
   scoredViewIds,
   schismFactor,
@@ -20,6 +26,22 @@ export interface Env {
    * anything sensitive.
    */
   ADMIN_CODE?: string;
+  /**
+   * Optional `send_email` binding for in-quiz issue reports (see
+   * `wrangler.jsonc`). When it is absent -- locally, in tests, or before Email
+   * Routing is set up -- reports are still stored; only the notification is
+   * skipped.
+   */
+  FLAG_EMAIL?: FlagMailer;
+  /** Envelope sender for those notifications; defaults to flags@theocompass.com. */
+  FLAG_EMAIL_FROM?: string;
+  /** Recipient; defaults to theocompass.project@gmail.com. */
+  FLAG_EMAIL_TO?: string;
+  /**
+   * Fallback notification channel (Discord or ntfy webhook) for an account whose
+   * domain has no Email Routing. Set with `wrangler secret put FLAG_WEBHOOK_URL`.
+   */
+  FLAG_WEBHOOK_URL?: string;
 }
 
 export interface UserResponse {
@@ -359,6 +381,30 @@ export default {
 
       if (request.method === "GET" && url.pathname === "/api/stats") {
         return await handleGetStats(env, corsHeaders);
+      }
+
+      // -----------------------------------------------------------------
+      // ENDPOINT 9: In-quiz issue reports + triage queue
+      // -----------------------------------------------------------------
+      if (request.method === "POST" && url.pathname === "/api/issue-reports") {
+        return await handlePostIssueReport(request, env, corsHeaders, ctx, await getDataVersion(env));
+      }
+
+      // The triage queue. Moderator code in the header, same as the roadmap
+      // edits: these rows describe a question, never a person.
+      if (request.method === "GET" && url.pathname === "/api/issue-reports") {
+        return await handleGetIssueReports(request, env, corsHeaders);
+      }
+
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/issue-reports/")) {
+        const reportId = Number(url.pathname.slice("/api/issue-reports/".length));
+        if (!Number.isInteger(reportId) || reportId < 1) {
+          return new Response(JSON.stringify({ error: "Invalid report id." }), {
+            status: 400,
+            headers: corsHeaders,
+          });
+        }
+        return await handlePatchIssueReport(request, env, corsHeaders, reportId);
       }
 
       // -----------------------------------------------------------------

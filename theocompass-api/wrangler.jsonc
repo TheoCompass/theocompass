@@ -27,7 +27,23 @@
 			"id": "605f8a8e45d54233ac6239194fcaa29e",
 			"remote": true
 		}
-	]
+	],
+
+	// --- ISSUE REPORT NOTIFICATIONS (see docs/DEVELOPER_GUIDE.md §11) ---
+	// The in-quiz "Report" flag always stores its row in D1; this binding only
+	// adds the courtesy email. `wrangler deploy` refuses a `destination_address`
+	// that is not a verified Email Routing address, so it stays on only while
+	// both of these are true: the zone has Email Routing enabled (MX
+	// route1-3.mx.cloudflare.net, SPF include:_spf.mx.cloudflare.net) and
+	// theocompass.project@gmail.com is listed and verified under
+	// Email Routing -> Destination addresses. If that changes, a deploy fails
+	// loudly here rather than the notification failing quietly at runtime.
+	"send_email": [
+		{
+			"name": "FLAG_EMAIL",
+			"destination_address": "theocompass.project@gmail.com"
+		}
+	],
 
 	// --- STAGING ENVIRONMENT (Phase 0) ---
 	// 1) npx wrangler d1 create theocompass-db-staging

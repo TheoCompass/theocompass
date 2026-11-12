@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowRight, Check, ChevronLeft, Info, Minus, X } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, Flag, Info, Minus, X } from "lucide-react";
 import type { Question, Answer, UserResponse } from "../_types";
+import { ReportIssueButton } from "./_ReportIssue";
 import {
   QUIZ_CATEGORY_COLORS,
   QUIZ_CATEGORY_COLORS_DEFAULT,
@@ -128,6 +129,8 @@ export interface QuizQuestionViewProps {
   totalQuestions: number;
   progressPercentage: number;
   hasPrimaryKeyword: boolean;
+  /** Quiz length; shown in the report dialog so a flag carries its screen. */
+  mode: "quick" | "standard" | "deep";
   displayAnswers: Answer[];
   /** Every option currently affirmed on this question, in click order. */
   selectedAnswers: string[];
@@ -181,6 +184,7 @@ export function QuizQuestionView({
   currentQuestionIndex,
   totalQuestions,
   hasPrimaryKeyword,
+  mode,
   displayAnswers,
   selectedAnswers,
   expandedInfo,
@@ -260,7 +264,17 @@ export function QuizQuestionView({
           />
           {categoryLabel}
         </span>
-        <span className="meta num">{answeredCount} answered</span>
+        {/* The flag lives at the end of the meta row: on every question, and
+            never competing with the answers for attention. */}
+        <div className="flex items-center gap-3">
+          <span className="meta num">{answeredCount} answered</span>
+          <ReportIssueButton
+            question={currentQuestion}
+            selectedAnswerIds={selectedAnswers}
+            mode={mode}
+            questionIndex={currentQuestionIndex}
+          />
+        </div>
       </div>
 
       <div
@@ -294,6 +308,14 @@ export function QuizQuestionView({
               <span>
                 <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">H</kbd>{" "}
                 hostile
+              </span>
+              {/* The flag is the one control in this view that does not look
+                  like a control until you already know it is one, so the hint
+                  bar -- which is read once, on the first question -- says where
+                  it is. */}
+              <span className="flex items-center gap-1 text-ink-muted">
+                <Flag aria-hidden="true" className="h-3 w-3" strokeWidth={1.75} />
+                Something wrong here? Use Report.
               </span>
             </div>
             <button

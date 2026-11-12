@@ -36,6 +36,20 @@ export const DIALOG_BUTTON = {
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/**
+ * How many dialogs are open right now.
+ *
+ * The quiz binds `1`–`4`, `Enter`, `N`, `S` and `H` on `window`, so a shortcut
+ * typed into a dialog's note field would also tick an answer behind the scrim.
+ * One marker on `document.body` covers every dialog at once, instead of each
+ * caller threading a "don't listen" flag down to whoever owns the listener.
+ */
+let openDialogCount = 0;
+
+export function isAnyDialogOpen(): boolean {
+  return document.body.dataset.dialogOpen === "true";
+}
+
 export function Dialog({
   open,
   onClose,
@@ -64,6 +78,8 @@ export function Dialog({
     const trigger = document.activeElement as HTMLElement | null;
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
+    openDialogCount += 1;
+    document.body.dataset.dialogOpen = "true";
 
     // Browsers disagree about when the node is focusable after mount; a frame
     // is enough and avoids focusing inside a not-yet-painted panel.
@@ -75,6 +91,8 @@ export function Dialog({
     return () => {
       window.cancelAnimationFrame(frame);
       document.body.style.overflow = overflow;
+      openDialogCount = Math.max(0, openDialogCount - 1);
+      if (openDialogCount === 0) delete document.body.dataset.dialogOpen;
       trigger?.focus?.();
     };
   }, [open, initialFocusRef]);

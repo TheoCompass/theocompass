@@ -578,7 +578,11 @@ function MethodDetails({ stats }: { stats: QuizStats }) {
             Detailed breakdowns appear at {BREAKDOWN_RUNS} runs; the early-data label clears at{" "}
             {EARLY_RUNS}.
           </li>
-          <li>No email, IP address, user agent or free text is stored with a run.</li>
+          <li>
+            No email, IP address or user agent is stored with a run. The only free text the
+            site ever keeps is a note you choose to type through a question&rsquo;s{" "}
+            <strong className="font-medium text-ink-soft">Report</strong> button.
+          </li>
         </ul>
       </div>
     </details>

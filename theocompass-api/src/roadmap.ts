@@ -64,7 +64,7 @@ function codesMatch(provided: string, expected: string): boolean {
   return diff === 0;
 }
 
-function expectedAdminCode(env: RoadmapEnv): string {
+function expectedAdminCode(env: { ADMIN_CODE?: string }): string {
   const configured = env.ADMIN_CODE?.trim();
   return configured ? configured : "mod";
 }
@@ -79,6 +79,15 @@ async function readAdminCode(request: Request): Promise<string> {
   } catch {
     return "";
   }
+}
+
+/**
+ * Header-only check, for endpoints that never take a code in the body (the
+ * issue-report queue). Same comparison, same fallback, so one secret unlocks
+ * both moderator surfaces.
+ */
+export function hasValidAdminCode(request: Request, env: { ADMIN_CODE?: string }): boolean {
+  return codesMatch(request.headers.get("x-admin-code") ?? "", expectedAdminCode(env));
 }
 
 export async function handleGetRoadmap(env: RoadmapEnv, headers: HeadersInit): Promise<Response> {
@@ -169,7 +178,7 @@ export async function handlePatchRoadmapTask(
   headers: HeadersInit,
   taskId: string
 ): Promise<Response> {
-  if (!codesMatch(request.headers.get("x-admin-code") ?? "", expectedAdminCode(env))) {
+  if (!hasValidAdminCode(request, env)) {
     return jsonError("Invalid access code.", 401, headers);
   }
 

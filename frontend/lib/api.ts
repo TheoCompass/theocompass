@@ -207,18 +207,24 @@ export interface QuizCompletion {
 }
 
 /**
- * A per-completion id, so a retried POST cannot inflate the counters.
+ * A client-generated id matching the API's `[A-Za-z0-9_-]{8,64}` rule.
  *
- * The API accepts [A-Za-z0-9_-]{8,64}; `crypto.randomUUID` gives 36 characters
- * whose hyphens are already legal, and it exists in every browser that can run
- * this app.
+ * The API uses these as idempotency keys: one per completed quiz, one per
+ * report, so a retry cannot double-count. `crypto.randomUUID` gives 36
+ * characters whose hyphens are already legal, and it exists in every browser
+ * that can run this app.
  */
-export function createQuizSessionId(): string {
+export function createClientId(): string {
   const uuid =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   return uuid.slice(0, 64);
+}
+
+/** One per completed quiz, so a restored results view cannot double-count. */
+export function createQuizSessionId(): string {
+  return createClientId();
 }
 
 /**
@@ -238,5 +244,60 @@ export async function recordQuizCompletion(completion: QuizCompletion): Promise<
     return Boolean(body.data?.recorded);
   } catch {
     return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// In-quiz issue reports
+// ---------------------------------------------------------------------------
+
+/**
+ * The four problems a reader can flag. The API rejects anything else, so this
+ * union is the contract; the dialog supplies the labels.
+ */
+export type IssueType = "typo" | "bad_options" | "framing" | "other";
+
+export interface IssueReport {
+  /** Per-report id: a retry after a dropped response is the same report. */
+  flagId: string;
+  questionId: string;
+  issueType: IssueType;
+  answerId?: string | null;
+  /** The reader's own words, capped at 500 characters server-side. */
+  note?: string | null;
+  mode?: "quick" | "standard" | "deep" | null;
+  questionIndex?: number | null;
+  appVersion?: string | null;
+}
+
+/**
+ * `recorded` and `duplicate` both mean "we have it"; only `failed` needs the
+ * retry / mailto fallback. A duplicate is what a retried flag id returns, and
+ * telling the reader their report failed would be a lie.
+ */
+export type IssueReportOutcome = "recorded" | "duplicate" | "failed";
+
+/**
+ * Files one report. Never throws: the dialog owns the messaging, and a thrown
+ * error there would replace the reader's note with a blank screen.
+ */
+export async function reportQuestionIssue(report: IssueReport): Promise<IssueReportOutcome> {
+  try {
+    const apiUrl = getApiUrl();
+    const res = await fetch(`${apiUrl}/api/issue-reports`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(report),
+    });
+    if (!res.ok) return "failed";
+    const body = (await res.json()) as { data?: { recorded?: unknown } };
+    // An older deploy answers every unknown `/api/*` path with 200 and a health
+    // payload, which is how a report against a stale API looked filed and was
+    // never stored. Anything but an explicit boolean is treated as a failure, so
+    // the reader gets the mailto fallback instead of false reassurance.
+    if (typeof body.data?.recorded !== "boolean") return "failed";
+    return body.data.recorded ? "recorded" : "duplicate";
+  } catch {
+    return "failed";
   }
 }

@@ -43,6 +43,7 @@ The Worker (`theocompass-api/src/index.ts`) connects the Next.js frontend to D1 
 * `POST /api/calculate`: **The Core Engine.** Receives the user's answers, fetches the mathematical baselines for the 230 denominations directly from **KV Memory**, pulls the user scoring math from D1, runs the 12-dimensional Euclidean distance algorithm (applying Posture Amplifiers and Schism Drag), and returns the Top 10 matches with formatted 14-axis coordinates (12 survey dimensions + Tolerance + Certainty) and theological labels.
 * `GET /api/roadmap` · `POST /api/roadmap/unlock` · `PATCH /api/roadmap/tasks/:id`: The full build plan and its moderator-only status editing (see §9).
 * `POST /api/quiz/events` · `GET /api/stats`: Anonymous quiz completion counts for the landing page (see §10).
+* `POST /api/issue-reports` · `GET /api/issue-reports` · `PATCH /api/issue-reports/:id`: The in-quiz "report an issue" flag, its triage queue and the maintainer notification (see §11).
 
 ## 6. Frontend State & Silence Logic
 The frontend tracks user progress in a Next.js client component (`userAnswers` state). A unique mechanic is the **Silence options**, which bypass the standard Certainty/Tolerance sliders and auto-inject specific logic directly into the payload:
@@ -206,3 +207,121 @@ pure aggregation (`resolveAnswerIds`, `scoredViewIds`, `schismFactor`,
 handler against D1 + KV shims, pinning single-selection parity, the per-selection
 and cross-selection schism drag, and the rule that a silenced question still
 counts as one neutral slot.
+
+## 11. In-quiz Issue Reports
+
+Every question carries a small bordered **Report** chip at the end of its meta row
+(`_components/_ReportIssue.tsx`), and the first question's hint bar points at it
+once, because a control nobody finds is the same as no control. It opens the
+shared `Dialog`: four type chips (typo, wrong options, loaded framing, something
+else) and an optional note of up to 500 characters. The report deliberately
+carries the screen it came from — `question_id`, the ticked `answer_id`, `mode`,
+`question_index` and `APP_VERSION` — so it is actionable without a round trip.
+
+**Why D1 first.** The row is the record; the email is a courtesy. A report can be
+counted, deduplicated and moved through `open → triaged → fixed → wont_fix`, and
+`data_version` says which dataset it was filed against. A mail in an inbox can do
+none of that, so the notification is sent only after the insert succeeded.
+
+**Endpoints.**
+
+* `POST /api/issue-reports` — files one report. `flagId` is a client UUID and the
+  unique index on `issue_reports.flag_id` makes the write idempotent:
+  `ON CONFLICT DO NOTHING`, `recorded: false` means "already have it", not
+  "failed". Required: `flagId`, `questionId`, `issueType`. Optional junk is
+  dropped rather than rejected (same bargain as `parseQuizEvent`), the note is
+  truncated to 500 characters, and one question is capped at 10 reports an hour
+  (`429` past that) so the open endpoint cannot be scripted. There is no
+  Turnstile: the flag id stops a retry, the cap stops a script, and the endpoint
+  writes to one table.
+* `GET /api/issue-reports?status=open&limit=50` — the triage queue, behind
+  `X-Admin-Code` (the roadmap's code, `mod` by default). Returns the rows plus
+  counts per status.
+* `PATCH /api/issue-reports/:id` — `{ "status": "fixed" }`, same code. `status` is
+  the only writable column.
+
+**Notification.** `notifyIssueReport()` runs inside `ctx.waitUntil()`, only when
+`recorded === true`, wrapped so a mail failure cannot lose a report, and it
+writes `notified_at` only on success. Two optional channels, email first:
+
+* `send_email` binding `FLAG_EMAIL` → `FLAG_EMAIL_TO` (default
+  `theocompass.project@gmail.com`). The destination must already be a *verified*
+  Email Routing address on a zone in the same account, which is what keeps an
+  open endpoint from becoming a relay. The binding is commented out in
+  `wrangler.jsonc`; uncomment it once that is true, because `wrangler deploy`
+  rejects an unverified destination.
+* `FLAG_WEBHOOK_URL` secret (`wrangler secret put FLAG_WEBHOOK_URL`) — a Discord
+  or ntfy webhook, one JSON POST, for an account whose domain is not on
+  Cloudflare.
+
+With neither configured the function resolves to `null` and nothing is stored
+about it: that is how the test suite stays offline, and a report filed while
+notifications are broken is still in D1 waiting to be read. It is not silent,
+though — the worker logs `ISSUE REPORT NOT NOTIFIED:` plus the reason (no channel
+configured, or every configured channel failed), because silence is what let a
+dead mail channel look healthy for a week. The client only trusts an explicit
+boolean `recorded` in the response: a deploy older than this endpoint answers
+every unknown `/api/*` path with `200` and the health payload, which used to look
+exactly like a filed report.
+
+**Testing the notification locally.** `wrangler dev` simulates `send_email`: the
+mail never leaves the machine. The dev log prints `send_email binding called with
+the following message:` and the path of an `.eml` under
+`…/miniflare-*/files/email/`, which opens in any mail client — that file *is* the
+notification, headers and all. The binding has to be declared to get that far, so
+point dev at a scratch copy instead of editing the committed config:
+
+```bash
+cd theocompass-api
+python3 - <<'PY'
+s = open("wrangler.jsonc").read()
+s = s.replace('\t\t\t"remote": true\n\t\t}\n\t]\n',
+              '\t\t\t"remote": true\n\t\t}\n\t],\n\t"send_email": [{\n'
+              '\t\t"name": "FLAG_EMAIL",\n'
+              '\t\t"destination_address": "theocompass.project@gmail.com"\n'
+              '\t}]\n', 1)
+open("wrangler.email.local.jsonc", "w").write(s)
+PY
+npx wrangler dev --local -c wrangler.email.local.jsonc   # file a report in the UI
+rm wrangler.email.local.jsonc                            # nothing committed changed
+```
+
+Two things this catches that a type check cannot, both of which were silent
+failures the first time: `EmailMessage` is a `cloudflare:email` export and not a
+global, and `send()` rejects a raw message with no `Message-ID` header.
+
+For a notification you can actually read while developing, skip the mail:
+`.dev.vars` is gitignored and read by `wrangler dev --local`, so
+
+```bash
+printf 'FLAG_WEBHOOK_URL=https://ntfy.sh/your-private-topic\n' > theocompass-api/.dev.vars
+```
+
+delivers the formatted report to your phone (a Discord webhook URL works the
+same way), and `notified_at` is stamped when the POST goes through. Real mail
+from the local runtime needs `"remote": true` on the `send_email` entry — that
+is the same verified-destination prerequisite as a deploy, which is why the
+simulated `.eml` is the useful local test.
+
+**Privacy.** No email, name, account, IP or user agent is stored with a report —
+the quiz never asks for any of them, and there is nothing to reply to. The note is
+the only free text the site accepts, and it is never sent to analytics: the GA4
+event is `question_issue_reported` with `{ question_id, issue_type }` only. The
+`mailto:` fallback appears only when the POST failed, and reuses the public
+contact address the footer already prints.
+
+**Triage interim.** Until there is a panel, read the queue from the shell:
+
+```bash
+npx wrangler d1 execute theocompass-db --remote \
+  --command "SELECT id, question_id, issue_type, note, created_at FROM issue_reports WHERE status = 'open' ORDER BY created_at DESC LIMIT 50"
+```
+
+Migration `migrations/0004_issue_reports.sql` extends the `issue_reports` table
+created in `0001` with `flag_id`, `status`, `mode`, `question_index`,
+`app_version`, `notified_at` and `updated_at`, plus the flag/created/question/
+status indexes. `reset.sql` drops reference tables only, so a `data:sync-remote`
+re-seed keeps every report. `test/issue-reports.spec.ts` pins the happy path,
+idempotency, validation, note truncation, the hourly cap, the code on the read
+and write queue endpoints, the `404`/`400` ids, and the raw MIME the mail channel
+sends (a `Message-ID` that is present and unique per send).

@@ -14,6 +14,7 @@ import type { Question, UserResponse } from './_types';
 import { AXIS_LABELS, FINGERPRINT_CATEGORIES, MAX_MULTI_SELECT, QUIZ_CATEGORY_LABELS } from './_constants';
 import { normalizeAxisKey } from './_helpers';
 import { PageHeader } from './_components/_PageHeader';
+import { isAnyDialogOpen } from '../_components/_Dialog';
 import { Modals } from './_components/_Modals';
 import { ModeSelectCards } from './_components/_ModeSelectCards';
 import { AxisSlider, QuizQuestionView } from './_components/_QuizQuestionView';
@@ -953,6 +954,9 @@ export default function QuizController() {
     
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // A dialog owns the keyboard while it is open: the report note must not
+      // tick answers behind the scrim, and Escape belongs to the dialog.
+      if (isAnyDialogOpen()) return;
       
       const numKey = parseInt(e.key);
       if (numKey >= 1 && numKey <= displayAnswers.length) {
@@ -1600,6 +1604,7 @@ export default function QuizController() {
         totalQuestions={totalQuestions}
         progressPercentage={progressPercentage}
         hasPrimaryKeyword={hasPrimaryKeyword}
+        mode={selectedMode ?? "quick"}
         displayAnswers={displayAnswers}
         selectedAnswers={selectedAnswers}
         expandedInfo={expandedInfo}
