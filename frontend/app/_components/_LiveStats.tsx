@@ -383,7 +383,10 @@ function ClosenessTile({ stats, histogram }: { stats: QuizStats; histogram: numb
             ))}
           </ul>
         </>
-      ) : sample === 0 ? (
+      ) : sample > 0 ? (
+        // An empty sample already has its message above; this one only covers a
+        // sample that exists but whose histogram is unusable. Two placeholders
+        // in one card read as two problems, not one missing figure.
         <p className="mt-3 text-2xs text-ink-muted">Score distribution is updating.</p>
       ) : null}
 
@@ -473,11 +476,13 @@ function PostureTile({ stats }: { stats: QuizStats }) {
         <p className="mt-4 text-2xs text-ink-soft">Posture averages are updating.</p>
       )}
 
-      <p className="mt-auto pt-3 text-3xs leading-relaxed text-ink-muted">
-        {sample > 0
-          ? `Averaged over ${formatCount(sample)} runs that answered both sliders.`
-          : "Posture answers are still arriving."}
-      </p>
+      {/* The denominator only has a job once there is a figure to divide: when
+          nothing is averaged, the placeholder above is the whole message. */}
+      {sample > 0 && (
+        <p className="mt-auto pt-3 text-3xs leading-relaxed text-ink-muted">
+          Averaged over {formatCount(sample)} runs that answered both sliders.
+        </p>
+      )}
     </article>
   );
 }
