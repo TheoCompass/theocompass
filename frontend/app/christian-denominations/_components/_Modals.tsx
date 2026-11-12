@@ -39,6 +39,14 @@ interface ModalsProps {
   onDevDenomFill: (denomId: string) => void;
   onSetDevCode: (code: string) => void;
   /**
+   * The multi-select disclaimer. Multi-select is opt-in per question, so this is
+   * not a one-time notice: it is the gate a reader passes through every time
+   * they widen a question beyond one answer.
+   */
+  showMultiSelectModal: boolean;
+  onCloseMultiSelectModal: () => void;
+  onConfirmMultiSelect: () => void;
+  /**
    * Which leave dialog to show: "progress" mid-quiz, "results" once the quiz is
    * finished. On results there is a choice, because those two exits do
    * different things to localStorage.
@@ -101,6 +109,9 @@ export function Modals({
   onConfirmRestart,
   onDevDenomFill,
   onSetDevCode,
+  showMultiSelectModal,
+  onCloseMultiSelectModal,
+  onConfirmMultiSelect,
   backContext = "progress",
   onSaveAndLeave,
   onDiscardAndLeave,
@@ -172,6 +183,46 @@ export function Modals({
           <p>{backModalMessage}</p>
         </Dialog>
       )}
+
+      {/* ── Multi-select opt-in ─────────────────────────────────────────
+          The reader asked to hold more than one option, so the dialog's job is
+          to talk them out of it politely: one answer is the honest default, and
+          a wide selection is scored as a spread. It appears on every activation
+          because the mode dies with the question. */}
+      <Dialog
+        open={showMultiSelectModal}
+        onClose={onCloseMultiSelectModal}
+        eyebrow="Multi-select"
+        title="Hold more than one option?"
+        footer={
+          <>
+            <button type="button" onClick={onCloseMultiSelectModal} className={DIALOG_BUTTON.quiet}>
+              Keep one answer
+            </button>
+            <button type="button" onClick={onConfirmMultiSelect} className={DIALOG_BUTTON.primary}>
+              Enable multi-select
+            </button>
+          </>
+        }
+      >
+        <p>
+          For most questions one option is closer than the others, and choosing
+          it gives the sharpest result. Widen the question only when you
+          genuinely hold two or three of the options at once — a doctrine you
+          accept from more than one tradition, say.
+        </p>
+        <p className="mt-3">
+          You can tick up to{" "}
+          <strong className="font-semibold text-ink">three</strong> options. A
+          selection that wide is scored as a spread rather than a position, so
+          every tradition will match a little less sharply.
+        </p>
+        <p className="mt-3">
+          Multi-select applies to{" "}
+          <strong className="font-semibold text-ink">this question only</strong>.
+          The next question starts with a single answer again.
+        </p>
+      </Dialog>
 
       {/* ── Developer tools ───────────────────────────────────────────── */}
       <Dialog

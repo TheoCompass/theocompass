@@ -13,11 +13,22 @@ export interface Question {
 
 export interface UserResponse {
   questionId: string;
+  /** Primary (first) selection; "skipped" when the question was left blank. */
   answerId: string;
+  /** Every option affirmed on this question, in click order. */
+  answerIds?: string[];
   certainty: number;
   tolerance: number;
   isSilence: boolean;
   silenceType?: "apathetic" | "hostile";
+  /**
+   * UI provenance only, never read by the scoring engine. "None of the above"
+   * and the apathetic-silence row resolve to the same calculation, but they are
+   * two different answers on screen, so the quiz has to remember which control
+   * the reader actually used to light the right row on restore. Legacy saved
+   * responses omit it; they are treated as "rail".
+   */
+  silenceSource?: "answer-none" | "rail";
 }
 
 export interface DenominationMatch {

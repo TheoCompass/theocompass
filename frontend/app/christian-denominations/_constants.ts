@@ -136,3 +136,11 @@ export const TOLERANCE_DESCRIPTIONS = [
   "Most other options are valid, representing faithful in-house debate.",
   "Every other option is valid; this is purely personal preference.",
 ];
+
+// --- MULTI-SELECT LIMIT ---
+// Multi-select is opt-in per question, and deliberately narrow: it exists for
+// positions a reader genuinely holds at once, not to let them tick everything.
+// One number, because the question view (counter, cap styling) and the
+// controller (the toggle guard) must never disagree. The Worker caps at 8 as a
+// defence against junk payloads; three is the product rule.
+export const MAX_MULTI_SELECT = 3;

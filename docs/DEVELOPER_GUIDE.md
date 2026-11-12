@@ -49,6 +49,20 @@ The frontend tracks user progress in a Next.js client component (`userAnswers` s
 * **Apathetic Silence** ("Not relevant to me"): Injects Certainty 0, Tolerance 2. 
 * **Hostile Silence** ("I reject this framing"): Injects Certainty 3, Tolerance 1. 
 The backend handles these automatically, forcing neutral coordinates (50) and applying amplified distance penalties.
+**"None of the above"** is the answer list's last row and, mathematically, the same case as *apathetic* silence — there is no fourth silence mechanic. The UI nevertheless presents it as its own answer ("Nothing here is what I hold") and lights only the row the reader pressed; the payload records which one with `silenceSource` (below), so restoring a question does not move the highlight.
+
+### Multi-select payload
+Multi-select is **opt-in per question**: the list opens as single choices, a "Hold more than one?" button opens a disclaimer dialog, and enabling the mode lasts for that question only (`resetQuestionState`/`restoreQuestionState` in `_QuizController.tsx` own that lifecycle). The product cap is `MAX_MULTI_SELECT = 3` (`_constants.ts`), enforced in the controller and dimmed in the view; a question restored with several saved ids re-opens in multi-select. Turning the mode off collapses the set to its first pick, so the payload can never carry selections the UI no longer shows.
+
+Each `UserResponse` sends:
+* `answerIds: string[]` — every option the reader ticked, in click order (deduped; blank / `"skipped"` entries dropped; sliced to 3 by the client, clamped at 8 by the Worker as a defence against junk payloads).
+* `answerId: string` — the primary (first) selection, still sent for backwards compatibility. A single choice therefore produces `answerIds` of length 1 and scores bit-identically to the pre-multi-select engine.
+* `silenceSource: "answer-none" | "rail"` — **UI provenance only; the Worker never reads it.** It distinguishes the list's "None of the above" row from the apathetic-silence button, which share one calculation but are two answers on screen. Legacy saves omit it and are treated as `"rail"`.
+
+The engine scores every affirmed option against every accepted view and applies the same Schism Drag twice: once across a denomination's branches, then across the user's own selections with `F = ((4 - T) / 4) * (C / 3)`, so a certain, exclusive reader who ticks several options is scored against all of them while an uncertain or tolerant one keeps best-match credit. A silenced question ignores `answerIds` entirely but must still count in the weighted average — it is scored as one neutral slot (`50` on every axis), never dropped.
+
+### The tutorial (`currentView === "instructions"`)
+The five steps are defined inline in `_QuizController.tsx` (`totalSteps` is derived from `steps.length`). Step 2 is a live, unscored miniature of the multi-select opt-in: local `demoMultiSelect` / `demoPicks` state over the fixture list `DEMO_OPTIONS`, mirroring the real mode bar in `QuizQuestionView` **by hand**. If that chrome or its wording changes, change the tutorial too — nothing links them. Step 5 covers the three no-answer doors (*None of the above* in the list, apathetic and hostile silence below it), which is the user-facing statement of the rule in §6.
 
 ## 7. Dev Tools (Auto-Finish)
 To speed up testing the Results UI without clicking through 30+ questions, the frontend includes a hidden Developer Tool. 
@@ -185,3 +199,10 @@ suite always tests the schema that gets deployed. `stats.spec.ts` covers the
 bucket boundaries (0, 4.9, 5, 89.9, 90, 95, 100), the median for odd and even
 counts, UTC day zero-fill/`last7Days`, and the separate denominators behind the
 closeness, family and posture figures.
+
+Multi-select scoring has its own pair: `test/split-scores.spec.ts` unit-tests the
+pure aggregation (`resolveAnswerIds`, `scoredViewIds`, `schismFactor`,
+`applySplitDrag`) and `test/multiselect.spec.ts` runs the real `/api/calculate`
+handler against D1 + KV shims, pinning single-selection parity, the per-selection
+and cross-selection schism drag, and the rule that a silenced question still
+counts as one neutral slot.

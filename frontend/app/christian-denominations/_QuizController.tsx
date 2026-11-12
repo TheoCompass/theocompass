@@ -8,9 +8,9 @@ import { useRouter } from 'next/navigation';
 import { trackEvent } from '../../lib/gtag';
 import { createQuizSessionId, recordQuizCompletion } from '../../lib/api';
 import { APP_STAGE } from '../../lib/site';
-import { Info } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import type { Question, UserResponse } from './_types';
-import { AXIS_LABELS, FINGERPRINT_CATEGORIES, QUIZ_CATEGORY_LABELS } from './_constants';
+import { AXIS_LABELS, FINGERPRINT_CATEGORIES, MAX_MULTI_SELECT, QUIZ_CATEGORY_LABELS } from './_constants';
 import { normalizeAxisKey } from './_helpers';
 import { PageHeader } from './_components/_PageHeader';
 import { Modals } from './_components/_Modals';
@@ -20,6 +20,29 @@ import { ResultsDashboard } from './_components/_ResultsDashboard';
 import ExportCard from './_components/_ExportCard';
 import ExportLabelsCard from './_components/_ExportLabelsCard';
 import ExportFingerprintCard from './_components/_ExportFingerprintCard';
+
+/**
+ * Options for the tutorial's multi-select demo. These are the three positions
+ * on the Eucharist question, so the mock reads like the real list -- but they
+ * are fixture text, never scored, and never sent anywhere.
+ */
+const DEMO_OPTIONS = [
+  {
+    id: "demo-transubstantiation",
+    label: "Transubstantiation",
+    desc: "The bread and wine become the actual body and blood of Christ.",
+  },
+  {
+    id: "demo-spiritual-presence",
+    label: "Spiritual presence",
+    desc: "Christ is truly present in the meal, but not in the elements themselves.",
+  },
+  {
+    id: "demo-memorial",
+    label: "Memorial remembrance",
+    desc: "The supper remembers Christ's sacrifice; the elements remain symbols.",
+  },
+];
 
 /**
  * The one definition of what a finished quiz looks like in localStorage.
@@ -124,13 +147,34 @@ export default function QuizController() {
   // Instructions view state
   const [tutorialStep, setTutorialStep] = useState(0);
   const [demoInfoOpen, setDemoInfoOpen] = useState(false);
+  /**
+   * The multi-select step is a working miniature of the real control: a mode
+   * flag and the options ticked, so the reader can feel the cap before the
+   * quiz. Local to the tutorial and thrown away with it.
+   */
+  const [demoMultiSelect, setDemoMultiSelect] = useState(false);
+  const [demoPicks, setDemoPicks] = useState<string[]>([DEMO_OPTIONS[0].id]);
   const [skipConfirm, setSkipConfirm] = useState(false);
 
   // Current question temporary state
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [selectedAnswers, setSelectedAnswers] = useState<string[]>([]);
   const [expandedInfo, setExpandedInfo] = useState<string | null>(null);
   const [isSilenceSelected, setIsSilenceSelected] = useState(false);
   const [silenceType, setSilenceType] = useState<"apathetic" | "hostile" | null>(null);
+  /**
+   * Multi-select is opt-in and dies with the question: off here, opened by a
+   * disclaimer dialog, and turned off again for the next question by
+   * `resetQuestionState`. Never persisted -- `restoreQuestionState` re-derives
+   * it from the saved answer set.
+   */
+  const [multiSelectEnabled, setMultiSelectEnabled] = useState(false);
+  const [showMultiSelectModal, setShowMultiSelectModal] = useState(false);
+  /**
+   * Which control declared silence. "None of the above" and the apathetic row
+   * are two different answers on screen that resolve to the same calculation,
+   * so the UI has to remember which one was used to light the right row.
+   */
+  const [silenceSource, setSilenceSource] = useState<"answer-none" | "rail" | null>(null);
   const [certainty, setCertainty] = useState(2); 
   const [tolerance, setTolerance] = useState(2);
 
@@ -355,6 +399,11 @@ export default function QuizController() {
     completionSourceRef.current = "quiz";
     setSelectedMode(mode);
     setCurrentView("instructions");
+    // The demo is a throwaway mock, so it starts back at one answer. The step
+    // itself is left where it was: a reader who already reviewed all of them
+    // should not be made to click through again (e.g. after a load error).
+    setDemoMultiSelect(false);
+    setDemoPicks([DEMO_OPTIONS[0].id]);
     setIsLoading(true);
     setError(null);
     
@@ -376,12 +425,61 @@ export default function QuizController() {
 
   const startQuiz = () => setCurrentView("quiz");
 
-  const handleStandardAnswerClick = (answerId: string) => {
-    setSelectedAnswer(answerId);
+  /**
+   * One answer is the rule; several are a deliberate, temporary exception.
+   *
+   * With multi-select off this behaves exactly as the pre-Phase-0.1 radio did:
+   * the new answer replaces the old one and the conviction sliders go back to
+   * their defaults. With it on, answers accumulate up to `MAX_MULTI_SELECT`
+   * (1..3 -- the cap is enforced here as well as dimmed in the view).
+   */
+  const handleToggleAnswer = (answerId: string) => {
     setIsSilenceSelected(false);
     setSilenceType(null);
-    setCertainty(2); 
-    setTolerance(2); 
+    setSilenceSource(null);
+
+    if (!multiSelectEnabled) {
+      setSelectedAnswers([answerId]);
+      setCertainty(2);
+      setTolerance(2);
+      return;
+    }
+
+    const alreadySelected = selectedAnswers.includes(answerId);
+    if (!alreadySelected && selectedAnswers.length >= MAX_MULTI_SELECT) return;
+
+    const next = alreadySelected
+      ? selectedAnswers.filter(id => id !== answerId)
+      : [...selectedAnswers, answerId];
+
+    setSelectedAnswers(next);
+
+    // Reset the conviction defaults only when the answer set goes empty <-> first
+    // pick. Toggling a second option used to wipe sliders the reader had moved.
+    if (next.length === 0) {
+      setCertainty(2);
+      setTolerance(2);
+    }
+  };
+
+  /**
+   * Turns multi-select on for the current question only. The caller is the
+   * disclaimer dialog, which is where the reader is told what they are trading
+   * away -- the collection is capped, and the mode lapses on Next.
+   */
+  const handleEnableMultiSelect = () => {
+    setMultiSelectEnabled(true);
+    setShowMultiSelectModal(false);
+  };
+
+  /**
+   * Back to one answer. The set collapses to its first pick rather than being
+   * silently kept: the payload must never carry selections the UI no longer
+   * lets the reader see or edit.
+   */
+  const handleDisableMultiSelect = () => {
+    setMultiSelectEnabled(false);
+    setSelectedAnswers(prev => prev.slice(0, 1));
   };
 
   const triggerSaveToast = () => {
@@ -389,18 +487,25 @@ export default function QuizController() {
     setTimeout(() => setShowSaveToast(false), 1600);
   };
 
-  const handleSilenceClick = (type: "apathetic" | "hostile") => {
-    if (isSilenceSelected && silenceType === type) {
+  const handleSilenceClick = (
+    type: "apathetic" | "hostile",
+    source: "answer-none" | "rail" = "rail"
+  ) => {
+    if (isSilenceSelected && silenceType === type && silenceSource === source) {
       setIsSilenceSelected(false);
       setSilenceType(null);
-      setSelectedAnswer(null);
+      setSilenceSource(null);
+      setSelectedAnswers([]);
       setCertainty(2);
       setTolerance(2);
       return;
     }
-    setSelectedAnswer(`silence_${type}`); 
+    // Silence and affirmations are mutually exclusive: the engine ignores any
+    // selections on a silenced question, so the UI must not imply otherwise.
+    setSelectedAnswers([]);
     setIsSilenceSelected(true);
     setSilenceType(type);
+    setSilenceSource(source);
     
     if (type === "apathetic") {
       setCertainty(0); 
@@ -410,6 +515,14 @@ export default function QuizController() {
       setTolerance(1); 
     }
   };
+
+  /**
+   * "None of the above" is the answer list's last entry. Internally it still
+   * resolves to apathetic silence -- the calculation the roadmap asked for --
+   * but the reader is given it as its own answer, so only that row lights up
+   * and the copy never explains where the number goes.
+   */
+  const handleNoneOfTheAbove = () => handleSilenceClick("apathetic", "answer-none");
 
   const toggleInfo = (e: React.MouseEvent, answerId: string) => {
     e.stopPropagation();
@@ -425,11 +538,19 @@ export default function QuizController() {
     
     newAnswers[currentQ.id] = {
       questionId: currentQ.id,
-      answerId: selectedAnswer || "skipped",
+      // Primary id stays the first selection so older readers of the payload
+      // (and the pre-multi-select engine) keep working.
+      answerId: isSilenceSelected
+        ? `silence_${silenceType}`
+        : (selectedAnswers[0] || "skipped"),
+      answerIds: isSilenceSelected ? [] : selectedAnswers.slice(0, MAX_MULTI_SELECT),
       certainty,
       tolerance,
       isSilence: isSilenceSelected,
-      silenceType: silenceType || undefined
+      silenceType: silenceType || undefined,
+      // UI provenance only -- which control declared the silence, so a restored
+      // question can light the row the reader actually pressed.
+      silenceSource: isSilenceSelected ? (silenceSource ?? undefined) : undefined
     };
     
     setUserAnswers(newAnswers);
@@ -655,20 +776,45 @@ export default function QuizController() {
   };
 
   const resetQuestionState = () => {
-    setSelectedAnswer(null);
+    setSelectedAnswers([]);
     setExpandedInfo(null);
     setIsSilenceSelected(false);
     setSilenceType(null);
+    setSilenceSource(null);
     setCertainty(2);
     setTolerance(2);
+    // Multi-select is per question: the next question opens as a single-choice
+    // list, and the reader has to ask for the wider mode again.
+    setMultiSelectEnabled(false);
+    setShowMultiSelectModal(false);
   };
 
   const restoreQuestionState = (savedAns: UserResponse) => {
-    setSelectedAnswer(savedAns.answerId);
+    // Progress saved before multi-select only stored `answerId`, and silence
+    // stored a "silence_apathetic" sentinel there, so both need guarding.
+    const restoredAnswers = (
+      savedAns.isSilence
+        ? []
+        : savedAns.answerIds && savedAns.answerIds.length > 0
+          ? savedAns.answerIds
+          : savedAns.answerId && savedAns.answerId !== "skipped"
+            ? [savedAns.answerId]
+            : []
+      // A payload written before the cap existed could carry more than three;
+      // slice here so the counter can never read "5 / 3".
+    ).slice(0, MAX_MULTI_SELECT);
+
+    setSelectedAnswers(restoredAnswers);
     setCertainty(savedAns.certainty);
     setTolerance(savedAns.tolerance);
     setIsSilenceSelected(savedAns.isSilence);
     setSilenceType(savedAns.silenceType || null);
+    // Legacy saves predate the field and could only have used the rail.
+    setSilenceSource(savedAns.isSilence ? (savedAns.silenceSource ?? "rail") : null);
+    // A saved question with several answers can only be edited (or even read
+    // honestly) in multi-select, so the mode follows the data here. Every other
+    // question restores as single-choice.
+    setMultiSelectEnabled(restoredAnswers.length > 1);
     setExpandedInfo(null);
   };
 
@@ -808,16 +954,21 @@ export default function QuizController() {
       const numKey = parseInt(e.key);
       if (numKey >= 1 && numKey <= displayAnswers.length) {
         e.preventDefault();
-        handleStandardAnswerClick(displayAnswers[numKey - 1].id);
+        handleToggleAnswer(displayAnswers[numKey - 1].id);
         return;
       }
       
-      if (e.key === "Enter" && (selectedAnswer || isSilenceSelected)) {
+      if (e.key === "Enter" && (selectedAnswers.length > 0 || isSilenceSelected)) {
         e.preventDefault();
         handleNext();
         return;
       }
 
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        handleNoneOfTheAbove();
+        return;
+      }
       if (e.key === "s" || e.key === "S") {
         e.preventDefault();
         handleSilenceClick("apathetic");
@@ -832,7 +983,7 @@ export default function QuizController() {
     
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentView, displayAnswers, selectedAnswer, isSilenceSelected]);
+  }, [currentView, displayAnswers, selectedAnswers, isSilenceSelected, multiSelectEnabled, silenceSource]);
 
 
   // One definition, four return branches. This prop list was pasted into each
@@ -842,6 +993,9 @@ export default function QuizController() {
       showBackModal={showBackModal}
       showDevModal={showDevModal}
       showRestartModal={showRestartModal}
+      showMultiSelectModal={showMultiSelectModal}
+      onCloseMultiSelectModal={() => setShowMultiSelectModal(false)}
+      onConfirmMultiSelect={handleEnableMultiSelect}
       devCode={devCode}
       onUnlockDevTools={() => {
         setShowRestartModal(false);
@@ -908,8 +1062,8 @@ export default function QuizController() {
   // VIEW 2: INSTRUCTIONS
   // ==========================================
   if (currentView === "instructions") {
-    const totalSteps = 4;
-    
+    const demoAtCap = demoMultiSelect && demoPicks.length >= MAX_MULTI_SELECT;
+
     const steps = [
       {
         title: "Select your Stance",
@@ -946,6 +1100,127 @@ export default function QuizController() {
             
             <p className="text-xs text-ink-muted mt-2">
               The same <strong className="text-cerulean-900 font-medium">Context</strong> button sits on every answer during the quiz.
+            </p>
+          </div>
+        ),
+      },
+      /* Hand-mirrored from `QuizQuestionView` so the reader meets the real
+         control before the quiz. Keep the wording in step with the mode bar:
+         if one says "Tick up to 3", so must the other. Fixture options only --
+         `demoPicks` never reaches `userAnswers`. */
+      {
+        title: "Hold more than one?",
+        color: "text-accent",
+        content: (
+          <div>
+            <p className="text-sm text-ink-soft mb-4">
+              One answer is the rule. When a question genuinely sits between positions,
+              opt in for <strong className="text-cerulean-900">that question only</strong> —
+              a short confirm appears first.
+            </p>
+
+            <div className="border border-rule bg-paper px-3 py-3">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xs leading-snug text-ink-muted">
+                {demoMultiSelect ? (
+                  <>
+                    <span>
+                      Tick up to {MAX_MULTI_SELECT} options you affirm — this question only.
+                    </span>
+                    <span className="shrink-0 border border-cerulean-300 bg-cerulean-50 px-1.5 py-0.5 font-semibold text-cerulean-900">
+                      <span className="num">{demoPicks.length}</span>
+                      <span className="num"> / {MAX_MULTI_SELECT}</span> selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDemoMultiSelect(false);
+                        setDemoPicks(prev => prev.slice(0, 1));
+                      }}
+                      className="shrink-0 underline decoration-dotted underline-offset-2 transition-colors hover:text-ink"
+                    >
+                      Back to one
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span>Pick the one option closest to what you hold.</span>
+                    <button
+                      type="button"
+                      onClick={() => setDemoMultiSelect(true)}
+                      className="shrink-0 border border-rule-strong bg-paper-raised px-1.5 py-0.5 font-semibold text-cerulean-800 transition-colors hover:border-cerulean-400 hover:bg-cerulean-50"
+                    >
+                      Hold more than one?
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-3 flex flex-col gap-2">
+                {DEMO_OPTIONS.map((opt) => {
+                  const isPicked = demoPicks.includes(opt.id);
+                  const isBlocked = demoAtCap && !isPicked;
+
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      aria-pressed={isPicked}
+                      aria-disabled={isBlocked}
+                      onClick={() => {
+                        // Same rules as the quiz: one answer replaces, several accumulate.
+                        if (!demoMultiSelect) {
+                          setDemoPicks([opt.id]);
+                          return;
+                        }
+                        setDemoPicks(prev => {
+                          if (prev.includes(opt.id)) return prev.filter(id => id !== opt.id);
+                          if (prev.length >= MAX_MULTI_SELECT) return prev;
+                          return [...prev, opt.id];
+                        });
+                      }}
+                      className={`flex items-start gap-2.5 border px-2.5 py-2.5 text-left transition-colors ${
+                        isPicked
+                          ? "border-cerulean-600 bg-cerulean-50 ring-1 ring-cerulean-600"
+                          : isBlocked
+                            ? "cursor-not-allowed border-rule bg-paper-raised"
+                            : "border-rule bg-paper-raised hover:border-cerulean-400 hover:bg-cerulean-50/60"
+                      } ${isBlocked ? "opacity-40" : ""}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center border-2 transition-colors ${
+                          demoMultiSelect ? "rounded-[3px]" : "rounded-full"
+                        } ${
+                          isPicked ? "border-cerulean-600 bg-cerulean-600" : "border-rule-strong"
+                        }`}
+                      >
+                        {isPicked && (
+                          <Check className="h-2.5 w-2.5 animate-tick-pop text-white" strokeWidth={3} />
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-mini font-medium leading-tight text-ink">
+                          {opt.label}
+                        </span>
+                        <span className="mt-0.5 block text-2xs leading-snug text-ink-muted">
+                          {opt.desc}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {demoAtCap && (
+                <p className="mt-1.5 text-2xs leading-snug text-ink-muted">
+                  {MAX_MULTI_SELECT} is the limit — untick one to choose another.
+                </p>
+              )}
+            </div>
+
+            <p className="text-xs text-ink-muted mt-2">
+              A wide selection is scored as a spread, not a sharper position, and the mode
+              resets on the next question.
             </p>
           </div>
         ),
@@ -990,33 +1265,53 @@ export default function QuizController() {
         ),
       },
       {
-        title: "Or, Choose Silence",
+        title: "When nothing fits",
         color: "text-ink",
         content: (
           <div>
-            <p className="text-sm text-ink-soft mb-4">If a question doesn't fit your theology, bypass the sliders entirely:</p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <p className="text-sm text-ink-soft mb-4">
+              Three ways to say a question misses you. They are not interchangeable, so
+              pick the one that is actually true — the first lives in the answer list,
+              the other two are declared underneath it.
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="border border-rule bg-paper px-3 py-2.5">
-                <span className="block text-mini font-medium text-ink">
+                <span className="meta block">In the list</span>
+                <span className="mt-0.5 block text-mini font-medium text-ink">
+                  None of the above
+                </span>
+                <p className="mt-0.5 text-2xs leading-snug text-ink-muted">
+                  The question applies to you, but no option is what you hold.
+                </p>
+              </div>
+              <div className="border border-rule bg-paper px-3 py-2.5">
+                <span className="meta block">Silence</span>
+                <span className="mt-0.5 block text-mini font-medium text-ink">
                   Apathetic silence
                 </span>
                 <p className="mt-0.5 text-2xs leading-snug text-ink-muted">
-                  The topic is not relevant to you. Creates a soft, neutral stance.
+                  The topic itself is not relevant to you. A soft, neutral stance.
                 </p>
               </div>
               <div className="border border-punch-300 bg-punch-soft px-3 py-2.5">
-                <span className="block text-mini font-medium text-punch-ink">
+                <span className="meta block">Silence</span>
+                <span className="mt-0.5 block text-mini font-medium text-punch-ink">
                   Hostile silence
                 </span>
                 <p className="mt-0.5 text-2xs leading-snug text-ink-soft">
-                  You reject the question's premise. Penalises traditions that affirm it.
+                  You reject the premise itself. Penalises traditions that affirm it.
                 </p>
               </div>
             </div>
+            <p className="text-xs text-ink-muted mt-2">
+              Either silence skips the sliders, so nothing has to be faked to move on.
+            </p>
           </div>
         ),
       },
     ];
+
+    const totalSteps = steps.length;
     
     return (
       <div className="min-h-screen bg-paper flex flex-col font-sans text-ink">
@@ -1094,7 +1389,7 @@ export default function QuizController() {
 
             <div className="mb-3 flex items-start gap-2 border border-rule bg-muted-soft px-3 py-2 text-2xs leading-snug text-ink-soft">
               
-              <span><span className="font-semibold">During the quiz:</span> Press <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">1</kbd>–<kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">4</kbd> to select, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">Enter</kbd> to confirm, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">S</kbd> / <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">H</kbd> for silence.</span>
+              <span><span className="font-semibold">During the quiz:</span> Press <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">1</kbd>–<kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">4</kbd> to select (they toggle while multi-select is on), <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">Enter</kbd> to confirm, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">N</kbd> for none of the above, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">S</kbd> / <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">H</kbd> for silence.</span>
             </div>
 
             <button 
@@ -1108,7 +1403,7 @@ export default function QuizController() {
             >
               {isLoading ? "Loading Database..." : 
                error ? "Database Error" : 
-               tutorialStep < totalSteps - 1 ? "Review all 4 steps to continue →" : 
+               tutorialStep < totalSteps - 1 ? `Review all ${totalSteps} steps to continue →` : 
                "Start Quiz"}
             </button>
             
@@ -1302,7 +1597,7 @@ export default function QuizController() {
         progressPercentage={progressPercentage}
         hasPrimaryKeyword={hasPrimaryKeyword}
         displayAnswers={displayAnswers}
-        selectedAnswer={selectedAnswer}
+        selectedAnswers={selectedAnswers}
         expandedInfo={expandedInfo}
         isSilenceSelected={isSilenceSelected}
         silenceType={silenceType}
@@ -1316,9 +1611,20 @@ export default function QuizController() {
         quizAnimKey={quizAnimKey}
         quizAnimDir={quizAnimDir}
         userAnswers={userAnswers}
-        onStandardAnswerClick={handleStandardAnswerClick}
+        multiSelectEnabled={multiSelectEnabled}
+        maxSelections={MAX_MULTI_SELECT}
+        noneOfAboveSelected={
+          isSilenceSelected && silenceType === "apathetic" && silenceSource === "answer-none"
+        }
+        apatheticSilenceSelected={
+          isSilenceSelected && silenceType === "apathetic" && silenceSource !== "answer-none"
+        }
+        onToggleAnswer={handleToggleAnswer}
         onToggleInfo={toggleInfo}
         onSilenceClick={handleSilenceClick}
+        onSelectNone={handleNoneOfTheAbove}
+        onOpenMultiSelectMode={() => setShowMultiSelectModal(true)}
+        onDisableMultiSelect={handleDisableMultiSelect}
         onSetCertainty={setCertainty}
         onSetTolerance={setTolerance}
         onNext={handleNext}

@@ -129,7 +129,8 @@ export interface QuizQuestionViewProps {
   progressPercentage: number;
   hasPrimaryKeyword: boolean;
   displayAnswers: Answer[];
-  selectedAnswer: string | null;
+  /** Every option currently affirmed on this question, in click order. */
+  selectedAnswers: string[];
   expandedInfo: string | null;
   isSilenceSelected: boolean;
   silenceType: "apathetic" | "hostile" | null;
@@ -144,9 +145,28 @@ export interface QuizQuestionViewProps {
   /** Which way the reader is travelling. Back must not animate as forward. */
   quizAnimDir: "next" | "prev";
   userAnswers: Record<string, UserResponse>;
-  onStandardAnswerClick: (answerId: string) => void;
+  /**
+   * Multi-select is opt-in, per question, and off by default: the list has to
+   * read as single choices unless the reader deliberately asks otherwise.
+   */
+  multiSelectEnabled: boolean;
+  /** Hard cap on ticks while multi-select is on (`MAX_MULTI_SELECT`). */
+  maxSelections: number;
+  /**
+   * "None of the above" and the apathetic-silence row share one calculation but
+   * are two different answers on screen, so each needs its own lit state.
+   */
+  noneOfAboveSelected: boolean;
+  apatheticSilenceSelected: boolean;
+  onToggleAnswer: (answerId: string) => void;
   onToggleInfo: (e: React.MouseEvent, answerId: string) => void;
   onSilenceClick: (type: "apathetic" | "hostile") => void;
+  /** The last row of the answer list: "none of these states my position". */
+  onSelectNone: () => void;
+  /** Opens the disclaimer dialog that turns multi-select on for this question. */
+  onOpenMultiSelectMode: () => void;
+  /** Back to one answer; the controller collapses the set to a single pick. */
+  onDisableMultiSelect: () => void;
   onSetCertainty: (val: number) => void;
   onSetTolerance: (val: number) => void;
   onNext: () => void;
@@ -162,7 +182,7 @@ export function QuizQuestionView({
   totalQuestions,
   hasPrimaryKeyword,
   displayAnswers,
-  selectedAnswer,
+  selectedAnswers,
   expandedInfo,
   isSilenceSelected,
   silenceType,
@@ -175,9 +195,16 @@ export function QuizQuestionView({
   quizAnimKey,
   quizAnimDir,
   userAnswers,
-  onStandardAnswerClick,
+  multiSelectEnabled,
+  maxSelections,
+  noneOfAboveSelected,
+  apatheticSilenceSelected,
+  onToggleAnswer,
   onToggleInfo,
   onSilenceClick,
+  onSelectNone,
+  onOpenMultiSelectMode,
+  onDisableMultiSelect,
   onSetCertainty,
   onSetTolerance,
   onNext,
@@ -193,9 +220,13 @@ export function QuizQuestionView({
   const answeredCount = Object.keys(userAnswers).length;
   const progress =
     totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
-  const canAdvance = Boolean(selectedAnswer) || isSilenceSelected;
+  const canAdvance = selectedAnswers.length > 0 || isSilenceSelected;
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
-  const showConviction = Boolean(selectedAnswer) && !isSilenceSelected;
+  const showConviction = selectedAnswers.length > 0 && !isSilenceSelected;
+  // At the cap the remaining rows stop being offers. The controller refuses a
+  // fourth tick as well; this is the visible half of the same rule.
+  const selectionAtCap =
+    multiSelectEnabled && selectedAnswers.length >= maxSelections;
 
   return (
     <main
@@ -246,11 +277,15 @@ export function QuizQuestionView({
                 <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">1</kbd>
                 –
                 <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">4</kbd>{" "}
-                select
+                {multiSelectEnabled ? "toggle" : "select"}
               </span>
               <span>
                 <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">Enter</kbd>{" "}
                 confirm
+              </span>
+              <span>
+                <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">N</kbd>{" "}
+                none
               </span>
               <span>
                 <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">S</kbd>{" "}
@@ -304,26 +339,83 @@ export function QuizQuestionView({
               {currentQuestion.question}
             </h1>
 
-            <div
-              className={`mt-6 flex flex-col gap-2 transition-opacity duration-200 ${
-                isSilenceSelected ? "opacity-40" : ""
-              }`}
-            >
+            {/* Single choice is the rule, so it is stated plainly. The door to
+                multi-select sits beside it: quiet enough not to invite the
+                mode, visible enough to find when a reader holds two options.
+                The counter confirms the toggle actually took. */}
+            <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xs leading-snug text-ink-muted">
+              {multiSelectEnabled ? (
+                <>
+                  <span>
+                    Tick up to {maxSelections} options you affirm — this question only.
+                  </span>
+                  <span
+                    aria-live="polite"
+                    className="shrink-0 border border-cerulean-300 bg-cerulean-50 px-1.5 py-0.5 font-semibold text-cerulean-900"
+                  >
+                    <span className="num">{selectedAnswers.length}</span>
+                    <span className="num"> / {maxSelections}</span> selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onDisableMultiSelect}
+                    className="shrink-0 underline decoration-dotted underline-offset-2 transition-colors hover:text-ink"
+                  >
+                    Back to one
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>Pick the one option closest to what you hold.</span>
+                  <button
+                    type="button"
+                    onClick={onOpenMultiSelectMode}
+                    className="shrink-0 border border-rule-strong bg-paper-raised px-1.5 py-0.5 font-semibold text-cerulean-800 transition-colors hover:border-cerulean-400 hover:bg-cerulean-50"
+                  >
+                    Hold more than one?
+                  </button>
+                </>
+              )}
+            </div>
+
+            {selectionAtCap && (
+              <p className="mt-1.5 text-2xs leading-snug text-ink-muted">
+                {maxSelections} is the limit — untick one to choose another.
+              </p>
+            )}
+
+            <div className="mt-6 flex flex-col gap-2">
               {displayAnswers.map((ans) => {
-                const isSelected = selectedAnswer === ans.id;
+                const isSelected = selectedAnswers.includes(ans.id);
                 const isInfoOpen = expandedInfo === ans.id;
+                // At the cap an unticked row is no longer an offer; the
+                // controller would refuse it anyway, so it must not look live.
+                const isBlocked = selectionAtCap && !isSelected;
 
                 return (
-                  <div key={ans.id}>
+                  <div
+                    key={ans.id}
+                    /* Silence dims the options you did not take; the "None of
+                       the above" row keeps full contrast because it is the row
+                       that is now selected. */
+                    className={`transition-opacity duration-200 ${
+                      isSilenceSelected || isBlocked ? "opacity-40" : ""
+                    }`}
+                  >
                     <div className="flex items-stretch gap-2">
                       <button
                         type="button"
-                        onClick={() => onStandardAnswerClick(ans.id)}
+                        onClick={() => {
+                          if (!isBlocked) onToggleAnswer(ans.id);
+                        }}
                         aria-pressed={isSelected}
+                        aria-disabled={isBlocked}
                         className={`group relative flex min-w-0 flex-1 items-center gap-2.5 border py-2.5 pl-2.5 pr-3 text-left transition-colors sm:py-3 ${
                           isSelected
                             ? "border-cerulean-600 bg-cerulean-50 ring-1 ring-cerulean-600"
-                            : "border-rule bg-paper-raised hover:border-cerulean-400 hover:bg-cerulean-50/60"
+                            : isBlocked
+                              ? "cursor-not-allowed border-rule bg-paper-raised"
+                              : "border-rule bg-paper-raised hover:border-cerulean-400 hover:bg-cerulean-50/60"
                         }`}
                       >
                         {/* The tap acknowledges itself: 2px of accent running
@@ -335,13 +427,19 @@ export function QuizQuestionView({
                             className="pointer-events-none absolute inset-y-0 left-0 w-[2px] origin-top animate-keyline-in bg-cerulean-600"
                           />
                         )}
-                        {/* Radio affordance — the row must look clickable. */}
+                        {/* Affordance follows the mode: a round radio while
+                            one answer is the rule, a square checkbox only once
+                            the reader has opted into multi-select. */}
                         <span
                           aria-hidden="true"
-                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center border-2 transition-colors ${
+                            multiSelectEnabled ? "rounded-[3px]" : "rounded-full"
+                          } ${
                             isSelected
                               ? "border-cerulean-600 bg-cerulean-600"
-                              : "border-rule-strong group-hover:border-cerulean-400"
+                              : isBlocked
+                                ? "border-rule-strong"
+                                : "border-rule-strong group-hover:border-cerulean-400"
                           }`}
                         >
                           {isSelected && (
@@ -391,6 +489,48 @@ export function QuizQuestionView({
                   </div>
                 );
               })}
+
+              {/* ── None of the above ───────────────────────────────────
+                  Its own answer, not a footnote on the silence row: it reads as
+                  the last entry of the list, and only this row lights when it
+                  is chosen. Which calculation it feeds is a developer detail
+                  (see `handleNoneOfTheAbove`), not something to explain here. */}
+              <button
+                type="button"
+                onClick={onSelectNone}
+                aria-pressed={noneOfAboveSelected}
+                className={`mt-1 flex items-center gap-2.5 border py-2.5 pl-2.5 pr-3 text-left transition-colors ${
+                  noneOfAboveSelected
+                    ? "border-cerulean-600 bg-cerulean-50 ring-1 ring-cerulean-600"
+                    : "border-rule bg-paper-raised hover:border-cerulean-400 hover:bg-cerulean-50/60"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    noneOfAboveSelected
+                      ? "border-cerulean-600 bg-cerulean-600"
+                      : "border-rule-strong"
+                  }`}
+                >
+                  {noneOfAboveSelected ? (
+                    <Check className="h-3 w-3 animate-tick-pop text-white" strokeWidth={3} />
+                  ) : (
+                    <Minus className="h-3 w-3 text-ink-muted" strokeWidth={3} />
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-mini font-medium leading-tight text-ink">
+                    None of the above
+                  </span>
+                  <span className="mt-0.5 block text-2xs leading-snug text-ink-muted">
+                    Nothing here is what I hold
+                  </span>
+                </span>
+                <kbd className="ml-auto hidden shrink-0 border border-rule-strong bg-paper-raised px-1 font-mono text-3xs text-ink-muted sm:block">
+                  N
+                </kbd>
+              </button>
             </div>
 
 
@@ -400,13 +540,15 @@ export function QuizQuestionView({
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {/* Same radio affordance as the answers above: these are two
                     more choices, not an aside. The glyph inside the radio says
-                    which kind of silence it is - dash = irrelevant, X = reject. */}
+                    which kind of silence it is - dash = irrelevant, X = reject.
+                    This row is lit only when silence was declared *here*, not
+                    via the list's "None of the above" entry. */}
                 <button
                   type="button"
                   onClick={() => onSilenceClick("apathetic")}
-                  aria-pressed={silenceType === "apathetic"}
+                  aria-pressed={apatheticSilenceSelected}
                   className={`flex items-center gap-2.5 border py-2.5 pl-2.5 pr-3 text-left transition-colors ${
-                    silenceType === "apathetic"
+                    apatheticSilenceSelected
                       ? "border-cerulean-600 bg-cerulean-50 ring-1 ring-cerulean-600"
                       : "border-rule bg-paper-raised hover:border-cerulean-400 hover:bg-cerulean-50/60"
                   }`}
@@ -414,13 +556,13 @@ export function QuizQuestionView({
                   <span
                     aria-hidden="true"
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                      silenceType === "apathetic"
+                      apatheticSilenceSelected
                         ? "border-cerulean-600 bg-cerulean-600"
                         : "border-rule-strong"
                     }`}
                   >
                     <Minus
-                      className={`h-3 w-3 ${silenceType === "apathetic" ? "text-white" : "text-ink-muted"}`}
+                      className={`h-3 w-3 ${apatheticSilenceSelected ? "text-white" : "text-ink-muted"}`}
                       strokeWidth={3}
                     />
                   </span>
