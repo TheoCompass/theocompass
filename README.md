@@ -177,5 +177,8 @@ Run `npm install csv-parse` in the root folder.
 **"table questions has no column named X: SQLITE_ERROR"**
 This happens if you altered the database schema but your local database still has the old table. Ensure your Python script includes `DROP TABLE IF EXISTS` commands before the `CREATE TABLE` commands.
 
+**The site says "TheoCompass is paused for today" (HTTP 503 with `D1_LIMIT_REACHED`)?**
+The Workers Free plan's daily D1 row allowance is used up. Nothing is broken and no data was lost: the API answers 503 until 00:00 UTC, and the message shows the exact reset time in your own timezone. Reads (questions, results, roadmap) stop first; a failed quiz-completion stat or issue report is the same allowance running out on the write side. Either wait for the reset or upgrade the D1 plan.
+
 **Worker throwing 0xc0000005 access violations locally?**
 This is a known Windows bug with Cloudflare Wrangler. Bypass local testing by deploying to a dev environment: `npx wrangler deploy` and testing the live `.workers.dev` URL.

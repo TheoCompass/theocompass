@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { fetchRoadmap, updateRoadmapTask } from "../../../lib/api";
+import { D1_LIMIT_HEADING, d1LimitMessage, isD1LimitError } from "../../../lib/d1-limit";
 import {
   ROADMAP_MILESTONES,
   ROADMAP_STATUS_META,
@@ -123,7 +124,11 @@ function Summary({
 export function RoadmapExplorer() {
   const [data, setData] = useState<RoadmapData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * A heading and a body rather than one string: the free-tier quota outage is
+   * a whole-site pause, not a broken roadmap, and it deserves to say so.
+   */
+  const [error, setError] = useState<{ heading: string; message: string } | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [modCode, setModCode] = useState<string | null>(null);
   const [unlockOpen, setUnlockOpen] = useState(false);
@@ -136,7 +141,16 @@ export function RoadmapExplorer() {
     try {
       setData(await fetchRoadmap());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load the roadmap.");
+      // The API already turned a depleted allowance into a D1LimitError; saying
+      // "could not load the roadmap" would blame the wrong thing entirely.
+      setError(
+        isD1LimitError(err)
+          ? { heading: D1_LIMIT_HEADING, message: d1LimitMessage(err) }
+          : {
+              heading: "Could not load the roadmap",
+              message: err instanceof Error ? err.message : "Could not load the roadmap.",
+            }
+      );
     } finally {
       setLoading(false);
     }
@@ -240,9 +254,9 @@ export function RoadmapExplorer() {
           <div className="mt-6 border border-punch-500/40 bg-punch-50 p-4">
             <p className="flex items-center gap-2 text-mini font-semibold text-punch-ink">
               <AlertTriangle aria-hidden="true" className="h-4 w-4" strokeWidth={1.75} />
-              Could not load the roadmap
+              {error.heading}
             </p>
-            <p className="mt-1 text-2xs leading-relaxed text-ink-soft">{error}</p>
+            <p className="mt-1 text-2xs leading-relaxed text-ink-soft">{error.message}</p>
             <button
               type="button"
               onClick={() => void load()}

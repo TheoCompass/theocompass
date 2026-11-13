@@ -15,6 +15,7 @@ import {
   applySplitDrag,
   NEUTRAL_AXIS_VALUE,
 } from "./split-scores";
+import { d1QuotaResponse, d1QuotaScope } from "./d1-errors";
 
 export interface Env {
   DB: D1Database;
@@ -90,7 +91,9 @@ export default {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, X-Admin-Code, X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
-      "Access-Control-Expose-Headers": "X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms",
+      // Retry-After is not a CORS-safelisted response header, so the free-tier
+      // quota 503 (see src/d1-errors.ts) has to name it here to be readable.
+      "Access-Control-Expose-Headers": "X-Compute-Time-ms, X-D1-Rows-Read, X-D1-Query-Time-ms, Retry-After",
       "Content-Type": "application/json",
     };
 
@@ -214,6 +217,13 @@ export default {
           return new Response(JSON.stringify(formattedQuestions), { headers: corsHeaders });
           
         } catch (dbError: any) {
+          // This endpoint catches its own errors, so the quota check cannot wait
+          // for the handler at the bottom of `fetch`: without it a depleted free
+          // tier would look like broken SQL and the quiz would tell the reader
+          // to check their own setup.
+          const quota = d1QuotaScope(dbError);
+          if (quota) return d1QuotaResponse(quota, corsHeaders);
+
           console.error("SQL ERROR IN /api/questions:", dbError.message);
           return new Response(JSON.stringify({ error: "SQL Error", details: dbError.message }), { 
             status: 500, 
@@ -315,6 +325,9 @@ export default {
         
         return new Response(JSON.stringify(profile), { status: 200, headers: corsHeaders });
       } catch (e: any) {
+        const quota = d1QuotaScope(e);
+        if (quota) return d1QuotaResponse(quota, corsHeaders);
+
         console.error("DEV API SQL Error:", e.message);
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
       }
@@ -416,6 +429,18 @@ export default {
       );
 
     } catch (error: any) {
+      // The free-tier rows limit blocks every read until 00:00 UTC. It is
+      // checked before the generic 500 so the frontend can explain the outage
+      // instead of guessing at a broken database.
+      const quota = d1QuotaScope(error);
+      if (quota) {
+        console.error(`D1 FREE TIER ${quota.toUpperCase()} LIMIT REACHED:`, error.message);
+        return d1QuotaResponse(quota, corsHeaders);
+      }
+
+      // Logged, unlike before: this is the last place an unexpected failure is
+      // visible (`wrangler tail`), and it used to return a 500 silently.
+      console.error("UNHANDLED API ERROR:", error);
       return new Response(
         JSON.stringify({ error: "Database query failed", details: error.message }),
         { headers: corsHeaders, status: 500 }
@@ -954,6 +979,15 @@ if (labelRequests.length === 0) {
     });
 
   } catch (error: any) {
+
+    // Same free-tier check as the router: a calculate request is the most
+    // visible casualty of a depleted allowance (the results view would spin
+    // forever), so it must answer 503 rather than a generic 500.
+    const quota = d1QuotaScope(error);
+    if (quota) {
+      console.error(`D1 FREE TIER ${quota.toUpperCase()} LIMIT REACHED (calculate):`, error.message);
+      return d1QuotaResponse(quota, corsHeaders);
+    }
 
     console.error("CALCULATION ERROR:", error);
     return new Response(JSON.stringify({ error: "Failed to process calculate request", details: error.message }), { status: 500, headers: corsHeaders });

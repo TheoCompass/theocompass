@@ -36,6 +36,16 @@ export interface ResultsDashboardProps {
   userLabels: Label[];
   selectedMode: "quick" | "standard" | "deep" | null;
   isCalculating: boolean;
+  /**
+   * Set when the calculation failed and there is nothing to show. Rendered in
+   * place of the dashboard, so an outage reads as an explanation instead of as
+   * "no matches". Ignored when `results` already holds a good result: a failed
+   * re-calculation from the dev tools must not wipe a result the reader can
+   * still read.
+   */
+  calcError: { heading: string; message: string } | null;
+  onRetryResults: () => void;
+  onBackToQuiz: () => void;
   showSpecific: boolean;
   activeOnly: boolean;
   compareDenomId: string | null;
@@ -104,6 +114,9 @@ export function ResultsDashboard({
   userLabels,
   selectedMode,
   isCalculating,
+  calcError,
+  onRetryResults,
+  onBackToQuiz,
   showSpecific,
   activeOnly,
   compareDenomId,
@@ -278,6 +291,38 @@ export function ResultsDashboard({
         >
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-rule border-t-accent" />
           <p className="font-display text-lg text-ink-soft">Calculating alignment…</p>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (calcError && results.length === 0) {
+    return (
+      <Shell width="reading">
+        <div
+          role="alert"
+          className="mx-auto mt-16 max-w-xl border border-punch-500/40 bg-punch-50 p-6"
+        >
+          <h1 className="font-display text-xl leading-snug text-ink">{calcError.heading}</h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft">{calcError.message}</p>
+          {/* Two ways out: retry in place (the answers are still in state), or
+              step back into the quiz to change them. Neither can lose work. */}
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={onRetryResults}
+              className="bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-deep"
+            >
+              Try again
+            </button>
+            <button
+              type="button"
+              onClick={onBackToQuiz}
+              className="border border-rule-strong px-4 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-muted-soft hover:text-ink"
+            >
+              Back to the quiz
+            </button>
+          </div>
         </div>
       </Shell>
     );
