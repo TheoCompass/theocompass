@@ -7,6 +7,30 @@ import type {
 import type { RoadmapData, RoadmapStatus } from "./roadmap";
 
 import { getApiUrl } from "../app/christian-denominations/_helpers";
+import { d1LimitErrorFromBody } from "./d1-limit";
+
+/**
+ * The error a failed response should become.
+ *
+ * The free-tier quota is checked first because it is the one failure the reader
+ * can do nothing about: reporting it as "failed to fetch" (or worse, as a broken
+ * local database) sends them looking for a problem on their side that does not
+ * exist. `fallback` names what was being attempted, so an unrecognised 5xx still
+ * arrives as a sentence rather than a status code alone.
+ */
+async function errorFrom(response: Response, fallback: string): Promise<Error> {
+  const body = (await response.json().catch(() => null)) as unknown;
+
+  const quota = d1LimitErrorFromBody(body, response.headers.get("Retry-After"));
+  if (quota) return quota;
+
+  const message =
+    body && typeof body === "object" ? (body as { error?: unknown }).error : null;
+
+  return new Error(
+    typeof message === "string" && message ? message : `${fallback} (HTTP ${response.status})`
+  );
+}
 
 export interface CoordinateData {
   id: string;
@@ -18,7 +42,7 @@ export async function fetchQuestions(mode: string): Promise<Question[]> {
   const response = await fetch(`${apiUrl}/api/questions?mode=${mode}`);
 
   if (!response.ok) {
-    throw new Error("Failed to fetch questions");
+    throw await errorFrom(response, "Failed to fetch questions");
   }
 
   const data = (await response.json()) as Question[];
@@ -34,6 +58,13 @@ export async function calculateResults(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(answers),
   });
+
+  // Checked before the body is read as a result: an error payload is not a
+  // calculation, and without this the only signal was `data.status`, which made
+  // a quota outage and an empty answer look the same.
+  if (!res.ok) {
+    throw await errorFrom(res, "Calculation failed");
+  }
 
   const data = (await res.json()) as CalculateResponse;
 
@@ -66,7 +97,7 @@ export async function fetchMeta(): Promise<MetaResponse> {
   const apiUrl = getApiUrl();
   const res = await fetch(`${apiUrl}/api/meta`);
   if (!res.ok) {
-    throw new Error("Failed to fetch meta");
+    throw await errorFrom(res, "Failed to fetch meta");
   }
   return (await res.json()) as MetaResponse;
 }
@@ -100,7 +131,7 @@ export async function fetchRoadmap(): Promise<RoadmapData> {
   const res = await fetch(`${apiUrl}/api/roadmap`);
 
   if (!res.ok) {
-    throw new Error(`Roadmap unavailable (HTTP ${res.status})`);
+    throw await errorFrom(res, "Roadmap unavailable");
   }
 
   const body = (await res.json()) as { data?: RoadmapData };
@@ -126,7 +157,7 @@ export async function unlockRoadmap(code: string): Promise<boolean> {
 
   if (res.status === 401) return false;
   if (!res.ok) {
-    throw new Error(`Could not reach the API (HTTP ${res.status})`);
+    throw await errorFrom(res, "Could not reach the API");
   }
   return true;
 }
@@ -150,8 +181,7 @@ export async function updateRoadmapTask(
     throw new Error("That task no longer exists — reload the page.");
   }
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error || `Update failed (HTTP ${res.status})`);
+    throw await errorFrom(res, "Update failed");
   }
 }
 
@@ -185,7 +215,7 @@ export async function fetchQuizStats(): Promise<QuizStats> {
   const apiUrl = getApiUrl();
   const res = await fetch(`${apiUrl}/api/stats`);
   if (!res.ok) {
-    throw new Error(`Stats unavailable (HTTP ${res.status})`);
+    throw await errorFrom(res, "Stats unavailable");
   }
   const body = (await res.json()) as { data?: QuizStats };
   if (!body.data) {

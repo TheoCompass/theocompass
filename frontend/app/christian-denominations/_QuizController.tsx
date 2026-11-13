@@ -7,7 +7,13 @@ import CompassChart from "./CompassChart";
 import { useRouter } from 'next/navigation';
 import { labelText, type Label } from "./TheologicalLabelCloud";
 import { trackEvent } from '../../lib/gtag';
-import { createQuizSessionId, recordQuizCompletion } from '../../lib/api';
+import { calculateResults, createQuizSessionId, fetchQuestions, recordQuizCompletion } from '../../lib/api';
+import {
+  D1_LIMIT_HEADING,
+  D1_LIMIT_QUIZ_NOTE,
+  d1LimitMessage,
+  isD1LimitError,
+} from '../../lib/d1-limit';
 import { APP_STAGE } from '../../lib/site';
 import { Check, Info } from "lucide-react";
 import type { Question, UserResponse } from './_types';
@@ -72,6 +78,46 @@ function persistFinalResults(snapshot: {
   }
 }
 
+/**
+ * The copy for a failed calculation.
+ *
+ * Quota first: it is the one failure that is ours rather than the reader's, it
+ * comes with a reset time worth sharing, and the quiz autosaves after every
+ * answer -- so the useful message is "nothing is lost, come back at ...".
+ * Anything else stays generic, because a stack trace helps nobody mid-quiz.
+ */
+function describeCalculationError(error: unknown): { heading: string; message: string } {
+  if (isD1LimitError(error)) {
+    return {
+      heading: D1_LIMIT_HEADING,
+      message: `${d1LimitMessage(error)} ${D1_LIMIT_QUIZ_NOTE}`,
+    };
+  }
+
+  return {
+    heading: "Results are not ready",
+    message:
+      "The calculation could not be completed. Your answers are still saved in this browser, so nothing is lost — try again, or go back to the quiz.",
+  };
+}
+
+/**
+ * The copy for a failed question load, which happens before the quiz starts.
+ *
+ * The API's own words are never shown: "SQL Error" and a status code tell the
+ * reader nothing they can act on, and "check your database API" -- the advice
+ * this used to give -- asked a visitor to debug our deployment. A connection
+ * failure is the one case where their side is genuinely worth checking, so it
+ * says so; everything else admits the failure is ours. The quota outage never
+ * reaches here: it is answered with a reset time, further down.
+ */
+function describeQuestionsError(error: unknown): string {
+  if (error instanceof TypeError) {
+    return "We couldn't reach TheoCompass. Check your connection, then try again.";
+  }
+  return "The questions could not be loaded just now. Please try again in a moment.";
+}
+
 export default function QuizController() {
   // --- APP STATE ---
   const [currentView, setCurrentView] = useState<"mode-select" | "instructions" | "quiz" | "results">("mode-select");
@@ -103,6 +149,12 @@ export default function QuizController() {
   const [userCertainty, setUserCertainty] = useState<number>(50);
   const [userLabels, setUserLabels] = useState<Label[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
+  /**
+   * Why the calculation failed, when it did. The results view renders this
+   * instead of an empty dashboard, which is what a quota outage used to look
+   * like. Cleared on every retry, so the message cannot outlive its failure.
+   */
+  const [calcError, setCalcError] = useState<{ heading: string; message: string } | null>(null);
   const [compareDenomId, setCompareDenomId] = useState<string | null>(null);
   const [expandedAxis, setExpandedAxis] = useState<string | null>(null);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
@@ -378,6 +430,8 @@ export default function QuizController() {
   const handleConfirmRestart = () => {
     skipResultsSaveRef.current = false;
     completionSourceRef.current = "quiz";
+    // A restart is a fresh start: the previous failure must not greet the new run.
+    setCalcError(null);
     localStorage.removeItem('theocompass_quiz_progress');
     localStorage.removeItem('theocompass_final_results');
     setCurrentView("mode-select");
@@ -410,16 +464,18 @@ export default function QuizController() {
     setError(null);
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
-      const response = await fetch(`${apiUrl}/api/questions?mode=${mode}`);
-
-      if (!response.ok) throw new Error("Failed to fetch questions");
-      
-      const data = await response.json();
-      setQuestions(data);
+      setQuestions(await fetchQuestions(mode));
     } catch (err) {
       console.error(err);
-      setError("Could not load questions. Make sure your database API is running.");
+      // A depleted free tier is not something the reader can fix by checking
+      // their own setup, so it gets the site-wide explanation instead of the
+      // generic one. Neither message repeats what the API said: that belongs
+      // in the console above, not on a page a reader has to interpret.
+      setError(
+        isD1LimitError(err)
+          ? `${D1_LIMIT_HEADING}. ${d1LimitMessage(err)}`
+          : describeQuestionsError(err)
+      );
     } finally {
       setIsLoading(false);
     }
@@ -573,86 +629,96 @@ export default function QuizController() {
       setQuizAnimDir("next");
       setQuizAnimKey(prev => prev + 1);
     } else {
-      setIsCalculating(true);
-      setCurrentView("results");
+      // The calculation owns the results view from here on: it fills the view on
+      // success and explains the failure when there is nothing to fill, so
+      // `handleNext` only has to record the final answer before handing over.
+      void runCalculation(newAnswers);
+    }
+  };
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL!;
-      try {
-        const res = await fetch(`${apiUrl}/api/calculate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newAnswers)
+  /**
+   * Requests the calculation and owns the results view.
+   *
+   * Split out of `handleNext` so the results screen can retry a failed
+   * calculation without walking the whole quiz again. Retrying is safe: nothing
+   * is persisted, counted or reported until a response is in hand, and
+   * `recordQuizCompletion` is keyed by a session id created per call, so a
+   * second attempt can never double-count.
+   */
+  const runCalculation = async (answers: Record<string, UserResponse>) => {
+    setIsCalculating(true);
+    setCalcError(null);
+    setCurrentView("results");
+
+    try {
+      const data = await calculateResults(answers);
+
+      setResults(data.matches);
+      setFamilyMatches(data.familyMatches || []);
+      setUserCoords(data.userDimCoords || {});
+      setUserTolerance(data.userTolerance ?? 50);
+      setUserCertainty(data.userCertainty ?? 50);
+      setUserLabels(data.userLabels || []);
+
+      // Dev-generated results are for inspection only: they must not enter
+      // product analytics or the public stats below.
+      const countsAsStatistic = completionSourceRef.current !== "dev";
+      if (countsAsStatistic) {
+        trackEvent('quiz_complete', {
+          quiz_mode: selectedMode || 'quick',
+          questions_answered: Object.keys(answers).length,
+          top_match: data.matches[0]?.name || 'unknown',
+          top_match_score: data.matches[0]?.matchPercentage || 0,
+          user_tolerance: data.userTolerance ?? 50,
+          user_certainty: data.userCertainty ?? 50
         });
-        
-        const data = await res.json();
-        
-        if (data.status === "success") {
-          setResults(data.matches); 
-          setFamilyMatches(data.familyMatches || []);
-          setUserCoords(data.userDimCoords || {});
-          setUserTolerance(data.userTolerance ?? 50);
-          setUserCertainty(data.userCertainty ?? 50);
-          setUserLabels(data.userLabels || []);
-          
-          // Dev-generated results are for inspection only: they must not enter
-          // product analytics or the public stats below.
-          const countsAsStatistic = completionSourceRef.current !== "dev";
-          if (countsAsStatistic) {
-            trackEvent('quiz_complete', {
-              quiz_mode: selectedMode || 'quick',
-              questions_answered: Object.keys(newAnswers).length,
-              top_match: data.matches[0]?.name || 'unknown',
-              top_match_score: data.matches[0]?.matchPercentage || 0,
-              user_tolerance: data.userTolerance ?? 50,
-              user_certainty: data.userCertainty ?? 50
-            });
-          }
-
-          const answerCount = Object.keys(newAnswers).length;
-          setAnsweredQuestionCount(answerCount);
-
-          if (!skipResultsSaveRef.current) {
-            persistFinalResults({
-              matches: data.matches,
-              familyMatches: data.familyMatches || [],
-              userDimCoords: data.userDimCoords,
-              userTolerance: data.userTolerance ?? 50,
-              userCertainty: data.userCertainty ?? 50,
-              userLabels: data.userLabels,
-              selectedMode,
-              answeredCount: answerCount,
-            });
-          }
-
-          localStorage.removeItem('theocompass_quiz_progress');
-
-          // Anonymous completion stat for the landing page. Only normal runs
-          // count: the moderator/dev shortcuts mark completionSourceRef as
-          // "dev", so a generated result -- even one that replaced an in-flight
-          // normal calculation -- is never reported as a real completion.
-          // Fire-and-forget: the results screen must never wait on it, and the
-          // per-run session id makes a retry harmless.
-          if (countsAsStatistic) {
-            void recordQuizCompletion({
-              sessionId: createQuizSessionId(),
-              mode: selectedMode ?? 'quick',
-              answeredCount: answerCount,
-              topFamily: data.matches[0]?.family ?? null,
-              topMatchId: data.matches[0]?.id ?? null,
-              topMatchName: data.matches[0]?.name ?? null,
-              topMatchScore: data.matches[0]?.matchPercentage ?? null,
-              userTolerance: data.userTolerance ?? 50,
-              userCertainty: data.userCertainty ?? 50,
-            });
-          }
-        } else {
-          console.error("Calculation failed");
-        }
-      } catch (error) {
-        console.error("API error:", error);
-      } finally {
-        setIsCalculating(false);
       }
+
+      const answerCount = Object.keys(answers).length;
+      setAnsweredQuestionCount(answerCount);
+
+      if (!skipResultsSaveRef.current) {
+        persistFinalResults({
+          matches: data.matches,
+          familyMatches: data.familyMatches || [],
+          userDimCoords: data.userDimCoords,
+          userTolerance: data.userTolerance ?? 50,
+          userCertainty: data.userCertainty ?? 50,
+          userLabels: data.userLabels,
+          selectedMode,
+          answeredCount: answerCount,
+        });
+      }
+
+      localStorage.removeItem('theocompass_quiz_progress');
+
+      // Anonymous completion stat for the landing page. Only normal runs
+      // count: the moderator/dev shortcuts mark completionSourceRef as
+      // "dev", so a generated result -- even one that replaced an in-flight
+      // normal calculation -- is never reported as a real completion.
+      // Fire-and-forget: the results screen must never wait on it, and the
+      // per-run session id makes a retry harmless.
+      if (countsAsStatistic) {
+        void recordQuizCompletion({
+          sessionId: createQuizSessionId(),
+          mode: selectedMode ?? 'quick',
+          answeredCount: answerCount,
+          topFamily: data.matches[0]?.family ?? null,
+          topMatchId: data.matches[0]?.id ?? null,
+          topMatchName: data.matches[0]?.name ?? null,
+          topMatchScore: data.matches[0]?.matchPercentage ?? null,
+          userTolerance: data.userTolerance ?? 50,
+          userCertainty: data.userCertainty ?? 50,
+        });
+      }
+    } catch (error) {
+      // The results view has nothing to show, so it shows the reason instead of
+      // an empty dashboard. A quota failure gets the site-wide explanation;
+      // anything else stays generic, because a stack trace helps nobody mid-quiz.
+      console.error("API error:", error);
+      setCalcError(describeCalculationError(error));
+    } finally {
+      setIsCalculating(false);
     }
   };
 
@@ -666,6 +732,7 @@ export default function QuizController() {
     // A shortcut for inspecting the results screen, not a real completion:
     // mark it so handleNext cannot report this result if it is still in flight.
     completionSourceRef.current = "dev";
+    setCalcError(null);
     const dummyAnswers: Record<string, UserResponse> = {};
     questions.forEach(q => {
       const randomAnswerIndex = Math.floor(Math.random() * q.answers.length);
@@ -715,6 +782,7 @@ export default function QuizController() {
   const handleDevDenomFill = async (denomId: string) => {
     // Same rule as handleDevAutoFill: generated results stay out of the stats.
     completionSourceRef.current = "dev";
+    setCalcError(null);
     setIsCalculating(true);
     setCurrentView('results');
     setShowDevModal(false);
@@ -1389,9 +1457,9 @@ export default function QuizController() {
             </div>
 
             {error && (
-              <div className="mb-3 flex items-center justify-between border border-punch-300 bg-punch-soft px-3 py-2 text-xs text-punch-ink">
-                <span>{error}</span>
-                <button onClick={() => startInstructions(selectedMode!)} className="ml-4 underline font-bold whitespace-nowrap">Try Again</button>
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border border-punch-300 bg-punch-soft px-3 py-2 text-xs text-punch-ink">
+                <span className="min-w-0 flex-1">{error}</span>
+                <button onClick={() => startInstructions(selectedMode!)} className="underline font-bold whitespace-nowrap">Try Again</button>
               </div>
             )}
 
@@ -1409,8 +1477,8 @@ export default function QuizController() {
                 "bg-accent hover:bg-accent-deep text-white"
               }`}
             >
-              {isLoading ? "Loading Database..." : 
-               error ? "Database Error" : 
+              {isLoading ? "Loading questions..." : 
+               error ? "Temporarily unavailable" : 
                tutorialStep < totalSteps - 1 ? `Review all ${totalSteps} steps to continue →` : 
                "Start Quiz"}
             </button>
@@ -1518,6 +1586,9 @@ export default function QuizController() {
           userLabels={userLabels}
           selectedMode={selectedMode}
           isCalculating={isCalculating}
+          calcError={calcError}
+          onRetryResults={() => void runCalculation(userAnswers)}
+          onBackToQuiz={() => setCurrentView("quiz")}
           showSpecific={showSpecific}
           compareDenomId={compareDenomId}
           expandedAxis={expandedAxis}

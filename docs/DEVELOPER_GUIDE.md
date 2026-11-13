@@ -45,6 +45,10 @@ The Worker (`theocompass-api/src/index.ts`) connects the Next.js frontend to D1 
 * `POST /api/quiz/events` · `GET /api/stats`: Anonymous quiz completion counts for the landing page (see §10).
 * `POST /api/issue-reports` · `GET /api/issue-reports` · `PATCH /api/issue-reports/:id`: The in-quiz "report an issue" flag, its triage queue and the maintainer notification (see §11).
 
+### When the free D1 allowance runs out
+Production runs on the Workers Free plan, where D1 allows a fixed number of rows per day. When the read allowance is gone, **every** query on the database throws until midnight UTC: the data is intact, the worker simply cannot read it. `src/d1-errors.ts` recognises that message (read or write, including when D1 wraps it in `cause`) and answers `503` with `{ code: "D1_LIMIT_REACHED", scope, resetAt }`, plus `Retry-After` and `Cache-Control: no-store`. 503 rather than 429 or 500 because the whole deployment is out of allowance until a fixed moment, not one caller being throttled. Every catch checks it before its generic error — `/api/questions` and `/api/calculate` catch their own failures, so both are wired explicitly.
+The frontend owns the wording (`frontend/lib/d1-limit.ts`): `D1LimitError`, `D1_LIMIT_HEADING` ("TheoCompass is paused for today"), `d1LimitMessage()` and `D1_LIMIT_QUIZ_NOTE`. `lib/api.ts` turns the response into that error in one place (`errorFrom`), so the quiz start, the results view and `/roadmap` all explain the outage instead of blaming the reader's setup, and the reset time is shown in the reader's clock and in UTC. The Cloudflare sentence itself is pinned only by `theocompass-api/test/d1-errors.spec.ts`: if it is ever reworded, that test is the one place to update.
+
 ## 6. Frontend State & Silence Logic
 The frontend tracks user progress in a Next.js client component (`userAnswers` state). A unique mechanic is the **Silence options**, which bypass the standard Certainty/Tolerance sliders and auto-inject specific logic directly into the payload:
 * **Apathetic Silence** ("Not relevant to me"): Injects Certainty 0, Tolerance 2. 
