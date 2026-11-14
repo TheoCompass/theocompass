@@ -1536,16 +1536,19 @@ export default function QuizController() {
 
     /*
      * One condition for two places: the feedback card below the dashboard and
-     * the "Rate this match ↓" link in the dashboard's closing bar. The card is
-     * absent on dev/mod "skip to a result" runs and while there is no match to
-     * judge, so the link has to disappear with it -- a link into nothing is
-     * worse than no link.
+     * the "Rate this match ↓" link in the dashboard's closing bar, so the link
+     * can never point at a card that is not there -- a link into nothing is
+     * worse than no link. All it asks for is a match to judge and a finished
+     * calculation.
+     *
+     * It is deliberately true on dev/mod "skip to a result" runs: answering a
+     * whole quiz first is no way to inspect a card, and the moderator shortcuts
+     * are the only other route to a results view. What keeps those runs out of
+     * the published figures is `countsAsStatistic` above -- they report no
+     * `quiz_complete` and post no `/api/quiz/events` row -- not the absence of
+     * the card.
      */
-    const feedbackEnabled =
-      completionSourceRef.current !== "dev" &&
-      results.length > 0 &&
-      !isCalculating &&
-      !calcError;
+    const feedbackEnabled = results.length > 0 && !isCalculating && !calcError;
 
     return (
       <div className="min-h-screen bg-paper flex flex-col font-sans text-ink relative overflow-x-hidden">
@@ -1625,9 +1628,11 @@ export default function QuizController() {
         />
 
         {/* Task 0.9: the feedback card sits below the dashboard, outside its
-            <main>, so the page keeps exactly one main landmark. It is absent on
-            dev/mod "skip to a result" runs (like their stats row) and while
-            there is no match to judge -- an error page has nothing to rate. */}
+            <main>, so the page keeps exactly one main landmark. Dev/mod "skip
+            to a result" runs show it too -- a moderator needs the form itself
+            to check the UI -- and only a view still calculating, one whose
+            calculation failed, or one with no match to judge hides it: there
+            is nothing to rate. */}
         <PostQuizFeedback
           mode={selectedMode ?? "quick"}
           topMatchId={results[0]?.id ?? null}

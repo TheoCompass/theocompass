@@ -168,7 +168,10 @@ their range are dropped rather than rejecting the whole event.
 
 Only the normal end-of-quiz path posts an event. The `mod` developer tools
 (“Skip to a result”) calculate directly and mark themselves as dev runs, so their
-results enter neither `quiz_complete` analytics nor `/api/quiz/events`.
+results enter neither `quiz_complete` analytics nor `/api/quiz/events`. They do
+render the feedback card, because that is how the form gets inspected without
+answering a whole quiz — a rating submitted from such a run is stored like any
+other and can be set to `hidden` in `/mod/feedback`.
 
 `frontend/app/_components/_LiveStats.tsx` fetches `/api/stats` once per page view
 and renders nothing below 10 runs or if the request fails, so the landing page
@@ -342,11 +345,14 @@ moderator queue behind it, behind the same `X-Admin-Code` as the roadmap editor
 and the report queue.
 
 The card (`_PostQuizFeedback.tsx`) is mounted by `_QuizController.tsx` outside
-`<main>`, so it is not part of the results the reader copies or prints. It is
-absent on `mod` "skip to a result" runs — those are not completions, exactly like
-`/api/quiz/events`. Both the card and the `Rate this match ↓` link in the
-dashboard's closing bar share one `feedbackEnabled` flag in `_QuizController`, so
-the link cannot point at a card that is not there; the section carries
+`<main>`, so it is not part of the results the reader copies or prints. It shows
+whenever there is a match to judge and the calculation finished — including on
+`mod` "skip to a result" runs, which are the only way to inspect the form without
+answering a whole quiz. What those runs stay out of is `/api/quiz/events` and the
+public figures, and a rating submitted from one can be set to `hidden` in the
+queue. Both the card and the `Rate this match ↓` link in the dashboard's closing
+bar share one `feedbackEnabled` flag in `_QuizController`, so the link cannot
+point at a card that is not there; the section carries
 `id="feedback"` and takes its column from `WIDTHS.page` + `SHELL_GUTTERS` (the
 same constants `Shell` uses) so it stays aligned with the dashboard above it.
 The link's scroll offset comes from the existing `section[id]` rule in

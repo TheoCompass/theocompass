@@ -117,10 +117,12 @@ export function PostQuizFeedback({
   topMatchName: string | null;
   answeredCount: number;
   /**
-   * False for moderator/dev "skip to a result" runs, and for a results view with
-   * no match to judge. Dev runs are not completions, so they are neither
-   * recorded nor rated: the card is absent, the same way the run is absent from
-   * `/api/stats`.
+   * False only for a results view with no match to judge, one still
+   * calculating, or one whose calculation failed. Deliberately *not* a
+   * "real completion" check: moderator/dev "skip to a result" runs keep the
+   * card, because that is how the form gets inspected at all. Those runs stay
+   * out of the figures through `quiz_complete` and `/api/quiz/events`, not
+   * through the card.
    */
   enabled?: boolean;
 }) {

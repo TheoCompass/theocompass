@@ -66,8 +66,9 @@ export interface ResultsDashboardProps {
   onRetake: () => void;
   /**
    * Whether the post-quiz feedback card is rendered below this dashboard
-   * (task 0.9). It is absent on dev/mod runs and when there is no match to
-   * judge, and the closing bar's "Rate this match" link must not outlive it.
+   * (task 0.9). It is absent only when there is no match to judge or the
+   * calculation did not finish -- dev/mod runs show it -- and the closing bar's
+   * "Rate this match" link must not outlive it.
    */
   feedbackLink?: boolean;
 }
