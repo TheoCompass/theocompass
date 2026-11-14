@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { fetchRoadmap, updateRoadmapTask } from "../../../lib/api";
 import { D1_LIMIT_HEADING, d1LimitMessage, isD1LimitError } from "../../../lib/d1-limit";
+import { forgetModCode, readModCode, rememberModCode } from "../../../lib/mod-code";
 import {
   ROADMAP_MILESTONES,
   ROADMAP_STATUS_META,
@@ -30,9 +31,6 @@ import { RoadmapHeader } from "./_RoadmapHeader";
  */
 
 type Filter = "all" | RoadmapStatus;
-
-/** Where the unlocked code lives for the rest of the tab, so a reload keeps it. */
-const MOD_CODE_KEY = "theocompass_mod_code";
 
 function Summary({
   data,
@@ -162,33 +160,23 @@ export function RoadmapExplorer() {
 
   // sessionStorage, not localStorage: the code survives a reload but not the tab.
   // It is a speed bump for shared statuses, so it is not worth keeping longer.
+  // The key lives in `lib/mod-code.ts` because the feedback queue reads the same
+  // one -- unlock either page and the other stops asking.
   useEffect(() => {
-    try {
-      const stored = window.sessionStorage.getItem(MOD_CODE_KEY);
-      if (stored) setModCode(stored);
-    } catch {
-      /* private mode / storage disabled — editing stays locked */
-    }
+    const stored = readModCode();
+    if (stored) setModCode(stored);
   }, []);
 
   const lock = useCallback(() => {
     setModCode(null);
     setNotice(null);
-    try {
-      window.sessionStorage.removeItem(MOD_CODE_KEY);
-    } catch {
-      /* nothing to clean up */
-    }
+    forgetModCode();
   }, []);
 
   const applyCode = useCallback((code: string) => {
     setModCode(code);
     setNotice(null);
-    try {
-      window.sessionStorage.setItem(MOD_CODE_KEY, code);
-    } catch {
-      /* the in-memory code still works for this page view */
-    }
+    rememberModCode(code);
   }, []);
 
   const changeStatus = async (taskId: string, status: RoadmapStatus) => {

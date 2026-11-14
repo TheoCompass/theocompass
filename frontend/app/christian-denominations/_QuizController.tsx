@@ -25,6 +25,7 @@ import { Modals } from './_components/_Modals';
 import { ModeSelectCards } from './_components/_ModeSelectCards';
 import { AxisSlider, QuizQuestionView } from './_components/_QuizQuestionView';
 import { ResultsDashboard } from './_components/_ResultsDashboard';
+import { PostQuizFeedback } from './_components/_PostQuizFeedback';
 import ExportCard from './_components/_ExportCard';
 import ExportLabelsCard from './_components/_ExportLabelsCard';
 import ExportFingerprintCard from './_components/_ExportFingerprintCard';
@@ -1533,6 +1534,19 @@ export default function QuizController() {
       certainty: userCertainty,
     };
 
+    /*
+     * One condition for two places: the feedback card below the dashboard and
+     * the "Rate this match ↓" link in the dashboard's closing bar. The card is
+     * absent on dev/mod "skip to a result" runs and while there is no match to
+     * judge, so the link has to disappear with it -- a link into nothing is
+     * worse than no link.
+     */
+    const feedbackEnabled =
+      completionSourceRef.current !== "dev" &&
+      results.length > 0 &&
+      !isCalculating &&
+      !calcError;
+
     return (
       <div className="min-h-screen bg-paper flex flex-col font-sans text-ink relative overflow-x-hidden">
         {/* HIDDEN EXPORT CARDS */}
@@ -1607,6 +1621,19 @@ export default function QuizController() {
           onDownloadLabels={handleDownloadLabels}
           onDownloadFingerprint={handleDownloadFingerprint}
           onRetake={() => setShowRestartModal(true)}
+          feedbackLink={feedbackEnabled}
+        />
+
+        {/* Task 0.9: the feedback card sits below the dashboard, outside its
+            <main>, so the page keeps exactly one main landmark. It is absent on
+            dev/mod "skip to a result" runs (like their stats row) and while
+            there is no match to judge -- an error page has nothing to rate. */}
+        <PostQuizFeedback
+          mode={selectedMode ?? "quick"}
+          topMatchId={results[0]?.id ?? null}
+          topMatchName={results[0]?.name ?? null}
+          answeredCount={answeredQuestionCount || questions.length}
+          enabled={feedbackEnabled}
         />
 
         {/* GLOBAL FOOTER */}

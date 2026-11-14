@@ -44,6 +44,7 @@ The Worker (`theocompass-api/src/index.ts`) connects the Next.js frontend to D1 
 * `GET /api/roadmap` · `POST /api/roadmap/unlock` · `PATCH /api/roadmap/tasks/:id`: The full build plan and its moderator-only status editing (see §9).
 * `POST /api/quiz/events` · `GET /api/stats`: Anonymous quiz completion counts for the landing page (see §10).
 * `POST /api/issue-reports` · `GET /api/issue-reports` · `PATCH /api/issue-reports/:id`: The in-quiz "report an issue" flag, its triage queue and the maintainer notification (see §11).
+* `POST /api/feedback` · `GET /api/feedback` · `PATCH /api/feedback/:id`: Post-quiz feedback from the results page, the moderator queue behind it, and the page at `/mod/feedback` that reads it (see §12).
 
 ### When the free D1 allowance runs out
 Production runs on the Workers Free plan, where D1 allows a fixed number of rows per day. When the read allowance is gone, **every** query on the database throws until midnight UTC: the data is intact, the worker simply cannot read it. `src/d1-errors.ts` recognises that message (read or write, including when D1 wraps it in `cause`) and answers `503` with `{ code: "D1_LIMIT_REACHED", scope, resetAt }`, plus `Retry-After` and `Cache-Control: no-store`. 503 rather than 429 or 500 because the whole deployment is out of allowance until a fixed moment, not one caller being throttled. Every catch checks it before its generic error — `/api/questions` and `/api/calculate` catch their own failures, so both are wired explicitly.
@@ -142,9 +143,10 @@ requires it in the `X-Admin-Code` header and writes one status. The code comes
 from `env.ADMIN_CODE` (`npx wrangler secret put ADMIN_CODE`), falling back to
 `mod` so a fresh clone works without setup. This is a speed bump on a public
 status field, not an authentication system — do not put anything private behind
-it. The frontend keeps an accepted code in `sessionStorage` for the tab only, and
-applies each change optimistically, rolling the whole list back if the PATCH
-fails.
+it. The frontend keeps an accepted code in `sessionStorage` for the tab only
+(`frontend/lib/mod-code.ts`, which also serves the feedback queue at
+`/mod/feedback`), and applies each change optimistically, rolling the whole list
+back if the PATCH fails.
 
 **Numbering.** Phase 7 is labelled `8.x` in the spreadsheet. The site always
 shows the positional `phase.task` (`7.1`), and keeps the sheet's own label in
@@ -155,7 +157,8 @@ shows the positional `phase.task` (`7.1`), and keeps the sheet's own label in
 `POST /api/quiz/events` records one completed quiz; `GET /api/stats` aggregates
 them for the landing-page "Collective results" panel. Nothing identifying is
 stored — no email, IP, user agent or free text — only mode, answer count, top
-match, tolerance and certainty.
+match, tolerance and certainty. (The feedback card is the one place a reader can
+type something of their own, and it keeps its own table — see §12.)
 
 The client sends a `sessionId` (a UUID generated per completion) and the unique
 index on `quiz_events.session_id` makes the insert idempotent: a retry cannot
@@ -329,3 +332,145 @@ re-seed keeps every report. `test/issue-reports.spec.ts` pins the happy path,
 idempotency, validation, note truncation, the hourly cap, the code on the read
 and write queue endpoints, the `404`/`400` ids, and the raw MIME the mail channel
 sends (a `Message-ID` that is present and unique per send).
+
+## 12. Post-Quiz Feedback
+
+`POST /api/feedback` records how a run felt — a 1–5 rating, whether the top
+match described the reader (yes / no / skipped) and an optional comment — from
+the card that sits under the results dashboard. `GET /api/feedback` is the
+moderator queue behind it, behind the same `X-Admin-Code` as the roadmap editor
+and the report queue.
+
+The card (`_PostQuizFeedback.tsx`) is mounted by `_QuizController.tsx` outside
+`<main>`, so it is not part of the results the reader copies or prints. It is
+absent on `mod` "skip to a result" runs — those are not completions, exactly like
+`/api/quiz/events`. Both the card and the `Rate this match ↓` link in the
+dashboard's closing bar share one `feedbackEnabled` flag in `_QuizController`, so
+the link cannot point at a card that is not there; the section carries
+`id="feedback"` and takes its column from `WIDTHS.page` + `SHELL_GUTTERS` (the
+same constants `Shell` uses) so it stays aligned with the dashboard above it.
+The link's scroll offset comes from the existing `section[id]` rule in
+`globals.css` (header height + 1rem); no per-section `scroll-mt-*` is needed.
+
+**Idempotency.** The card generates one `sessionId` per mount and sends it as the
+idempotency key; `feedback.session_id` carries a UNIQUE index and the insert is
+`ON CONFLICT DO NOTHING`. A retry after a dropped response is the same row, so
+`recorded: false` means "already have it", never "failed" — the client treats it
+as a success and shows the thank-you. `frontend/lib/api.ts` keeps that mapping in
+one place (`FeedbackOutcome`: `recorded` / `duplicate` / `failed`), and
+`submitQuizFeedback` never throws: the card shows a `mailto:` fallback carrying
+the rating only, never the comment.
+
+**Accuracy is tri-state.** `undefined` means "skipped" and is stored as `NULL`,
+so a skip never counts as a "no" in `/api/stats`; the UI lets the reader clear a
+pressed yes/no by pressing it again.
+
+**Validation.** Rating must be an integer 1–5. The comment is trimmed, stripped
+of control characters and truncated to 500 characters server-side (the textarea
+counts to the same 500 client-side). `mode`, `topMatchId`, `topMatchName`,
+`answeredCount` and `appVersion` are context: optional, and dropped rather than
+rejecting the submission if they fail their range. `HOURLY_CAP = 120` rows an
+hour across the whole table is the only rate limit — enough headroom that it
+never fires on real traffic, and it stops a script rather than a retry (the
+session id already covers retries).
+
+**What is published.** `GET /api/stats` gains a `feedback` object —
+`total`, `averageRating`, `accurateYes`, `accurateNo`, `ratingHistogram[5]`
+(index 0 is one star). No comment, no row, no id ever leaves the table through
+the public endpoint: `/api/stats` returns counts, an average and a histogram.
+The landing panel prints the tile once `total >= MIN_FEEDBACK` (10) in
+`frontend/app/_components/_LiveStats.tsx`, independently of the
+`BREAKDOWN_RUNS` gate, and skips it entirely on an older cached payload without
+the field. A new rating invalidates the 60s stats cache.
+
+**Privacy line.** The `feedback` table stores no email, IP, user agent or cookie
+— the rating, the yes/no, the comment and the run's context are the whole row.
+The landing panel says so, and says that comments are read by a moderator and
+never published. The GA4 event is `quiz_feedback_submitted` with
+`{ quiz_mode, rating, accurate, has_comment, outcome }` — shapes only; the
+comment never leaves the request body.
+
+**Reading the queue.** `GET /api/feedback` returns `data.counts`
+(`new` / `reviewed` / `hidden` / `commented`) plus the rows, newest first, and
+takes `?status=new|reviewed|hidden`, `?commented=1` (the rows carrying a note,
+across all three statuses) and `?limit=` (max 200). `commented` is a separate
+tally rather than a fourth status, because a note is a property of the row and
+not a stage of review. It answers `401` without the header. Locally the code can
+be the literal `mod`, because `expectedAdminCode()` in `src/roadmap.ts` falls
+back to it when `ADMIN_CODE` is unset — in production set the secret and use
+that:
+
+```bash
+# local, against `npm run dev` (:8787)
+curl -s -H 'X-Admin-Code: mod' 'http://localhost:8787/api/feedback?limit=20' | python3 -m json.tool
+
+# production
+curl -s -H "X-Admin-Code: $ADMIN_CODE" "https://<worker-host>/api/feedback?status=new"
+
+# or straight from the table
+npx wrangler d1 execute theocompass-db --remote \
+  --command "SELECT id, rating, accurate, comment, created_at FROM feedback WHERE status = 'new' ORDER BY created_at DESC LIMIT 50"
+```
+
+`accurate` comes back as `true` / `false` / `null`, and `null` is the skip: it is
+in neither `accurateYes` nor `accurateNo`.
+
+**Setting a status.** `PATCH /api/feedback/:id` takes `{ "status": "..." }` and
+nothing else — the note is never editable through the API. `status` is a CHECK
+constraint in the schema and a validation in the handler, so a fourth value is a
+`400`; an id that does not exist is a `404`. `hidden` is the one status with a
+public consequence: `/api/stats` filters it out, so the published average and the
+accuracy figure both move on the next request (the write invalidates the 60s
+stats cache). The row stays in the table as evidence — nothing is ever deleted.
+
+```bash
+curl -s -X PATCH -H 'X-Admin-Code: mod' -H 'Content-Type: application/json' \
+  -d '{"status":"reviewed"}' http://localhost:8787/api/feedback/42
+```
+
+**The moderator page.** `/mod/feedback` (`frontend/app/mod/feedback/`) is the
+same queue with one tri-state control per row, and the default view is the rows
+that carry a note. It shares the roadmap's code through `frontend/lib/mod-code.ts`
+— one `sessionStorage` key, so unlocking either page unlocks the other and Lock
+in either header forgets it. There is no separate verify endpoint: the unlock
+*is* a queue request, so a wrong code fails exactly where a wrong PATCH would,
+and a `401` from any call drops the stored code. The page is `noindex`, absent
+from `sitemap.ts`, and linked only from `_RoadmapHeader`, after the roadmap is
+unlocked. Filtering is server-side (`?commented=1`, `?status=`) rather than a
+`.filter()` over one page, which would hide notes past the limit.
+
+**The landing figure.** `_QuizAccuracy.tsx` adds one row to the quiz card's
+`<dl>`: `accurateYes / (accurateYes + accurateNo)`, the denominator printed
+inline and the number linked to `#collective-results`. Skips sit on neither side
+of that fraction. Both the row and the panel below it read the payload through
+`frontend/lib/quiz-stats.ts`, so a page view makes one `/api/stats` request, not
+two; the row hides until `MIN_JUDGED` (10) answers are judged *and* the panel's
+own `MIN_QUIZZES` gate is met, so it never links to a panel that is not there.
+
+**Local demo data.** The landing tile only appears once `total >= 10`, which a
+fresh local database never reaches, so `feedback_seed.sql` holds twelve fake
+ratings (`session_id` `demo-0001`…`demo-0012`) that clear the gate. They clear
+the accuracy row's gate too: 8 yes / 3 no is eleven judged answers, so the card
+prints **73% of 11 answers** and the panel below shows the same eleven split:
+
+```bash
+cd theocompass-api
+npm run db:seed-feedback-local    # 12 rows: avg 3.8, histogram [1,1,2,4,4], 8 yes / 3 no / 1 skip
+npm run db:clear-feedback-local   # DELETE FROM feedback WHERE session_id LIKE 'demo-%'
+```
+
+Both are `--local` only — there is deliberately no `--remote` twin, and the file
+is not part of `data:sync-local`. Re-running the seed is a no-op: `demo-*` hits
+the unique session index and is skipped, exactly like a retried submission. The
+insert is `ON CONFLICT DO NOTHING`, so it also can't overwrite a real row. The
+stats payload is cached for 60s per isolate, so restart `wrangler dev` (or wait a
+minute) before expecting the tile, or the accuracy row, to appear or disappear.
+
+Migration `migrations/0005_feedback.sql` adds `session_id`, `answered_count`,
+`top_match_name`, `app_version` and `status` to the table created in `0001`,
+plus the unique session index and the created/rating indexes. Like the rest of
+`0001` this is user-generated data, so a `data:sync-remote` re-seed keeps every
+rating. `test/feedback.spec.ts` pins the storage shape, the tri-state, the
+idempotent replay, the four `400`s, truncation, the hourly `429` and the queue
+(with and without the code); `test/stats.spec.ts` pins the aggregate and the
+`hidden` exclusion.

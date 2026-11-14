@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchQuizStats, type QuizStats } from "../../lib/api";
+import type { QuizStats } from "../../lib/api";
 import { FALLBACK_GROUP_BASE, TIER_STEPS } from "../../lib/palette";
+import { loadQuizStats, MIN_FEEDBACK, MIN_QUIZZES } from "../../lib/quiz-stats";
 import { formatDay } from "../../lib/roadmap";
 import { FAMILY_COLORS } from "../../lib/taxonomy";
-
-/** Below this the numbers are too small to mean anything, and they read as sad. */
-const MIN_QUIZZES = 10;
 
 /** Family shares, the score distribution and posture averages need a sample. */
 const BREAKDOWN_RUNS = 50;
@@ -41,6 +39,9 @@ function shortDay(iso: string): string {
  * no polling, no per-person data, and nothing at all until MIN_QUIZZES runs are
  * on record or if the request fails.
  *
+ * The request itself lives in `lib/quiz-stats.ts`, because the quiz card above
+ * quotes the same payload for its accuracy row: one page view, one request.
+ *
  * Every figure carries its own denominator. That is the point of the panel: a
  * percentage without "of how many runs" is a claim, not a statistic.
  */
@@ -49,7 +50,7 @@ export function LiveStats() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchQuizStats()
+    loadQuizStats()
       .then((next) => {
         if (!cancelled) setStats(next);
       })
@@ -113,6 +114,7 @@ export function LiveStatsPanel({ stats }: { stats: QuizStats }) {
 
         <div className={`mt-6 grid gap-5 ${detailed ? "md:grid-cols-2" : ""}`}>
           <VolumeTile stats={stats} daily={daily} />
+          <FeedbackTile stats={stats} />
           {detailed ? (
             <>
               <ClosenessTile stats={stats} histogram={histogram} />
@@ -280,6 +282,79 @@ function FamiliesTile({ stats }: { stats: QuizStats }) {
           </>
         ) : (
           "Share data is updating."
+        )}
+      </p>
+    </article>
+  );
+}
+
+/**
+ * Average rating, plus how often the top match was judged to fit.
+ *
+ * Unlike the other tiles this one is not gated on BREAKDOWN_RUNS: ten ratings
+ * are already a mean worth printing, and the denominator travels with it. It is
+ * absent below that, and absent entirely from an older cached payload -- both
+ * render nothing rather than a zero.
+ *
+ * The comments never appear here. A count is a statistic; a sentence typed by
+ * one reader, shown to all of them, is not.
+ */
+function FeedbackTile({ stats }: { stats: QuizStats }) {
+  const feedback = stats.feedback;
+  if (!feedback || feedback.total < MIN_FEEDBACK) return null;
+
+  const total = feedback.total;
+  const histogram = feedback.ratingHistogram ?? [];
+  const hasHistogram = histogram.length === 5;
+  const max = Math.max(1, ...histogram);
+  const judged = feedback.accurateYes + feedback.accurateNo;
+
+  return (
+    <article className="flex h-full flex-col border border-rule bg-paper p-4 md:p-5">
+      <h4 className="meta">Did the match fit?</h4>
+      <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="num font-mono text-3xl font-semibold leading-none text-ink">
+          {feedback.averageRating === null ? "—" : formatScore(feedback.averageRating)}
+        </span>
+        <span className="text-2xs text-ink-muted">
+          out of 5, from <span className="num font-mono">{formatCount(total)}</span> rating
+          {total === 1 ? "" : "s"}
+        </span>
+      </p>
+
+      {hasHistogram && (
+        <ul className="mt-4 space-y-1" aria-label="Ratings by star">
+          {[5, 4, 3, 2, 1].map((star) => {
+            const count = histogram[star - 1] ?? 0;
+            return (
+              <li key={star} className="flex items-center gap-2">
+                <span className="num w-5 shrink-0 text-right font-mono text-3xs text-ink-muted">
+                  {star}★
+                </span>
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cerulean-100">
+                  <div
+                    aria-hidden="true"
+                    className="h-full rounded-full bg-cerulean-600"
+                    style={{ width: `${Math.max(count === 0 ? 0 : 2, Math.round((count / max) * 100))}%` }}
+                  />
+                </div>
+                <span className="num w-8 shrink-0 text-right font-mono text-3xs text-ink-muted">
+                  {share(count, total)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <p className="mt-auto pt-3 text-3xs leading-relaxed text-ink-muted">
+        {judged > 0 ? (
+          <>
+            {share(feedback.accurateYes, judged)} of {formatCount(judged)} answers said the top match
+            described them. Comments are read by a moderator and counted, never quoted.
+          </>
+        ) : (
+          "Nobody has judged their top match yet."
         )}
       </p>
     </article>
@@ -579,9 +654,11 @@ function MethodDetails({ stats }: { stats: QuizStats }) {
             {EARLY_RUNS}.
           </li>
           <li>
-            No email, IP address or user agent is stored with a run. The only free text the
-            site ever keeps is a note you choose to type through a question&rsquo;s{" "}
-            <strong className="font-medium text-ink-soft">Report</strong> button.
+            No email, IP address or user agent is stored with a run. The only free text the site
+            ever keeps is what you choose to type: a note through a question&rsquo;s{" "}
+            <strong className="font-medium text-ink-soft">Report</strong> button, or a comment on the
+            feedback card after a run. Both are read by a moderator and never published; only
+            counts and averages appear here.
           </li>
         </ul>
       </div>

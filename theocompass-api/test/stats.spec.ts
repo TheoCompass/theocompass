@@ -23,6 +23,38 @@ function postEvent(body: unknown): Promise<Response> {
 	);
 }
 
+function postFeedback(body: unknown): Promise<Response> {
+	return dispatch(
+		new IncomingRequest(`${API}/api/feedback`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body),
+		})
+	);
+}
+
+/** One feedback row, written straight into the table: `/api/stats` only reads. */
+async function seedFeedback(seed: {
+	sessionId: string;
+	rating: number | null;
+	accurate?: number | null;
+	comment?: string | null;
+	status?: string;
+}): Promise<void> {
+	await env.DB.prepare(
+		`INSERT INTO feedback (session_id, rating, accurate, comment, status)
+		 VALUES (?, ?, ?, ?, ?)`
+	)
+		.bind(
+			seed.sessionId,
+			seed.rating,
+			seed.accurate ?? null,
+			seed.comment ?? null,
+			seed.status ?? 'new'
+		)
+		.run();
+}
+
 async function getStats(): Promise<any> {
 	const response = await dispatch(new IncomingRequest(`${API}/api/stats`));
 	expect(response.status).toBe(200);
@@ -99,6 +131,13 @@ describe('GET /api/stats', () => {
 			matchSample: 0,
 			distinctFamilies: 0,
 			posture: { tolerance: null, certainty: null, sample: 0 },
+			feedback: {
+				total: 0,
+				averageRating: null,
+				accurateYes: 0,
+				accurateNo: 0,
+				ratingHistogram: [0, 0, 0, 0, 0],
+			},
 		});
 		expect(data.daily).toHaveLength(14);
 		expect(data.daily.every((day: { count: number }) => day.count === 0)).toBe(true);
@@ -241,5 +280,77 @@ describe('POST /api/quiz/events', () => {
 			})
 		);
 		expect(response.status).toBe(400);
+	});
+});
+
+describe('feedback aggregates', () => {
+	it('reports the count, the average and a five-bucket histogram', async () => {
+		await seedFeedback({ sessionId: 'fb-one-000001', rating: 5, accurate: 1 });
+		await seedFeedback({ sessionId: 'fb-two-000001', rating: 4, accurate: 1 });
+		await seedFeedback({ sessionId: 'fb-three-0001', rating: 2, accurate: 0 });
+		await seedFeedback({ sessionId: 'fb-four-00001', rating: 3 });
+
+		const data = await getStats();
+		expect(data.feedback).toEqual({
+			total: 4,
+			averageRating: 3.5,
+			accurateYes: 2,
+			accurateNo: 1,
+			ratingHistogram: [0, 1, 1, 1, 1],
+		});
+	});
+
+	it('never publishes the comment, only numbers about it', async () => {
+		await seedFeedback({
+			sessionId: 'fb-comment-01',
+			rating: 1,
+			accurate: 0,
+			comment: 'A sentence that must never reach the landing page.',
+		});
+
+		const response = await dispatch(new IncomingRequest(`${API}/api/stats`));
+		const raw = await response.text();
+		expect(raw).not.toContain('must never reach');
+		expect(JSON.parse(raw).data.feedback.total).toBe(1);
+	});
+
+	it('leaves a hidden row out of the average without deleting it', async () => {
+		await seedFeedback({ sessionId: 'fb-visible-01', rating: 5, accurate: 1 });
+		await seedFeedback({ sessionId: 'fb-hidden-001', rating: 1, accurate: 0, status: 'hidden' });
+
+		const data = await getStats();
+		expect(data.feedback).toMatchObject({
+			total: 1,
+			averageRating: 5,
+			accurateYes: 1,
+			accurateNo: 0,
+			ratingHistogram: [0, 0, 0, 0, 1],
+		});
+
+		const row = await env.DB.prepare(
+			'SELECT rating FROM feedback WHERE session_id = ?'
+		)
+			.bind('fb-hidden-001')
+			.first<{ rating: number }>();
+		expect(row?.rating).toBe(1);
+	});
+
+	it('ignores a legacy row that scored something other than a rating', async () => {
+		await seedFeedback({ sessionId: 'fb-legacy-0001', rating: null, accurate: 1 });
+		await seedFeedback({ sessionId: 'fb-rated-00001', rating: 4 });
+
+		const data = await getStats();
+		expect(data.feedback).toMatchObject({
+			total: 1,
+			averageRating: 4,
+			accurateYes: 0,
+			ratingHistogram: [0, 0, 0, 1, 0],
+		});
+	});
+
+	it('invalidates the stats cache when new feedback lands', async () => {
+		await getStats(); // prime the cache
+		await postFeedback({ sessionId: 'fb-cache-00001', rating: 5 });
+		expect((await getStats()).feedback.total).toBe(1);
 	});
 });

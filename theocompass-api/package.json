@@ -15,6 +15,8 @@
 		"db:seed-remote": "wrangler d1 execute theocompass-db --remote --file=./seed.sql",
 		"db:seed-roadmap-local": "wrangler d1 execute theocompass-db --local --file=./roadmap_seed.sql",
 		"db:seed-roadmap-remote": "wrangler d1 execute theocompass-db --remote --file=./roadmap_seed.sql",
+		"db:seed-feedback-local": "wrangler d1 execute theocompass-db --local --file=./feedback_seed.sql",
+		"db:clear-feedback-local": "wrangler d1 execute theocompass-db --local --command \"DELETE FROM feedback WHERE session_id LIKE 'demo-%'\"",
 		"db:migrate-local": "wrangler d1 migrations apply theocompass-db --local",
 		"db:migrate-remote": "wrangler d1 migrations apply theocompass-db --remote",
 		"kv:update-local": "wrangler kv key put --binding=\"THEOCOMPASS_CACHE\" \"denomination_profiles\" --path=\"../precomputed/denomination_profiles.json\" --local",

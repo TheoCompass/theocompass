@@ -8,6 +8,7 @@ import {
   handlePostIssueReport,
   type FlagMailer,
 } from "./issue-reports";
+import { handleGetFeedback, handlePatchFeedback, handlePostFeedback } from "./feedback";
 import {
   resolveAnswerIds,
   scoredViewIds,
@@ -418,6 +419,32 @@ export default {
           });
         }
         return await handlePatchIssueReport(request, env, corsHeaders, reportId);
+      }
+
+      // -----------------------------------------------------------------
+      // ENDPOINT 10: Post-quiz feedback + the queue behind it
+      // -----------------------------------------------------------------
+      if (request.method === "POST" && url.pathname === "/api/feedback") {
+        return await handlePostFeedback(request, env, corsHeaders, await getDataVersion(env));
+      }
+
+      // Storage only, and the aggregates live on /api/stats: nothing here is
+      // published as text, so the queue is for the maintainer, not the site.
+      if (request.method === "GET" && url.pathname === "/api/feedback") {
+        return await handleGetFeedback(request, env, corsHeaders);
+      }
+
+      // Triage: `new` -> `reviewed` -> `hidden`. Hiding removes the row from the
+      // published average, so this is the one write that changes a public number.
+      if (request.method === "PATCH" && url.pathname.startsWith("/api/feedback/")) {
+        const feedbackId = Number(url.pathname.slice("/api/feedback/".length));
+        if (!Number.isInteger(feedbackId) || feedbackId < 1) {
+          return new Response(JSON.stringify({ error: "Invalid feedback id." }), {
+            status: 400,
+            headers: corsHeaders,
+          });
+        }
+        return await handlePatchFeedback(request, env, corsHeaders, feedbackId);
       }
 
       // -----------------------------------------------------------------

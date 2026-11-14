@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Lock, Terminal } from "lucide-react";
+import { ArrowLeft, Lock, MessageSquare, Terminal } from "lucide-react";
 
 /**
  * The roadmap's own chrome.
@@ -54,6 +54,15 @@ export function RoadmapHeader({
                 <Lock aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.75} />
                 Lock
               </button>
+              {/* The other half of the moderator's job. It appears only once the
+                  code is unlocked, so the reader-facing page never links to it. */}
+              <Link
+                href="/mod/feedback"
+                className="flex items-center gap-1.5 border border-rule-strong px-2.5 py-1.5 text-2xs font-medium text-ink-soft transition-colors hover:bg-muted-soft hover:text-ink"
+              >
+                <MessageSquare aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.75} />
+                Feedback
+              </Link>
             </>
           ) : (
             <button

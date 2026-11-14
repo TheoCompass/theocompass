@@ -10,6 +10,10 @@
  * quiz_events.session_id means a retry records once. Developer "skip to a
  * result" runs never post here: only the normal completion path calls this
  * endpoint, so generated/inspected results do not enter the public counters.
+ *
+ * `/api/stats` also carries the post-quiz feedback totals (task 0.9). Those rows
+ * live in their own table and do contain prose, but only counts and averages
+ * cross the boundary: this endpoint never selects a comment, and never will.
  */
 
 const QUIZ_MODES = ["quick", "standard", "deep"] as const;
@@ -97,6 +101,22 @@ type PostureRow = {
   sample: number | null;
 };
 
+/**
+ * One row, because the whole feedback aggregate is a single pass over a small
+ * table: `rating_1..5` build the histogram without a second GROUP BY.
+ */
+type FeedbackRow = {
+  total: number | null;
+  average: number | null;
+  accurate_yes: number | null;
+  accurate_no: number | null;
+  rating_1: number | null;
+  rating_2: number | null;
+  rating_3: number | null;
+  rating_4: number | null;
+  rating_5: number | null;
+};
+
 const DAILY_DAYS = 14;
 const HISTOGRAM_BUCKETS = 20;
 
@@ -151,6 +171,31 @@ function histogramFrom(rows: HistogramRow[] | undefined): number[] {
   return histogram;
 }
 
+/**
+ * Counts, an average and a five-bucket histogram -- and nothing else.
+ *
+ * `accurateShare` is deliberately not computed here: the panel already owns
+ * `share()` and divides yes by the readers who actually answered, so the two
+ * numbers it prints come from the same place as every other percentage in it.
+ */
+function feedbackFrom(row: FeedbackRow | undefined) {
+  const total = numeric(row?.total);
+  const average = row?.average;
+  return {
+    total,
+    averageRating: typeof average === "number" ? round1(average) : null,
+    accurateYes: numeric(row?.accurate_yes),
+    accurateNo: numeric(row?.accurate_no),
+    ratingHistogram: [
+      numeric(row?.rating_1),
+      numeric(row?.rating_2),
+      numeric(row?.rating_3),
+      numeric(row?.rating_4),
+      numeric(row?.rating_5),
+    ],
+  };
+}
+
 export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promise<Response> {
   const now = Date.now();
   if (cachedStats && cachedStats.expiresAt > now) {
@@ -172,6 +217,7 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     samples,
     median,
     posture,
+    feedback,
   ] = await env.DB.batch([
     env.DB.prepare("SELECT COUNT(*) AS count, MIN(created_at) AS since FROM quiz_events"),
     env.DB.prepare("SELECT COUNT(*) AS count FROM quiz_events WHERE date(created_at) = date('now')"),
@@ -243,6 +289,24 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
        FROM quiz_events
        WHERE user_tolerance IS NOT NULL AND user_certainty IS NOT NULL`
     ),
+    // Post-quiz feedback (task 0.9). `status <> 'hidden'` is the reviewer's one
+    // lever on the public numbers: a spam row can be kept as evidence without
+    // polluting the average the landing page publishes. The comment column is not
+    // selected -- this endpoint is aggregate-only by construction, and the queue
+    // at /api/feedback is the only reader that ever sees a comment.
+    env.DB.prepare(
+      `SELECT COUNT(*) AS total,
+              AVG(rating) AS average,
+              SUM(CASE WHEN accurate = 1 THEN 1 ELSE 0 END) AS accurate_yes,
+              SUM(CASE WHEN accurate = 0 THEN 1 ELSE 0 END) AS accurate_no,
+              SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
+              SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
+              SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
+              SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
+              SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
+       FROM feedback
+       WHERE rating IS NOT NULL AND status <> 'hidden'`
+    ),
   ]);
 
   const totalRow = (totals.results?.[0] ?? {}) as CountRow & { since?: string | null };
@@ -255,6 +319,7 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
   const sampleRow = (samples.results?.[0] ?? {}) as SampleRow;
   const medianRow = (median.results?.[0] ?? {}) as MedianRow;
   const postureRow = (posture.results?.[0] ?? {}) as PostureRow;
+  const feedbackRow = (feedback.results?.[0] ?? {}) as FeedbackRow;
 
   const payload = JSON.stringify({
     status: "success",
@@ -279,6 +344,7 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
         certainty: typeof postureRow.certainty === "number" ? round1(postureRow.certainty) : null,
         sample: numeric(postureRow.sample),
       },
+      feedback: feedbackFrom(feedbackRow),
     },
     updatedAt: new Date().toISOString(),
   });

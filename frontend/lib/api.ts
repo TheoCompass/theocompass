@@ -209,6 +209,15 @@ export interface QuizStats {
   matchSample?: number;
   distinctFamilies?: number;
   posture?: { tolerance: number | null; certainty: number | null; sample: number };
+  // Post-quiz feedback totals. Optional for the same reason as the fields above:
+  // a cached response from the previous deploy still renders without them.
+  feedback?: {
+    total: number;
+    averageRating: number | null;
+    accurateYes: number;
+    accurateNo: number;
+    ratingHistogram: number[];
+  };
 }
 
 export async function fetchQuizStats(): Promise<QuizStats> {
@@ -275,6 +284,186 @@ export async function recordQuizCompletion(completion: QuizCompletion): Promise<
   } catch {
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Post-quiz feedback
+// ---------------------------------------------------------------------------
+
+/**
+ * The card at the bottom of the results page: a rating, whether the top match
+ * described the reader, and an optional sentence in their own words.
+ *
+ * `accurate` is tri-state. `null` means the reader skipped the question, which
+ * the API stores as NULL rather than as a "no", so a shrug never counts against
+ * the accuracy figure.
+ */
+export interface QuizFeedback {
+  /** Per-card id: a retry after a dropped response is the same submission. */
+  sessionId: string;
+  rating: number;
+  accurate?: boolean | null;
+  comment?: string | null;
+  mode?: "quick" | "standard" | "deep" | null;
+  topMatchId?: string | null;
+  topMatchName?: string | null;
+  answeredCount?: number | null;
+  appVersion?: string | null;
+}
+
+/**
+ * `recorded` and `duplicate` both mean "we have it"; only `failed` needs the
+ * retry / mailto fallback. A duplicate is what a retried session id returns, and
+ * telling the reader their feedback failed would be a lie.
+ */
+export type FeedbackOutcome = "recorded" | "duplicate" | "failed";
+
+/**
+ * Sends one submission. Never throws: the card owns the messaging, and a thrown
+ * error there would replace the reader's note with a blank screen.
+ */
+export async function submitQuizFeedback(feedback: QuizFeedback): Promise<FeedbackOutcome> {
+  try {
+    const apiUrl = getApiUrl();
+    const res = await fetch(`${apiUrl}/api/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(feedback),
+    });
+    if (!res.ok) return "failed";
+    const body = (await res.json()) as { data?: { recorded?: unknown } };
+    // An older deploy answers every unknown `/api/*` path with 200 and a health
+    // payload, which is how feedback against a stale API looked sent and was
+    // never stored. Anything but an explicit boolean is treated as a failure.
+    if (typeof body.data?.recorded !== "boolean") return "failed";
+    return body.data.recorded ? "recorded" : "duplicate";
+  } catch {
+    return "failed";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The feedback queue (moderator)
+// ---------------------------------------------------------------------------
+
+/** The three states a row can be in. The API rejects anything else with a 400. */
+export type FeedbackStatus = "new" | "reviewed" | "hidden";
+
+export interface FeedbackRow {
+  id: number;
+  rating: number | null;
+  /**
+   * Tri-state: `true` yes, `false` no, `null` skipped. A skipped question is a
+   * shrug, and the queue has to show it as one instead of as a disagreement.
+   */
+  accurate: boolean | null;
+  /** The reader's words, verbatim, capped at 500 characters server-side. */
+  comment: string | null;
+  mode: string | null;
+  topMatchId: string | null;
+  topMatchName: string | null;
+  answeredCount: number | null;
+  appVersion: string | null;
+  dataVersion: string | null;
+  status: FeedbackStatus;
+  createdAt: string | null;
+}
+
+export interface FeedbackCounts {
+  new: number;
+  reviewed: number;
+  hidden: number;
+  /**
+   * Rows that carry a note, across all three statuses. Not a status itself, and
+   * it is what the queue's default view filters on.
+   */
+  commented: number;
+}
+
+export interface FeedbackQueue {
+  counts: FeedbackCounts;
+  feedback: FeedbackRow[];
+}
+
+/** `commented` is the default view; `all` and the three statuses are the rest. */
+export type FeedbackFilter = "commented" | "all" | FeedbackStatus;
+
+/** The message both queue calls throw for a refused code, so callers can tell it apart. */
+const CODE_REFUSED = "That code is no longer accepted.";
+
+/** True when the failure was the moderator code rather than the network. */
+export function isCodeRefused(error: unknown): boolean {
+  return error instanceof Error && error.message === CODE_REFUSED;
+}
+
+/**
+ * The moderator queue.
+ *
+ * `?commented=1` is a filter on the server, not a filter here: paging a list of
+ * bare ratings and hiding the notes in the browser would push the notes off the
+ * end of the limit as soon as the table grows.
+ */
+export async function fetchFeedbackQueue(
+  code: string,
+  options: { filter?: FeedbackFilter; limit?: number } = {}
+): Promise<FeedbackQueue> {
+  const apiUrl = getApiUrl();
+  const filter = options.filter ?? "commented";
+  const params = new URLSearchParams();
+  if (filter === "commented") params.set("commented", "1");
+  else if (filter !== "all") params.set("status", filter);
+  if (options.limit) params.set("limit", String(options.limit));
+  const query = params.toString();
+
+  const res = await fetch(`${apiUrl}/api/feedback${query ? `?${query}` : ""}`, {
+    headers: { "X-Admin-Code": code },
+  });
+  if (res.status === 401) {
+    throw new Error(CODE_REFUSED);
+  }
+  if (!res.ok) {
+    throw await errorFrom(res, "Could not load the feedback queue");
+  }
+  const body = (await res.json()) as { data?: FeedbackQueue };
+  if (!body.data) {
+    throw new Error("The feedback queue came back empty");
+  }
+  return body.data;
+}
+
+/**
+ * Moves one row between `new`, `reviewed` and `hidden`, and returns what the
+ * worker stored rather than what was clicked.
+ *
+ * `hidden` is the only status with a public consequence: the aggregate endpoint
+ * filters those rows out, so hiding one moves the average and the accuracy
+ * figure on the landing page. The page says so next to the button.
+ */
+export async function setFeedbackStatus(
+  id: number,
+  status: FeedbackStatus,
+  code: string
+): Promise<FeedbackRow> {
+  const apiUrl = getApiUrl();
+  const res = await fetch(`${apiUrl}/api/feedback/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "X-Admin-Code": code },
+    body: JSON.stringify({ status }),
+  });
+  if (res.status === 401) {
+    throw new Error(CODE_REFUSED);
+  }
+  if (res.status === 404) {
+    throw new Error("That row no longer exists — reload the page.");
+  }
+  if (!res.ok) {
+    throw await errorFrom(res, "Could not update the feedback row");
+  }
+  const body = (await res.json()) as { data?: FeedbackRow };
+  if (!body.data) {
+    throw new Error("The update came back empty");
+  }
+  return body.data;
 }
 
 // ---------------------------------------------------------------------------

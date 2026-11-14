@@ -64,6 +64,12 @@ export interface ResultsDashboardProps {
   onDownloadLabels: () => void;
   onDownloadFingerprint: () => void;
   onRetake: () => void;
+  /**
+   * Whether the post-quiz feedback card is rendered below this dashboard
+   * (task 0.9). It is absent on dev/mod runs and when there is no match to
+   * judge, and the closing bar's "Rate this match" link must not outlive it.
+   */
+  feedbackLink?: boolean;
 }
 
 /** A small segmented control used for the results filters. */
@@ -135,6 +141,7 @@ export function ResultsDashboard({
   onDownloadLabels,
   onDownloadFingerprint,
   onRetake,
+  feedbackLink = false,
 }: ResultsDashboardProps) {
   const [tab, setTab] = useState<ResultsTabId>("matches");
   const [showAll, setShowAll] = useState(false);
@@ -491,11 +498,23 @@ export function ResultsDashboard({
         )}
       </div>
 
-      <div className="mt-12 flex flex-wrap items-center justify-between gap-2 border-t border-rule pt-4">
+      <div className="mt-12 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-rule pt-4">
         <span className="meta">
           {compareName ? `Comparing against ${compareName}` : `${total} ${listLabel} ranked`}
         </span>
-        <span className="meta">{uniqueLabelCount} beliefs in your profile</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="meta">{uniqueLabelCount} beliefs in your profile</span>
+          {/* Task 0.9: the card sits below this rule, so without this the only
+              way to reach it is to scroll past everything. */}
+          {feedbackLink && (
+            <a
+              href="#feedback"
+              className="meta underline decoration-rule-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
+            >
+              Rate this match ↓
+            </a>
+          )}
+        </div>
       </div>
     </Shell>
   );

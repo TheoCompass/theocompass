@@ -9,7 +9,11 @@ import { ReactNode } from "react";
  * wrappers that made desktop feel like a stretched phone app. Every view picks
  * a width from this fixed set so vertical rhythm and gutters stay consistent.
  */
-const WIDTHS = {
+/**
+ * The fixed width set, exported for the one view that sits outside `<main>`
+ * (the feedback card) and must still line up with the column above it.
+ */
+export const WIDTHS = {
   /** Results, dashboards — uses desktop width. */
   page: "max-w-[84rem]",
   /** Single-column reading views: results, instructions. */
