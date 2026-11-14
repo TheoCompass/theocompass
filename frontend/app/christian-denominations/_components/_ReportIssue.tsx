@@ -188,7 +188,7 @@ export function ReportIssueButton({
         onClick={startReport}
         aria-haspopup="dialog"
         aria-label={`Report a problem with question ${questionIndex + 1}`}
-        className={`-my-1.5 inline-flex min-h-6 items-center gap-1.5 border border-rule px-2 py-1 text-2xs font-medium transition-colors hover:border-rule-strong ${
+        className={`-my-1 inline-flex min-h-5 items-center gap-1 border border-rule px-1.5 py-0.5 text-2xs font-medium transition-colors hover:border-rule-strong ${
           reported ? "text-sage hover:text-ink" : "text-ink-muted hover:text-accent-ink"
         }`}
       >
