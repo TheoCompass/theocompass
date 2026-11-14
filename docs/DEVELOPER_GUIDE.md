@@ -474,3 +474,26 @@ rating. `test/feedback.spec.ts` pins the storage shape, the tri-state, the
 idempotent replay, the four `400`s, truncation, the hourly `429` and the queue
 (with and without the code); `test/stats.spec.ts` pins the aggregate and the
 `hidden` exclusion.
+
+**Shipping it.** Three deploys, and `git push` is only the first: Pages rebuilds
+the frontend from the push on its own (the card and `/mod/feedback` are live as
+soon as that build finishes), but the worker and the schema do not follow it.
+In `theocompass-api`, migrate *first* — the handlers write columns `0001` never
+created, so a deployed worker against an unmigrated table fails every insert —
+then deploy, with `ADMIN_CODE` already set as a secret:
+
+```bash
+cd theocompass-api
+npm run db:migrate-remote      # 0005_feedback.sql: session_id, answered_count, ... + indexes
+npx wrangler deploy            # POST/GET /api/feedback, PATCH /api/feedback/:id, stats.feedback
+```
+
+A stale worker is loud once you know the tell: every unknown `/api/*` path
+answers `200` with `{"status":"TheoCompass API Active","version":"2.0"}`, so
+`POST /api/feedback` against an undeployed worker *looks* like a success and
+stores nothing. `submitQuizFeedback` therefore trusts only an explicit boolean
+`recorded`, and `/api/stats` simply has no `feedback` key, which is how the
+tile and the accuracy row stay quiet. Smoke-test the live worker with
+`GET /api/feedback` (a `401` means the route exists) and `POST` a rating whose
+`sessionId` you can delete again — the insert invalidates the stats cache, so a
+`total` that does not move is the second tell.
