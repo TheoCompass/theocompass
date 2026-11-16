@@ -40,17 +40,20 @@ async function seedFeedback(seed: {
 	accurate?: number | null;
 	comment?: string | null;
 	status?: string;
+	/** Which question the rating answered. Defaults to the current one. */
+	ratingMetric?: 'experience' | 'fit';
 }): Promise<void> {
 	await env.DB.prepare(
-		`INSERT INTO feedback (session_id, rating, accurate, comment, status)
-		 VALUES (?, ?, ?, ?, ?)`
+		`INSERT INTO feedback (session_id, rating, accurate, comment, status, rating_metric)
+		 VALUES (?, ?, ?, ?, ?, ?)`
 	)
 		.bind(
 			seed.sessionId,
 			seed.rating,
 			seed.accurate ?? null,
 			seed.comment ?? null,
-			seed.status ?? 'new'
+			seed.status ?? 'new',
+			seed.ratingMetric ?? 'experience'
 		)
 		.run();
 }
@@ -345,6 +348,33 @@ describe('feedback aggregates', () => {
 			averageRating: 4,
 			accurateYes: 0,
 			ratingHistogram: [0, 0, 0, 1, 0],
+		});
+	});
+
+	it('keeps match-fit ratings out of the average but in the accuracy split', async () => {
+		// The stars used to ask how close the match felt. Those numbers answer a
+		// different question, so they must not move the experience average -- but
+		// their yes/no is an answer to the question that is still being asked.
+		await seedFeedback({
+			sessionId: 'fb-old-fit-001',
+			rating: 1,
+			accurate: 0,
+			ratingMetric: 'fit',
+		});
+		await seedFeedback({
+			sessionId: 'fb-new-exp-001',
+			rating: 5,
+			accurate: 1,
+			ratingMetric: 'experience',
+		});
+
+		const data = await getStats();
+		expect(data.feedback).toEqual({
+			total: 1,
+			averageRating: 5,
+			accurateYes: 1,
+			accurateNo: 1,
+			ratingHistogram: [0, 0, 0, 0, 1],
 		});
 	});
 

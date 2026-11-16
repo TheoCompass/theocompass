@@ -29,6 +29,12 @@
 --   histogram      one 1*, one 2*, two 3*, four 4*, four 5*
 --   accuracy       8 yes / 3 no / 1 skipped   -> the skip is NULL, never a "no"
 --
+-- `rating_metric` is not in the column list: the 0006 default is 'experience',
+-- which is the question the tile averages. On a local database that existed
+-- before 0006, these rows were relabelled 'fit' by the migration and this insert
+-- will skip them (same session ids), so run `db:clear-feedback-local` first if
+-- the tile has gone quiet after a migrate.
+--
 -- A real local rating you have already submitted moves the count but not the
 -- headline: 45 + 5 over 13 rows is 3.85, which still prints 3.8.
 --

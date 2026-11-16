@@ -289,62 +289,87 @@ function FamiliesTile({ stats }: { stats: QuizStats }) {
 }
 
 /**
- * Average rating, plus how often the top match was judged to fit.
+ * How the quiz felt overall, plus how often the top match was judged to fit.
  *
- * Unlike the other tiles this one is not gated on BREAKDOWN_RUNS: ten ratings
- * are already a mean worth printing, and the denominator travels with it. It is
- * absent below that, and absent entirely from an older cached payload -- both
- * render nothing rather than a zero.
+ * Two measurements with two different histories. The stars used to ask how close
+ * the match felt and now ask about the experience, so `/api/stats` counts only
+ * `rating_metric = 'experience'` rows in the average and the histogram; the
+ * yes/no question never changed, so its pair still spans every judged row,
+ * including the older ones.
+ *
+ * That split is why the gate is a union rather than a single count. Until ten
+ * experience ratings exist the tile says so instead of printing a mean, but it
+ * still appears once ten readers have judged their match -- resetting the stars
+ * must not hide a percentage that is still meaningful. Neither figure waits for
+ * BREAKDOWN_RUNS: ten responses are already worth printing, and each one travels
+ * with its own denominator. An older cached payload without the field renders
+ * nothing rather than a zero.
  *
  * The comments never appear here. A count is a statistic; a sentence typed by
  * one reader, shown to all of them, is not.
  */
 function FeedbackTile({ stats }: { stats: QuizStats }) {
   const feedback = stats.feedback;
-  if (!feedback || feedback.total < MIN_FEEDBACK) return null;
+  if (!feedback) return null;
 
   const total = feedback.total;
-  const histogram = feedback.ratingHistogram ?? [];
-  const hasHistogram = histogram.length === 5;
-  const max = Math.max(1, ...histogram);
   const judged = feedback.accurateYes + feedback.accurateNo;
+  const hasRatings = total >= MIN_FEEDBACK;
+  if (!hasRatings && judged < MIN_FEEDBACK) return null;
+
+  const histogram = feedback.ratingHistogram ?? [];
+  const hasHistogram = hasRatings && histogram.length === 5;
+  const max = Math.max(1, ...histogram);
 
   return (
     <article className="flex h-full flex-col border border-rule bg-paper p-4 md:p-5">
-      <h4 className="meta">Did the match fit?</h4>
-      <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <span className="num font-mono text-3xl font-semibold leading-none text-ink">
-          {feedback.averageRating === null ? "—" : formatScore(feedback.averageRating)}
-        </span>
-        <span className="text-2xs text-ink-muted">
-          out of 5, from <span className="num font-mono">{formatCount(total)}</span> rating
-          {total === 1 ? "" : "s"}
-        </span>
-      </p>
+      <h4 className="meta">What readers said</h4>
+      <p className="mt-1 text-2xs text-ink-muted">Quiz experience, 1 to 5</p>
 
-      {hasHistogram && (
-        <ul className="mt-4 space-y-1" aria-label="Ratings by star">
-          {[5, 4, 3, 2, 1].map((star) => {
-            const count = histogram[star - 1] ?? 0;
-            return (
-              <li key={star} className="flex items-center gap-2">
-                <span className="num w-5 shrink-0 text-right font-mono text-3xs text-ink-muted">
-                  {star}★
-                </span>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cerulean-100">
-                  <div
-                    aria-hidden="true"
-                    className="h-full rounded-full bg-cerulean-600"
-                    style={{ width: `${Math.max(count === 0 ? 0 : 2, Math.round((count / max) * 100))}%` }}
-                  />
-                </div>
-                <span className="num w-8 shrink-0 text-right font-mono text-3xs text-ink-muted">
-                  {share(count, total)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+      {hasRatings ? (
+        <>
+          <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="num font-mono text-3xl font-semibold leading-none text-ink">
+              {feedback.averageRating === null ? "—" : formatScore(feedback.averageRating)}
+            </span>
+            <span className="text-2xs text-ink-muted">
+              out of 5, from <span className="num font-mono">{formatCount(total)}</span> rating
+              {total === 1 ? "" : "s"}
+            </span>
+          </p>
+
+          {hasHistogram && (
+            <ul className="mt-4 space-y-1" aria-label="Quiz experience ratings by star">
+              {[5, 4, 3, 2, 1].map((star) => {
+                const count = histogram[star - 1] ?? 0;
+                return (
+                  <li key={star} className="flex items-center gap-2">
+                    <span className="num w-5 shrink-0 text-right font-mono text-3xs text-ink-muted">
+                      {star}★
+                    </span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cerulean-100">
+                      <div
+                        aria-hidden="true"
+                        className="h-full rounded-full bg-cerulean-600"
+                        style={{
+                          width: `${Math.max(count === 0 ? 0 : 2, Math.round((count / max) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="num w-8 shrink-0 text-right font-mono text-3xs text-ink-muted">
+                      {share(count, total)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      ) : (
+        <p className="mt-3 text-2xs leading-relaxed text-ink-soft">
+          Experience ratings are still building. The star question changed, so only answers to
+          the new one are averaged here.
+        </p>
       )}
 
       <p className="mt-auto pt-3 text-3xs leading-relaxed text-ink-muted">
@@ -644,6 +669,11 @@ function MethodDetails({ stats }: { stats: QuizStats }) {
           <li>
             Closeness tiers are the same five used on the results page: 90+, 75&ndash;89,
             60&ndash;74, 40&ndash;59 and 0&ndash;39.
+          </li>
+          <li>
+            The stars in the feedback card rate the quiz experience as a whole, not how close the
+            top match was. Ratings from before that question changed are kept out of the average;
+            the match-accuracy figure is unaffected, because it is a different question.
           </li>
           <li>
             Tolerance and certainty average only runs that answered both sliders, so the two figures

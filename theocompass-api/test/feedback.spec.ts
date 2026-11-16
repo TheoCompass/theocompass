@@ -47,12 +47,13 @@ type StoredRow = {
 	app_version: string | null;
 	data_version: string | null;
 	status: string;
+	rating_metric: string;
 };
 
 async function storedRows(): Promise<StoredRow[]> {
 	const { results } = await env.DB.prepare(
 		`SELECT session_id, rating, accurate, comment, mode, top_match_id, top_match_name,
-		        answered_count, app_version, data_version, status
+		        answered_count, app_version, data_version, status, rating_metric
 		   FROM feedback ORDER BY id`
 	).all<StoredRow>();
 	return results ?? [];
@@ -96,6 +97,8 @@ describe('POST /api/feedback', () => {
 			// No app_meta row in the test database, so the stamp falls back.
 			data_version: 'unknown',
 			status: 'new',
+			// The stars ask about the quiz experience; the row says so.
+			rating_metric: 'experience',
 		});
 	});
 

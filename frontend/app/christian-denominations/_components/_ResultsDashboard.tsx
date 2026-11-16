@@ -77,7 +77,7 @@ export interface ResultsDashboardProps {
    * Whether the post-quiz feedback card is rendered below this dashboard
    * (task 0.9). It is absent only when there is no match to judge or the
    * calculation did not finish -- dev/mod runs show it -- and the closing bar's
-   * "Rate this match" link must not outlive it.
+   * "Give feedback" link must not outlive it.
    */
   feedbackLink?: boolean;
 }
@@ -529,7 +529,7 @@ export function ResultsDashboard({
               href="#feedback"
               className="meta underline decoration-rule-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
             >
-              Rate this match ↓
+              Give feedback ↓
             </a>
           )}
         </div>

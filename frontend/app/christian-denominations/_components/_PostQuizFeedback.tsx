@@ -18,11 +18,17 @@ import { SHELL_GUTTERS, WIDTHS } from "./_Shell";
 /**
  * The card at the bottom of the results page (task 0.9).
  *
- * Three questions, in the order a reader can answer them: how close the match
- * felt (1-5 stars), whether the top match described them (yes / no, or nothing
- * at all), and an optional sentence. It submits with one tap, so a rating alone
- * is a complete answer -- asking for the comment first would cost most of the
- * responses.
+ * Three questions, in the order a reader can answer them: how the quiz felt
+ * overall (1-5 stars, the question an app store asks), whether the top match
+ * described them (yes / no, or nothing at all), and an optional sentence. It
+ * submits with one tap, so a rating alone is a complete answer -- asking for the
+ * comment first would cost most of the responses.
+ *
+ * The stars are about the experience, not about the result. The match has its
+ * own question directly below them and its own figure on the landing page;
+ * asking "how close was it?" twice, on two scales, is how a rating stops meaning
+ * anything. The API tags every row with `rating_metric = 'experience'` for the
+ * same reason: rows written under the old wording are kept out of this average.
  *
  * It sits between the dashboard and the footer rather than in a dialog: a modal
  * would interrupt the result the reader is still reading, and this card waits.
@@ -31,8 +37,8 @@ import { SHELL_GUTTERS, WIDTHS } from "./_Shell";
  * code and never rendered anywhere. The landing page shows a count, an average
  * and a histogram -- no quotes -- which is why there is no consent step here.
  *
- * Where it does not go: analytics. Only the shape travels (rating, yes/no or
- * skipped, whether a comment existed), never the words themselves.
+ * Where it does not go: analytics. Only the shape travels (rating, its metric,
+ * yes/no or skipped, whether a comment existed), never the words themselves.
  */
 
 /** Offered only when the POST did not land. */
@@ -49,8 +55,12 @@ const STORAGE_KEY = "theocompass.quizFeedback";
 
 type Phase = "idle" | "sending" | "failed";
 
-/** The rating in words, so the choice reads as an opinion and not a score. */
-const RATING_LABELS = ["Not close at all", "A little off", "Roughly right", "Close", "That is me"];
+/**
+ * The rating in words, so the choice reads as an opinion about the quiz and not
+ * as a score for the result. Deliberately about the experience throughout: the
+ * match is judged by the yes/no underneath.
+ */
+const RATING_LABELS = ["Not for me", "Needs work", "It was fine", "Really good", "Loved it"];
 
 function readRunKey(): string | null {
   if (typeof window === "undefined") return null;
@@ -90,12 +100,16 @@ function rememberSubmitted(run: string): void {
   }
 }
 
-/** The mailto fallback carries the rating, never the reader's sentence. */
+/**
+ * The mailto fallback carries the rating, never the reader's sentence. The
+ * label says which question the number answers, because the reply may arrive
+ * after the card has changed again.
+ */
 function fallbackHref(rating: number | null, accurate: boolean | null): string {
   const lines = [
     "Quiz feedback",
     "",
-    `Rating: ${rating === null ? "not given" : `${rating}/5`}`,
+    `Quiz experience: ${rating === null ? "not given" : `${rating}/5`}`,
     `Top match felt accurate: ${accurate === true ? "yes" : accurate === false ? "no" : "skipped"}`,
     "",
     "(The feedback form could not reach the server, so this is the fallback.)",
@@ -201,6 +215,9 @@ export function PostQuizFeedback({
     trackEvent("quiz_feedback_submitted", {
       quiz_mode: mode,
       rating,
+      // Which question the stars answered: without it, a GA4 average would mix
+      // this rating with the match-closeness rows collected before the change.
+      rating_metric: "experience",
       accurate: accurate === true ? "yes" : accurate === false ? "no" : "skipped",
       has_comment: trimmed !== "",
       outcome,
@@ -280,7 +297,7 @@ export function PostQuizFeedback({
           <form onSubmit={(event) => void handleSubmit(event)} className="mt-6 space-y-6">
             <div>
               <span id={ratingId} className="meta block">
-                How close did it feel?
+                How was the quiz overall?
               </span>
               <div
                 role="radiogroup"
@@ -321,7 +338,8 @@ export function PostQuizFeedback({
                 </span>
               </div>
               <span id={helpId} className="sr-only">
-                Five stars is the closest fit. Arrow keys move between the stars.
+                Five stars is the best experience. The match itself is judged by the question
+                below. Arrow keys move between the stars.
               </span>
             </div>
 

@@ -211,6 +211,12 @@ export interface QuizStats {
   posture?: { tolerance: number | null; certainty: number | null; sample: number };
   // Post-quiz feedback totals. Optional for the same reason as the fields above:
   // a cached response from the previous deploy still renders without them.
+  //
+  // `total`, `averageRating` and `ratingHistogram` are the *experience* ratings
+  // only -- the stars changed question once (see `rating_metric` in the API), and
+  // mixing the two meanings in one average would measure neither. `accurateYes`
+  // and `accurateNo` span every judged row, old ones included: that question
+  // never changed.
   feedback?: {
     total: number;
     averageRating: number | null;
@@ -291,8 +297,9 @@ export async function recordQuizCompletion(completion: QuizCompletion): Promise<
 // ---------------------------------------------------------------------------
 
 /**
- * The card at the bottom of the results page: a rating, whether the top match
- * described the reader, and an optional sentence in their own words.
+ * The card at the bottom of the results page: how the quiz felt overall (1-5
+ * stars), whether the top match described the reader, and an optional sentence
+ * in their own words.
  *
  * `accurate` is tri-state. `null` means the reader skipped the question, which
  * the API stores as NULL rather than as a "no", so a shrug never counts against
@@ -301,6 +308,7 @@ export async function recordQuizCompletion(completion: QuizCompletion): Promise<
 export interface QuizFeedback {
   /** Per-card id: a retry after a dropped response is the same submission. */
   sessionId: string;
+  /** The quiz experience, 1-5. Not how close the match felt -- that was the old question. */
   rating: number;
   accurate?: boolean | null;
   comment?: string | null;
@@ -352,6 +360,16 @@ export type FeedbackStatus = "new" | "reviewed" | "hidden";
 export interface FeedbackRow {
   id: number;
   rating: number | null;
+  /**
+   * Which question that rating answered. `"experience"` is the current card
+   * (how the quiz felt overall); `"fit"` is the older one (how close the match
+   * felt), kept so the queue never reads a number as the wrong answer.
+   *
+   * Optional because a response from a worker deployed before migration 0006
+   * has no such field -- and every row that predates it answered the old
+   * question, so the queue labels a missing value `"fit"` too.
+   */
+  ratingMetric?: "experience" | "fit";
   /**
    * Tri-state: `true` yes, `false` no, `null` skipped. A skipped question is a
    * shrug, and the queue has to show it as one instead of as a disagreement.

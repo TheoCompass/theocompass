@@ -14,7 +14,12 @@ import { fetchQuizStats, type QuizStats } from "./api";
  * flaky connection recovers. Dropping the promise lets the next mount try again.
  */
 
-/** Ratings need a sample before an average is worth publishing. */
+/**
+ * Ten answers before a star average (or an accuracy percentage) is worth
+ * publishing. `FeedbackTile` applies it per figure: the stars were reworded once,
+ * so a reset rating count must not hide an accuracy percentage that is still
+ * based on the same question.
+ */
 export const MIN_FEEDBACK = 10;
 
 /**

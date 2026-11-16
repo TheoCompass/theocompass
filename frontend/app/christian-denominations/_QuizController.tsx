@@ -1546,7 +1546,7 @@ export default function QuizController() {
 
     /*
      * One condition for two places: the feedback card below the dashboard and
-     * the "Rate this match ↓" link in the dashboard's closing bar, so the link
+     * the "Give feedback ↓" link in the dashboard's closing bar, so the link
      * can never point at a card that is not there -- a link into nothing is
      * worse than no link. All it asks for is a match to judge and a finished
      * calculation.

@@ -174,6 +174,13 @@ function histogramFrom(rows: HistogramRow[] | undefined): number[] {
 /**
  * Counts, an average and a five-bucket histogram -- and nothing else.
  *
+ * `total` is the number of *experience* ratings, not the number of rows: it is
+ * the denominator printed beside `averageRating`, so it has to match the
+ * average and the histogram. Rows from before the stars changed question carry
+ * `rating_metric = 'fit'` and are left out of all five numbers. Their yes/no
+ * answers are not left out -- "did the top match describe you?" is the same
+ * question it always was.
+ *
  * `accurateShare` is deliberately not computed here: the panel already owns
  * `share()` and divides yes by the readers who actually answered, so the two
  * numbers it prints come from the same place as every other percentage in it.
@@ -294,16 +301,22 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     // polluting the average the landing page publishes. The comment column is not
     // selected -- this endpoint is aggregate-only by construction, and the queue
     // at /api/feedback is the only reader that ever sees a comment.
+    //
+    // One rating, two metrics (0006). The star figures count only
+    // `rating_metric = 'experience'` rows, because the stars used to ask a
+    // different question and an average over both would measure neither. The
+    // accuracy terms keep their original scope -- every rated, non-hidden row --
+    // so the percentage a reader sees is unaffected by that reset.
     env.DB.prepare(
-      `SELECT COUNT(*) AS total,
-              AVG(rating) AS average,
+      `SELECT SUM(CASE WHEN rating_metric = 'experience' THEN 1 ELSE 0 END) AS total,
+              AVG(CASE WHEN rating_metric = 'experience' THEN rating END) AS average,
               SUM(CASE WHEN accurate = 1 THEN 1 ELSE 0 END) AS accurate_yes,
               SUM(CASE WHEN accurate = 0 THEN 1 ELSE 0 END) AS accurate_no,
-              SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
-              SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
-              SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
-              SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
-              SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
+              SUM(CASE WHEN rating_metric = 'experience' AND rating = 1 THEN 1 ELSE 0 END) AS rating_1,
+              SUM(CASE WHEN rating_metric = 'experience' AND rating = 2 THEN 1 ELSE 0 END) AS rating_2,
+              SUM(CASE WHEN rating_metric = 'experience' AND rating = 3 THEN 1 ELSE 0 END) AS rating_3,
+              SUM(CASE WHEN rating_metric = 'experience' AND rating = 4 THEN 1 ELSE 0 END) AS rating_4,
+              SUM(CASE WHEN rating_metric = 'experience' AND rating = 5 THEN 1 ELSE 0 END) AS rating_5
        FROM feedback
        WHERE rating IS NOT NULL AND status <> 'hidden'`
     ),

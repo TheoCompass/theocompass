@@ -338,11 +338,24 @@ sends (a `Message-ID` that is present and unique per send).
 
 ## 12. Post-Quiz Feedback
 
-`POST /api/feedback` records how a run felt — a 1–5 rating, whether the top
-match described the reader (yes / no / skipped) and an optional comment — from
-the card that sits under the results dashboard. `GET /api/feedback` is the
-moderator queue behind it, behind the same `X-Admin-Code` as the roadmap editor
-and the report queue.
+`POST /api/feedback` records how a run felt — a 1–5 rating of the overall quiz
+experience, whether the top match described the reader (yes / no / skipped) and
+an optional comment — from the card that sits under the results dashboard.
+`GET /api/feedback` is the moderator queue behind it, behind the same
+`X-Admin-Code` as the roadmap editor and the report queue.
+
+**One rating, two questions.** The stars used to ask *how close the match felt*.
+They now ask *how the quiz felt overall*, which is a different measurement, so
+rows carry `feedback.rating_metric` (`'experience'` for everything the handler
+writes, `'fit'` for the rows that predate the change — labelled by
+`migrations/0006_feedback_rating_metric.sql`). Only `'experience'` rows feed the
+published `total`, `averageRating` and `ratingHistogram`; the yes/no question
+never changed, so `accurateYes` / `accurateNo` still span every judged row,
+reset or no reset. Nothing is deleted and nothing is hidden: the queue keeps
+reading the old rows, tagged `match fit`, and a row can still be retired with
+`hidden`. The metric is a discriminator, not a reset button: the file is applied
+once (the UPDATE has no `WHERE`, so running it by hand a second time would
+relabel every new row too).
 
 The card (`_PostQuizFeedback.tsx`) is mounted by `_QuizController.tsx` outside
 `<main>`, so it is not part of the results the reader copies or prints. It shows
@@ -350,7 +363,7 @@ whenever there is a match to judge and the calculation finished — including on
 `mod` "skip to a result" runs, which are the only way to inspect the form without
 answering a whole quiz. What those runs stay out of is `/api/quiz/events` and the
 public figures, and a rating submitted from one can be set to `hidden` in the
-queue. Both the card and the `Rate this match ↓` link in the dashboard's closing
+queue. Both the card and the `Give feedback ↓` link in the dashboard's closing
 bar share one `feedbackEnabled` flag in `_QuizController`, so the link cannot
 point at a card that is not there; the section carries
 `id="feedback"` and takes its column from `WIDTHS.page` + `SHELL_GUTTERS` (the
@@ -382,19 +395,27 @@ session id already covers retries).
 
 **What is published.** `GET /api/stats` gains a `feedback` object —
 `total`, `averageRating`, `accurateYes`, `accurateNo`, `ratingHistogram[5]`
-(index 0 is one star). No comment, no row, no id ever leaves the table through
-the public endpoint: `/api/stats` returns counts, an average and a histogram.
-The landing panel prints the tile once `total >= MIN_FEEDBACK` (10) in
-`frontend/app/_components/_LiveStats.tsx`, independently of the
-`BREAKDOWN_RUNS` gate, and skips it entirely on an older cached payload without
-the field. A new rating invalidates the 60s stats cache.
+(index 0 is one star). The first, second and fifth count `rating_metric =
+'experience'` rows only, and `total` is their denominator, so the printed
+"4.2 out of 5, from 37 ratings" and the histogram always agree. The accuracy
+pair is unchanged in scope — every non-hidden judged row — which is the point:
+the reset does not move it. No comment, no row, no id ever leaves the table
+through the public endpoint: `/api/stats` returns counts, an average and a
+histogram. The landing panel (`frontend/app/_components/_LiveStats.tsx`) prints
+the tile under **What readers said** when *either* figure has ten answers:
+`total >= MIN_FEEDBACK` (10) for the average and histogram, else
+`accurateYes + accurateNo >= 10` for the accuracy line alone, with "Experience
+ratings are still building" in place of the mean. A payload without `feedback`
+still renders nothing, and a new rating invalidates the 60s stats cache.
 
 **Privacy line.** The `feedback` table stores no email, IP, user agent or cookie
-— the rating, the yes/no, the comment and the run's context are the whole row.
-The landing panel says so, and says that comments are read by a moderator and
-never published. The GA4 event is `quiz_feedback_submitted` with
-`{ quiz_mode, rating, accurate, has_comment, outcome }` — shapes only; the
-comment never leaves the request body.
+— the rating, its metric, the yes/no, the comment and the run's context are the
+whole row. The landing panel says so, and says that comments are read by a
+moderator and never published. The GA4 event is `quiz_feedback_submitted` with
+`{ quiz_mode, rating, rating_metric, accurate, has_comment, outcome }` — shapes
+only; the comment never leaves the request body. `rating_metric` is there for the
+same reason as the SQL column: a GA4 average over `rating` alone would mix two
+questions.
 
 **Reading the queue.** `GET /api/feedback` returns `data.counts`
 (`new` / `reviewed` / `hidden` / `commented`) plus the rows, newest first, and
@@ -419,15 +440,22 @@ npx wrangler d1 execute theocompass-db --remote \
 ```
 
 `accurate` comes back as `true` / `false` / `null`, and `null` is the skip: it is
-in neither `accurateYes` nor `accurateNo`.
+in neither `accurateYes` nor `accurateNo`. Each row also carries `ratingMetric`
+(`"experience"` / `"fit"`), which `/mod/feedback` prints beside the stars — the
+same number means two things, so it is never shown without it. A response from a
+worker deployed before `0006` has no such field, and the page labels that as
+`match fit`, which is what those rows are.
 
 **Setting a status.** `PATCH /api/feedback/:id` takes `{ "status": "..." }` and
 nothing else — the note is never editable through the API. `status` is a CHECK
 constraint in the schema and a validation in the handler, so a fourth value is a
 `400`; an id that does not exist is a `404`. `hidden` is the one status with a
-public consequence: `/api/stats` filters it out, so the published average and the
-accuracy figure both move on the next request (the write invalidates the 60s
-stats cache). The row stays in the table as evidence — nothing is ever deleted.
+public consequence: `/api/stats` filters it out, so the published figures move on
+the next request (the write invalidates the 60s stats cache). Which one moves
+follows the metric: an `experience` row leaves the average, the histogram and
+the rating count; a legacy `fit` row leaves only the accuracy pair, because that
+is all it was already contributing. The row stays in the table as evidence —
+nothing is ever deleted.
 
 ```bash
 curl -s -X PATCH -H 'X-Admin-Code: mod' -H 'Content-Type: application/json' \
@@ -472,14 +500,26 @@ insert is `ON CONFLICT DO NOTHING`, so it also can't overwrite a real row. The
 stats payload is cached for 60s per isolate, so restart `wrangler dev` (or wait a
 minute) before expecting the tile, or the accuracy row, to appear or disappear.
 
+The demo rows take the column default (`rating_metric = 'experience'`), so they
+still drive the tile. One wrinkle for an existing local database: migration
+`0006` relabels every row it finds, demo rows included, to `'fit'` — and the
+seed cannot replace them, because their session ids already exist. Run
+`db:clear-feedback-local` and then `db:seed-feedback-local` once after migrating
+and the twelve rows come back as experience ratings. (Remote has no demo rows to
+worry about, and no `--remote` seed to run.)
+
 Migration `migrations/0005_feedback.sql` adds `session_id`, `answered_count`,
 `top_match_name`, `app_version` and `status` to the table created in `0001`,
-plus the unique session index and the created/rating indexes. Like the rest of
-`0001` this is user-generated data, so a `data:sync-remote` re-seed keeps every
-rating. `test/feedback.spec.ts` pins the storage shape, the tri-state, the
-idempotent replay, the four `400`s, truncation, the hourly `429` and the queue
-(with and without the code); `test/stats.spec.ts` pins the aggregate and the
-`hidden` exclusion.
+plus the unique session index and the created/rating indexes.
+`0006_feedback_rating_metric.sql` adds `rating_metric` (`NOT NULL DEFAULT
+'experience'`), relabels the rows that predate the change as `'fit'` and indexes
+the column. Both are `0001` user-generated data, so a `data:sync-remote` re-seed
+keeps every rating. `test/feedback.spec.ts` pins the storage shape (including
+`rating_metric = 'experience'`), the tri-state, the idempotent replay, the four
+`400`s, truncation, the hourly `429` and the queue (with and without the code);
+`test/stats.spec.ts` pins the aggregate, the `hidden` exclusion and the `fit`
+exclusion — a legacy row moves neither `total`, `averageRating` nor the
+histogram, while its yes/no still moves `accurateNo`.
 
 **Shipping it.** Three deploys, and `git push` is only the first: Pages rebuilds
 the frontend from the push on its own (the card and `/mod/feedback` are live as
@@ -490,16 +530,27 @@ then deploy, with `ADMIN_CODE` already set as a secret:
 
 ```bash
 cd theocompass-api
-npm run db:migrate-remote      # 0005_feedback.sql: session_id, answered_count, ... + indexes
+npm run db:migrate-remote      # 0005_feedback.sql + 0006_feedback_rating_metric.sql, in order
 npx wrangler deploy            # POST/GET /api/feedback, PATCH /api/feedback/:id, stats.feedback
 ```
+
+`0006` is the one to watch: it relabels every existing rating `'fit'`, so the
+published average restarts from zero while the accuracy figure does not move.
+Ordering is safe in both directions — the column defaults to `'experience'`, so
+a rating written by the old worker between the migration and the deploy is
+labelled correctly, and an old worker reading the new column simply ignores it.
+What is *not* safe is deploying the new worker before `0006`: the insert names a
+column that does not exist yet and every submission fails.
 
 A stale worker is loud once you know the tell: every unknown `/api/*` path
 answers `200` with `{"status":"TheoCompass API Active","version":"2.0"}`, so
 `POST /api/feedback` against an undeployed worker *looks* like a success and
 stores nothing. `submitQuizFeedback` therefore trusts only an explicit boolean
 `recorded`, and `/api/stats` simply has no `feedback` key, which is how the
-tile and the accuracy row stay quiet. Smoke-test the live worker with
-`GET /api/feedback` (a `401` means the route exists) and `POST` a rating whose
-`sessionId` you can delete again — the insert invalidates the stats cache, so a
-`total` that does not move is the second tell.
+tile and the accuracy row stay quiet. A new frontend against an old worker is
+quieter still: the queue has `ratingMetric` missing from every row and labels
+them all `match fit`, which is exactly what they are. Smoke-test the live worker
+with `GET /api/feedback` (a `401` means the route exists) and `POST` a rating
+whose `sessionId` you can delete again — the insert invalidates the stats cache,
+so a `total` that does not move is the second tell, and a stored
+`rating_metric = 'experience'` on that row is the third.

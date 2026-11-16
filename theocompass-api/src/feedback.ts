@@ -8,11 +8,17 @@ import { invalidateStatsCache } from "./quiz-stats";
  *   GET   /api/feedback      the queue (moderator code)
  *   PATCH /api/feedback/:id  move a row between new / reviewed / hidden
  *
- * Three things and a sentence: how close the match felt (1-5), whether the top
- * match described the reader (yes / no / skipped), and an optional note. The
- * card lives at the bottom of the results page, so it is answered right after
- * the result it describes, while the reader still remembers whether it rang
- * true.
+ * Three things and a sentence: how the quiz felt overall (1-5 stars), whether
+ * the top match described the reader (yes / no / skipped), and an optional note.
+ * The card lives at the bottom of the results page, so it is answered right
+ * after the result it describes, while the reader still remembers whether it
+ * rang true.
+ *
+ * The stars changed question once. They used to ask how close the match felt,
+ * and rows written then carry `rating_metric = 'fit'`; everything this handler
+ * writes is `'experience'`. The column exists so those two measurements never
+ * meet in an average -- `/api/stats` publishes the experience ratings only --
+ * and so a re-read of the queue can still tell which question a number answers.
  *
  * `sessionId` is generated once per card and acts as the idempotency key: the
  * UNIQUE index on `feedback.session_id` plus `ON CONFLICT DO NOTHING` means a
@@ -210,8 +216,8 @@ export async function handlePostFeedback(
   const result = await env.DB.prepare(
     `INSERT INTO feedback
        (session_id, rating, accurate, comment, mode, top_match_id, top_match_name,
-        answered_count, app_version, data_version, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')
+        answered_count, app_version, data_version, status, rating_metric)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'experience')
      ON CONFLICT(session_id) DO NOTHING`
   )
     .bind(
@@ -251,16 +257,22 @@ type FeedbackRow = {
   app_version: string | null;
   data_version: string | null;
   status: string;
+  rating_metric: string;
   created_at: string | null;
 };
 
 const FEEDBACK_COLUMNS = `id, rating, accurate, comment, mode, top_match_id, top_match_name,
-                          answered_count, app_version, data_version, status, created_at`;
+                          answered_count, app_version, data_version, status, rating_metric,
+                          created_at`;
 
 function feedbackFrom(row: FeedbackRow) {
   return {
     id: Number(row.id),
     rating: row.rating,
+    // Which question the stars answered: 'experience' for every row this handler
+    // writes, 'fit' for the match-closeness rows from before the card changed.
+    // The queue prints it, because the same number means two things.
+    ratingMetric: row.rating_metric,
     // Tri-state, so "skipped" stays distinguishable from "no" in the queue --
     // the average never needs it, but reading the comments does.
     accurate: row.accurate === 1 ? true : row.accurate === 0 ? false : null,
@@ -350,10 +362,10 @@ export async function handleGetFeedback(
  * Move one row between `new`, `reviewed` and `hidden`.
  *
  * `hidden` is the only status with a public consequence: `handleGetStats`
- * filters `status <> 'hidden'`, so hiding a row takes it out of the average and
- * out of the accuracy split on the landing page. That is why the aggregate cache
- * is dropped here rather than waiting out its TTL -- the number should move when
- * the button is pressed.
+ * filters `status <> 'hidden'`, so hiding a row takes it out of the average
+ * (when it was an experience rating) and out of the accuracy split on the
+ * landing page. That is why the aggregate cache is dropped here rather than
+ * waiting out its TTL -- the number should move when the button is pressed.
  *
  * The body is `{ status }` and nothing else: the note itself is never editable,
  * because rewriting a reader's words would turn a quote into something it is not.

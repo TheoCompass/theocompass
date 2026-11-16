@@ -21,8 +21,9 @@ import { ModHeader } from "./_ModHeader";
  * newest first, with one control per row.
  *
  * Two things this page refuses to do. It never shows a rating without its
- * context (the match it was about, what they said about it, which build), and it
- * never edits the words -- the body of a PATCH is a status and nothing else.
+ * context (which question it answered, the match it was about, what they said
+ * about it, which build), and it never edits the words -- the body of a PATCH is
+ * a status and nothing else.
  *
  * `hidden` is the one action with a public consequence: the aggregate endpoint
  * filters those rows out, so the average and the accuracy figure on the landing
@@ -57,6 +58,16 @@ function accuracyLabel(accurate: boolean | null): string {
   if (accurate === true) return "the match fitted";
   if (accurate === false) return "the match did not fit";
   return "skipped that question";
+}
+
+/**
+ * Which question the stars answered. The card used to ask how close the match
+ * felt; it now asks how the quiz felt overall. A number from the queue is
+ * otherwise ambiguous, and a missing value means the row predates the change
+ * (or the API has not been redeployed yet), so it is labelled as the old one.
+ */
+function ratingMetricLabel(metric: FeedbackRow["ratingMetric"]): string {
+  return metric === "experience" ? "quiz experience" : "match fit";
 }
 
 /**
@@ -265,6 +276,7 @@ function FeedbackCard({
             {row.rating === null ? "—" : row.rating}
             <span className="text-3xs text-ink-muted">/5</span>
           </span>
+          <span className="text-3xs text-ink-muted">{ratingMetricLabel(row.ratingMetric)}</span>
           <span aria-hidden="true">&middot;</span>
           <span>{accuracyLabel(row.accurate)}</span>
           {row.topMatchName && (
@@ -452,7 +464,7 @@ export function FeedbackQueuePage() {
         tone: "ok",
         text:
           status === "hidden"
-            ? `Feedback ${row.id} is hidden. It no longer counts towards the published average or the accuracy figure.`
+            ? `Feedback ${row.id} is hidden. It no longer counts towards the published figures.`
             : `Feedback ${row.id} marked ${status}.`,
       });
       await load(code, filter);
@@ -511,6 +523,9 @@ export function FeedbackQueuePage() {
         <p className="mt-2 max-w-prose text-2xs leading-relaxed text-ink-muted">
           Every row is one reader&rsquo;s answer to the card at the end of a quiz. The counts and
           the average are published; the words never are, and nothing here is tied to a person.
+          The stars now rate the quiz experience &mdash; rows marked{" "}
+          <strong className="font-semibold text-ink-soft">match fit</strong> answered the older
+          question and stay out of that average, though their yes/no still counts.
         </p>
 
         {queue && <Summary filter={filter} counts={queue.counts} shown={queue.feedback.length} />}
