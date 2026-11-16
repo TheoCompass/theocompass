@@ -21,6 +21,16 @@ const AXIS_OPTIONS = [
     { key: 'certainty_score', label: 'Conviction: Unsure ↔ Certain', minLabel: 'Unsure', maxLabel: 'Certain', invert: true },
 ];
 
+/**
+ * The pair the compass opens on when nobody has chosen one.
+ *
+ * Exported because the results page owns the selection (so the exported report
+ * can be printed with the same axes as the chart on screen) and still needs to
+ * know what "untouched" means.
+ */
+export const DEFAULT_X_AXIS = 'theol_cons_lib_avg';
+export const DEFAULT_Y_AXIS = 'liturg_spont_avg';
+
 // Transitional shim: maps old D1 family_name values → new taxonomy keys
 // Remove this after the Beta D1 re-seed in Phase 2
 const LEGACY_FAMILY_NAME_MAP: Record<string, string> = {
@@ -154,17 +164,36 @@ interface CompassProps {
     hideInactive?: boolean;
     /** When true the component drops its own outer card (the panel supplies it). */
     embedded?: boolean;
+    /**
+     * The axis pair, owned by the caller when supplied.
+     *
+     * The exported report draws a second, off-screen copy of this chart from the
+     * same inputs. Left to its own state that copy opened on the default pair
+     * (Theology x Worship) no matter which axes the reader had picked, so the PNG
+     * and the screen disagreed. Lifting the selection to the results page keeps
+     * the two in step -- and, as a bonus, keeps it across tab switches, which
+     * unmount this component.
+     */
+    xAxis?: string;
+    yAxis?: string;
+    onSetXAxis?: (key: string) => void;
+    onSetYAxis?: (key: string) => void;
 }
 
-export default function CompassChart({ userCoords, userTolerance, userCertainty = 50, isExport = false, selectedMode = 'quick', familyMatches = [], hideInactive = false, embedded = false }: CompassProps) {
+export default function CompassChart({ userCoords, userTolerance, userCertainty = 50, isExport = false, selectedMode = 'quick', familyMatches = [], hideInactive = false, embedded = false, xAxis: xAxisProp, yAxis: yAxisProp, onSetXAxis, onSetYAxis }: CompassProps) {
     const rawFamilyMetaMap = useFamilyMeta();
     const familyMetaMap = useMemo(() => rawFamilyMetaMap, [rawFamilyMetaMap]);
     const [rawMapData, setRawMapData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [viewMode, setViewMode] = useState<'families' | 'denominations'>('denominations');
     
-    const [xAxis, setXAxis] = useState('theol_cons_lib_avg');
-    const [yAxis, setYAxis] = useState('liturg_spont_avg');
+    // Uncontrolled fallback: only used when no caller supplies the axes.
+    const [fallbackXAxis, setFallbackXAxis] = useState(DEFAULT_X_AXIS);
+    const [fallbackYAxis, setFallbackYAxis] = useState(DEFAULT_Y_AXIS);
+    const xAxis = xAxisProp ?? fallbackXAxis;
+    const yAxis = yAxisProp ?? fallbackYAxis;
+    const setXAxis = onSetXAxis ?? setFallbackXAxis;
+    const setYAxis = onSetYAxis ?? setFallbackYAxis;
 
     const [hoveredNode, setHoveredNode] = useState<any>(null);
     const [lockedNode, setLockedNode] = useState<any>(null);

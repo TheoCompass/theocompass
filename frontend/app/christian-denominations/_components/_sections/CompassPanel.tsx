@@ -7,11 +7,23 @@ export function CompassPanel({
   userTolerance,
   userCertainty,
   activeOnly,
+  xAxis,
+  yAxis,
+  onSetXAxis,
+  onSetYAxis,
 }: {
   userCoords: Record<string, number>;
   userTolerance: number;
   userCertainty: number;
   activeOnly: boolean;
+  /**
+   * Axes are owned by the results page, not by the chart: the exported report
+   * renders its own copy of the chart and has to be printed with the same pair.
+   */
+  xAxis: string;
+  yAxis: string;
+  onSetXAxis: (key: string) => void;
+  onSetYAxis: (key: string) => void;
 }) {
   return (
     <div className="animate-fade-in">
@@ -29,6 +41,10 @@ export function CompassPanel({
           userTolerance={userTolerance}
           userCertainty={userCertainty}
           hideInactive={activeOnly}
+          xAxis={xAxis}
+          yAxis={yAxis}
+          onSetXAxis={onSetXAxis}
+          onSetYAxis={onSetYAxis}
           embedded
         />
       </div>

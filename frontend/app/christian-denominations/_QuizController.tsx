@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
 import html2canvas from "html2canvas-pro";
-import CompassChart from "./CompassChart"; 
+import { DEFAULT_X_AXIS, DEFAULT_Y_AXIS } from "./CompassChart";
 import { useRouter } from 'next/navigation';
 import { labelText, type Label } from "./TheologicalLabelCloud";
 import { trackEvent } from '../../lib/gtag';
@@ -145,6 +145,16 @@ export default function QuizController() {
   const [showSpecific, setShowSpecific] = useState(true);
   // 0.5: global "active only" filter, shared by the results page AND the export image
   const [activeOnly, setActiveOnly] = useState(false);
+  /**
+   * The compass axes, shared by the results page AND the export image.
+   *
+   * They used to live inside CompassChart, which meant the hidden export card --
+   * a second instance of that chart -- printed its own defaults (Theology x
+   * Worship) whatever the reader had picked. Holding them here also keeps the
+   * choice when a tab switch unmounts the chart.
+   */
+  const [xAxis, setXAxis] = useState(DEFAULT_X_AXIS);
+  const [yAxis, setYAxis] = useState(DEFAULT_Y_AXIS);
   const [userTolerance, setUserTolerance] = useState<number>(50);
   // 14th axis: separate meta-axis computed server-side (priority-weighted avg of C).
   const [userCertainty, setUserCertainty] = useState<number>(50);
@@ -1567,6 +1577,8 @@ export default function QuizController() {
           allCoordinates={allCoordinates}
           timestamp={new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
           questionCount={answeredQuestionCount || questions.length}
+          xAxis={xAxis}
+          yAxis={yAxis}
         />
 
         <ExportLabelsCard
@@ -1620,6 +1632,10 @@ export default function QuizController() {
           onSetCompareDenomId={setCompareDenomId}
           onSetExpandedAxis={setExpandedAxis}
           onSetCollapsedCategories={setCollapsedCategories}
+          xAxis={xAxis}
+          yAxis={yAxis}
+          onSetXAxis={setXAxis}
+          onSetYAxis={setYAxis}
           onDownloadImage={handleDownloadImage}
           onDownloadLabels={handleDownloadLabels}
           onDownloadFingerprint={handleDownloadFingerprint}

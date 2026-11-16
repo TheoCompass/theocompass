@@ -60,6 +60,15 @@ export interface ResultsDashboardProps {
   onSetCompareDenomId: (id: string | null) => void;
   onSetExpandedAxis: (axis: string | null) => void;
   onSetCollapsedCategories: (cats: Record<string, boolean>) => void;
+  /**
+   * The compass axes. Held here rather than inside the chart so the hidden
+   * export card can draw the same pair -- and so the choice survives a tab
+   * switch, which unmounts the chart.
+   */
+  xAxis: string;
+  yAxis: string;
+  onSetXAxis: (key: string) => void;
+  onSetYAxis: (key: string) => void;
   onDownloadImage: () => void;
   onDownloadLabels: () => void;
   onDownloadFingerprint: () => void;
@@ -138,6 +147,10 @@ export function ResultsDashboard({
   onSetCompareDenomId,
   onSetExpandedAxis,
   onSetCollapsedCategories,
+  xAxis,
+  yAxis,
+  onSetXAxis,
+  onSetYAxis,
   onDownloadImage,
   onDownloadLabels,
   onDownloadFingerprint,
@@ -481,6 +494,10 @@ export function ResultsDashboard({
             userTolerance={userTolerance}
             userCertainty={userCertainty}
             activeOnly={activeOnly}
+            xAxis={xAxis}
+            yAxis={yAxis}
+            onSetXAxis={onSetXAxis}
+            onSetYAxis={onSetYAxis}
           />
         )}
 

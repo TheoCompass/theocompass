@@ -25,6 +25,13 @@ interface ExportCardProps {
   allCoordinates: CoordsMap;
   timestamp: string;
   questionCount: number;
+  /**
+   * The axes the reader chose on the compass tab. Without them this card's
+   * chart -- a second, off-screen instance -- opened on its own defaults, so
+   * every exported report was printed as Theology x Worship.
+   */
+  xAxis: string;
+  yAxis: string;
 }
 
 /**
@@ -73,6 +80,8 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
     allCoordinates,
     timestamp,
     questionCount,
+    xAxis,
+    yAxis,
   },
   ref
 ) {
@@ -176,6 +185,8 @@ const ExportCard = forwardRef<HTMLDivElement, ExportCardProps>(function ExportCa
           familyMatches={exportFamilies}
           displayFamilies={displayFamilies}
           hideInactive={activeOnly}
+          xAxis={xAxis}
+          yAxis={yAxis}
         />
       </div>
     </ExportFrame>
