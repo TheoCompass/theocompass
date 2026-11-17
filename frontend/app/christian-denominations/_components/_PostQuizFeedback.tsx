@@ -30,6 +30,10 @@ import { SHELL_GUTTERS, WIDTHS } from "./_Shell";
  * anything. The API tags every row with `rating_metric = 'experience'` for the
  * same reason: rows written under the old wording are kept out of this average.
  *
+ * The heading follows the same rule: "How did that go?" covers the run, not just
+ * the match. It used to read "Did that match fit?", which promised a question
+ * about the result and then opened with one about the quiz.
+ *
  * It sits between the dashboard and the footer rather than in a dialog: a modal
  * would interrupt the result the reader is still reading, and this card waits.
  *
@@ -252,7 +256,7 @@ export function PostQuizFeedback({
         <header>
           <p className="meta text-cerulean-800">Your feedback</p>
           <h2 id={headingId} className="mt-1 font-serif text-xl font-bold text-ink md:text-2xl">
-            Did that match fit?
+            How did that go?
           </h2>
           <p className="mt-2 text-2xs leading-relaxed text-ink-soft">
             Anonymous. It joins an average, not a feed: nothing you type is published, and there is
