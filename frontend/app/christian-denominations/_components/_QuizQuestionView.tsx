@@ -9,12 +9,12 @@ import {
   QUIZ_CATEGORY_LABELS,
   CERTAINTY_LABELS,
   TOLERANCE_LABELS,
+  TOLERANCE_SHORT,
   TOLERANCE_DESCRIPTIONS,
 } from "../_constants";
 
 /* Compact tick labels — the full label is shown above the rail. */
 const CERTAINTY_SHORT = ["Not sure", "Leaning", "Pretty sure", "Certain"];
-const TOLERANCE_SHORT = ["None", "No fellowship", "A few", "Most", "All"];
 
 /**
  * A stepped slider with a painted track, tick marks and a live readout.

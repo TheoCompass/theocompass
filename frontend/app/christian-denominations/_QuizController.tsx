@@ -17,7 +17,15 @@ import {
 import { APP_STAGE } from '../../lib/site';
 import { Check, Info } from "lucide-react";
 import type { Question, UserResponse } from './_types';
-import { AXIS_LABELS, FINGERPRINT_CATEGORIES, MAX_MULTI_SELECT, QUIZ_CATEGORY_LABELS } from './_constants';
+import {
+  AXIS_LABELS,
+  FINGERPRINT_CATEGORIES,
+  MAX_MULTI_SELECT,
+  QUIZ_CATEGORY_LABELS,
+  TOLERANCE_LABELS,
+  TOLERANCE_SHORT,
+  TOLERANCE_DESCRIPTIONS,
+} from './_constants';
 import { normalizeAxisKey } from './_helpers';
 import { PageHeader } from './_components/_PageHeader';
 import { isAnyDialogOpen } from '../_components/_Dialog';
@@ -1339,13 +1347,13 @@ export default function QuizController() {
             <div className="mt-1 border border-rule bg-paper px-3 py-3 pointer-events-none select-none">
               <AxisSlider
                 legend="How many views are acceptable?"
-                labels={["None Valid", "None for Fellowship", "A Few Valid", "Most Valid", "All Valid"]}
-                shortLabels={["None", "No fellowship", "A few", "Most", "All"]}
+                labels={TOLERANCE_LABELS}
+                shortLabels={TOLERANCE_SHORT}
                 value={2}
                 onChange={() => {}}
               />
               <p className="mt-2 text-2xs leading-snug text-ink-muted">
-                A few other options are valid, but require theological discernment.
+                {TOLERANCE_DESCRIPTIONS[2]}
               </p>
             </div>
           </div>

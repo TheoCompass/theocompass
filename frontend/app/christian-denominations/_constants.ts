@@ -129,19 +129,29 @@ export const TIER_DESCRIPTIONS = [
   "Matters of personal conviction or preference",
 ] as const;
 
-// Tolerance slider labels
+// Tolerance slider labels.
+// Step 2 is "one or a few", not "a few": tolerance is a stance (0-4), not a
+// count of options, so accepting a single alternative that you do not hold
+// already lands here. "A few" implied a floor of two and made the step up from
+// "no fellowship" read as a bigger jump than the scale (and the engine) has.
 export const TOLERANCE_LABELS = [
   "None Valid",
   "None Valid for Fellowship",
-  "A Few Valid",
+  "One or a Few Valid",
   "Most Valid",
   "All Valid",
 ];
 
+// Compact tick labels — the full label is shown above the rail.
+// The numeral is deliberate: the row gives each of the five stops ~54px at
+// text-3xs on a 360px phone, where "One or a few" wraps to two lines and leaves
+// stop 2 ragged beside "Most"/"All".
+export const TOLERANCE_SHORT = ["None", "No fellowship", "1 or a few", "Most", "All"];
+
 export const TOLERANCE_DESCRIPTIONS = [
   "No other option is valid; this is required for the Christian faith.",
   "No other option is valid for church fellowship, but some alternatives are still Christian.",
-  "A few other options are valid, but require theological discernment.",
+  "One or a few other options are valid, but require theological discernment.",
   "Most other options are valid, representing faithful in-house debate.",
   "Every other option is valid; this is purely personal preference.",
 ];
