@@ -10,7 +10,7 @@ const AXIS_OPTIONS = [
     { key: 'counter_pro_modern_avg', label: 'Culture: Accommodating ↔ Counter-Cultural', minLabel: 'Accommodating', maxLabel: 'Counter-Cultural' },
     { key: 'super_nat_avg', label: 'Worldview: Naturalistic ↔ Supernatural', minLabel: 'Naturalistic', maxLabel: 'Supernatural' },
     { key: 'cult_sep_eng_avg', label: 'Politics: Engaged ↔ Separatist', minLabel: 'Engaged', maxLabel: 'Separatist' },
-    { key: 'cleric_egal_avg', label: 'Authority: Egalitarian ↔ Hierarchical', minLabel: 'Egalitarian', maxLabel: 'Hierarchical' },
+    { key: 'cleric_egal_avg', label: 'Polity: Congregational ↔ Hierarchical', minLabel: 'Congregational', maxLabel: 'Hierarchical' },
     { key: 'div_hum_agency_avg', label: 'Salvation: Human Agency ↔ Divine Sovereignty', minLabel: 'Human Agency', maxLabel: 'Sovereignty' },
     { key: 'commun_indiv_avg', label: 'Focus: Individualist ↔ Communitarian', minLabel: 'Individualist', maxLabel: 'Communitarian' },
     { key: 'liturg_spont_avg', label: 'Worship: Spontaneous ↔ Liturgical', minLabel: 'Spontaneous', maxLabel: 'Liturgical' },

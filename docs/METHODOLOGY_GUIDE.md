@@ -13,7 +13,7 @@ These axes include:
 3. Counter-Modernity vs. Pro-Modernity
 4. Supernatural vs. Natural
 5. Cultural Separation vs. Cultural Engagement
-6. Clerical vs. Egalitarian
+6. Congregational vs. Hierarchical (church polity)
 7. Divine Agency vs. Human Agency
 8. Communal vs. Individual
 9. Liturgical vs. Spontaneous
@@ -22,7 +22,7 @@ These axes include:
 12. Intellectual vs. Experiential
 
 **Example:**
-If a user answers "Water baptism is a means of grace that directly causes new birth," that answer has specific, pre-assigned mathematical values across these dimensions (e.g., highly Sacramental, highly Clerical).
+If a user answers "Water baptism is a means of grace that directly causes new birth," that answer has specific, pre-assigned mathematical values across these dimensions (e.g., highly Sacramental, highly Hierarchical).
 
 ## 2. The 3 User Inputs (Per Question)
 For every question, the user provides three pieces of data:
@@ -92,5 +92,5 @@ Both axes are computed in two places that must stay in agreement:
 
 - **Certainty is left-skewed by construction.** Roughly 70% of the source `_Certainty` cells are "Certain", so the median tradition scores ~89/100 and ~28 traditions pin at exactly 100. This is honest, not a bug: a body that asserts every position with certainty *is* maximally certain. Priority weighting re-ranks the *selectively* certain traditions (it raised the number of distinct values from 62 to ~148) but cannot move a uniformly-Certain tradition off 100.
 - **It is not fully independent.** Certainty correlates negatively with all 12 dimensions, most strongly with `Social_Cons_Lib` (r = -0.32) and `Theol_Cons_Lib` (r = -0.26). That is ~90% independent variance with a real directional tendency: progressive traditions report less doctrinal certainty. Do not describe the axis as unrelated to the others.
-- **Meta-axes are excluded from "Distinctive Views" and denomination trait tags** (`getDistinctiveAxes` / `getTraitTags`). Because they sit near an extreme for almost everyone, including them would crowd out genuinely distinctive traits such as "Liturgical" or "Egalitarian".
+- **Meta-axes are excluded from "Distinctive Views" and denomination trait tags** (`getDistinctiveAxes` / `getTraitTags`). Because they sit near an extreme for almost everyone, including them would crowd out genuinely distinctive traits such as "Liturgical" or "Congregational".
 - **Certainty renders inverted.** Every other axis stores its affirmative pole as a LOW numeric value (e.g. Orthodox = 16, Sacramental = 4), which the fingerprint draws on the RIGHT. Certainty is the opposite: `100 = maximally certain`. To keep "Certain" on the right — and the dot with it — the entry carries `invert: true` in `AXIS_LABELS`, which flips the dot position and pole highlighting in the renderers. The API and D1 values keep their natural meaning (`certainty_score` 100 = certain).

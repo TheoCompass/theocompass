@@ -5,7 +5,7 @@ export const AXIS_LABELS: Record<string, { left: string; right: string; desc: st
   counterpromodern: { left: "Accommodating", right: "Counter-Cultural", desc: "Relationship to secular culture" },
   supernat: { left: "Naturalistic", right: "Supernatural", desc: "Expectation of miracles and spiritual forces" },
   cultsepeng: { left: "Engaged", right: "Separatist", desc: "Approach to worldly institutions and politics" },
-  clericegal: { left: "Egalitarian", right: "Hierarchical", desc: "Church governance and ordination" },
+  clericegal: { left: "Congregational", right: "Hierarchical", desc: "Church polity and the locus of authority" },
   divhumagency: { left: "Human Agency", right: "Divine Sovereignty", desc: "The mechanics of salvation (Arminian/Calvinist)" },
   communindiv: { left: "Individualist", right: "Communitarian", desc: "Focus of faith and church life" },
   liturgspont: { left: "Spontaneous", right: "Liturgical", desc: "Style and structure of worship" },
