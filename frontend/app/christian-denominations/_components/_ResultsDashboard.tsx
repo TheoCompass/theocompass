@@ -523,13 +523,15 @@ export function ResultsDashboard({
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="meta">{uniqueLabelCount} beliefs in your profile</span>
           {/* Task 0.9: the card sits below this rule, so without this the only
-              way to reach it is to scroll past everything. */}
+              way to reach it is to scroll past everything. The label previews the
+              question the card opens with, because "#1" is the part a reader with
+              a complaint is looking for -- "give feedback" reads like a form. */}
           {feedbackLink && (
             <a
               href="#feedback"
               className="meta underline decoration-rule-strong underline-offset-4 transition-colors hover:text-ink hover:decoration-ink"
             >
-              Give feedback ↓
+              Was #1 right? ↓
             </a>
           )}
         </div>

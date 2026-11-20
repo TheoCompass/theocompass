@@ -26,7 +26,8 @@ function postFeedback(body: unknown): Promise<Response> {
 const feedback = {
 	sessionId: 'feedback-aaaaaaaa',
 	rating: 4,
-	accurate: true,
+	familyRank: 1,
+	matchRankPos: 1,
 	comment: 'The Anglican match felt closer than I expected.',
 	mode: 'quick',
 	topMatchId: 'anglican',
@@ -35,10 +36,25 @@ const feedback = {
 	appVersion: 'v2.0',
 } as Record<string, unknown>;
 
+/**
+ * The same submission from a tab still running the pre-0007 card: a boolean and
+ * no positions. The worker has to keep accepting it for as long as a deploy can
+ * be open in someone's browser.
+ */
+function legacyFeedback(overrides: Record<string, unknown>): Record<string, unknown> {
+	const rest: Record<string, unknown> = { ...feedback };
+	delete rest.familyRank;
+	delete rest.matchRankPos;
+	return { ...rest, ...overrides };
+}
+
 type StoredRow = {
 	session_id: string | null;
 	rating: number | null;
 	accurate: number | null;
+	fit_stance: string | null;
+	family_rank: number | null;
+	match_rank_pos: number | null;
 	comment: string | null;
 	mode: string | null;
 	top_match_id: string | null;
@@ -52,8 +68,9 @@ type StoredRow = {
 
 async function storedRows(): Promise<StoredRow[]> {
 	const { results } = await env.DB.prepare(
-		`SELECT session_id, rating, accurate, comment, mode, top_match_id, top_match_name,
-		        answered_count, app_version, data_version, status, rating_metric
+		`SELECT session_id, rating, accurate, fit_stance, family_rank, match_rank_pos, comment,
+		        mode, top_match_id, top_match_name, answered_count, app_version, data_version,
+		        status, rating_metric
 		   FROM feedback ORDER BY id`
 	).all<StoredRow>();
 	return results ?? [];
@@ -87,7 +104,12 @@ describe('POST /api/feedback', () => {
 		expect(rows[0]).toEqual({
 			session_id: 'feedback-aaaaaaaa',
 			rating: 4,
+			// Derived from `matchRankPos: 1`, not sent separately.
 			accurate: 1,
+			// No stance was sent, so the row says nothing about it.
+			fit_stance: null,
+			family_rank: 1,
+			match_rank_pos: 1,
 			comment: 'The Anglican match felt closer than I expected.',
 			mode: 'quick',
 			top_match_id: 'anglican',
@@ -102,20 +124,152 @@ describe('POST /api/feedback', () => {
 		});
 	});
 
+	it('derives the top-1 answer from the chosen position', async () => {
+		await postFeedback({ ...feedback, sessionId: 'pos-top1-000001', matchRankPos: 1 });
+		await postFeedback({ ...feedback, sessionId: 'pos-top3-000001', matchRankPos: 3 });
+		// Past the printed list, which is still a miss rather than a category.
+		await postFeedback({ ...feedback, sessionId: 'pos-beyond-0001', matchRankPos: 9 });
+		// Both escape hatches: no family came close and nothing in it fitted.
+		await postFeedback({
+			...feedback,
+			sessionId: 'pos-none-000001',
+			familyRank: 0,
+			matchRankPos: 0,
+		});
+		// A family named but no denomination picked: a family answer, a skipped
+		// church answer.
+		await postFeedback({
+			...feedback,
+			sessionId: 'pos-family-0001',
+			familyRank: 2,
+			matchRankPos: null,
+		});
+		// A cleared question: all three columns are NULL, and the shrug is in
+		// neither the numerator nor the denominator of either figure.
+		await postFeedback({
+			...feedback,
+			sessionId: 'pos-skip-000001',
+			familyRank: null,
+			matchRankPos: null,
+		});
+
+		const rows = await storedRows();
+		expect(rows.map((row) => [row.family_rank, row.match_rank_pos, row.accurate])).toEqual([
+			[1, 1, 1],
+			[1, 3, 0],
+			[1, 9, 0],
+			[0, 0, 0],
+			[2, null, null],
+			[null, null, null],
+		]);
+	});
+
+	/**
+	 * 0008. The stance is the question every reader can answer, so it is what
+	 * the published boolean follows; the position is the fallback for a tab that
+	 * predates the question, and `exploring` is judged here without being judged
+	 * against a church.
+	 */
+	it('lets the stance outrank the position, and keeps "exploring" out of it', async () => {
+		// Named a real position, but says the match is where they are.
+		await postFeedback({ ...feedback, sessionId: 'stance-fit-0001', fitStance: 'fit', matchRankPos: 4 });
+		// At position 1, and still not quite right.
+		await postFeedback({ ...feedback, sessionId: 'stance-close-001', fitStance: 'close', matchRankPos: 1 });
+		// The disagreement that used to be unrecordable: #1 as their church, yet
+		// the match is not where they are. A miss that knows where it missed.
+		await postFeedback({ ...feedback, sessionId: 'stance-off-0001', fitStance: 'off', matchRankPos: 1 });
+		// Judged, but not against a church: stored, and NULL in the accuracy split.
+		await postFeedback({
+			...feedback,
+			sessionId: 'stance-explore-1',
+			fitStance: 'exploring',
+			matchRankPos: 1,
+		});
+		// No stance, i.e. a tab running the card from before this question.
+		await postFeedback({ ...feedback, sessionId: 'stance-none-001', matchRankPos: 1 });
+		// Junk is dropped rather than rejected, and the fallback still applies.
+		await postFeedback({
+			...feedback,
+			sessionId: 'stance-junk-001',
+			fitStance: 'maybe',
+			matchRankPos: 2,
+		});
+		// A stance cannot be outranked by an old bundle's boolean.
+		await postFeedback(
+			legacyFeedback({ sessionId: 'stance-legacy-01', accurate: false, fitStance: 'fit' })
+		);
+
+		const rows = await storedRows();
+		expect(rows.map((row) => [row.fit_stance, row.accurate])).toEqual([
+			['fit', 1],
+			['close', 0],
+			['off', 0],
+			['exploring', null],
+			[null, 1],
+			[null, 0],
+			['fit', 1],
+		]);
+	});
+
+	it('drops a position that is not one, instead of refusing the rating', async () => {
+		const junk: Array<[unknown, unknown]> = [
+			['1', 1], // strings are not positions
+			[1.5, 1], // nor are fractions
+			[-1, 1], // nor negative places
+			[1, 2.5],
+			[1, -1],
+			// Past the eight families the card can show, and past any list it prints.
+			[9, 1],
+			[1, 501],
+		];
+
+		for (const [index, [familyRank, matchRankPos]] of junk.entries()) {
+			const response = await postFeedback({
+				...feedback,
+				sessionId: `pos-junk-${String(index).padStart(6, '0')}`,
+				familyRank,
+				matchRankPos,
+			});
+			expect(response.status, `familyRank ${String(familyRank)}, pos ${String(matchRankPos)}`).toBe(
+				200
+			);
+		}
+
+		const rows = await storedRows();
+		expect(rows.map((row) => [row.family_rank, row.match_rank_pos])).toEqual([
+			[null, 1],
+			[null, 1],
+			[null, 1],
+			[1, null],
+			[1, null],
+			[null, 1],
+			[1, null],
+		]);
+	});
+
 	it('keeps "skipped" distinguishable from "no"', async () => {
-		await postFeedback({ ...feedback, sessionId: 'feedback-no-0001', accurate: false });
-		await postFeedback({ ...feedback, sessionId: 'feedback-yes-001', accurate: true });
-		await postFeedback({ ...feedback, sessionId: 'feedback-skip-01', accurate: undefined });
-		await postFeedback({ ...feedback, sessionId: 'feedback-junk-01', accurate: 'yes' });
+		await postFeedback(legacyFeedback({ sessionId: 'feedback-no-0001', accurate: false }));
+		await postFeedback(legacyFeedback({ sessionId: 'feedback-yes-001', accurate: true }));
+		await postFeedback(legacyFeedback({ sessionId: 'feedback-skip-01', accurate: undefined }));
+		await postFeedback(legacyFeedback({ sessionId: 'feedback-junk-01', accurate: 'yes' }));
 
 		const rows = await storedRows();
 		expect(rows.map((row) => row.accurate)).toEqual([0, 1, null, null]);
+		// An old client has no position to give, and the worker does not invent one.
+		expect(rows.map((row) => [row.family_rank, row.match_rank_pos])).toEqual([
+			[null, null],
+			[null, null],
+			[null, null],
+			[null, null],
+		]);
 	});
 
 	it('drops context it cannot use instead of refusing the rating', async () => {
 		const response = await postFeedback({
 			sessionId: 'feedback-partial-1',
 			rating: 5,
+			familyRank: 'first',
+			matchRankPos: 'top2',
 			mode: 'marathon',
 			answeredCount: 0,
 			topMatchId: 'not an id',
@@ -129,6 +283,8 @@ describe('POST /api/feedback', () => {
 		expect(rows[0]).toMatchObject({
 			rating: 5,
 			accurate: null,
+			family_rank: null,
+			match_rank_pos: null,
 			comment: null,
 			mode: null,
 			top_match_id: null,
@@ -225,7 +381,9 @@ describe('GET /api/feedback', () => {
 			...feedback,
 			sessionId: 'queue-second-1',
 			rating: 2,
-			accurate: false,
+			fitStance: 'close',
+			familyRank: 3,
+			matchRankPos: 2,
 			comment: 'The match missed the point.',
 		});
 
@@ -236,15 +394,26 @@ describe('GET /api/feedback', () => {
 		expect(data.counts).toEqual({ new: 2, reviewed: 0, hidden: 0, commented: 2 });
 		expect(data.feedback).toHaveLength(2);
 
-		// Newest first, and the tri-state survives the round trip.
+		// Newest first; the positions survive the round trip, and the boolean is
+		// derived from the stance when there is one.
 		expect(data.feedback[0]).toMatchObject({
 			id: expect.any(Number),
 			rating: 2,
 			accurate: false,
+			fitStance: 'close',
+			familyRank: 3,
+			matchRankPos: 2,
 			comment: 'The match missed the point.',
 			status: 'new',
 		});
-		expect(data.feedback[1]).toMatchObject({ rating: 5, accurate: true });
+		expect(data.feedback[1]).toMatchObject({
+			rating: 5,
+			accurate: true,
+			// This row never saw the stance question, so the queue shows none.
+			fitStance: null,
+			familyRank: 1,
+			matchRankPos: 1,
+		});
 		expect(data.feedback[0].createdAt).toEqual(expect.any(String));
 	});
 
@@ -365,11 +534,27 @@ describe('PATCH /api/feedback/:id', () => {
 	});
 
 	it('takes a hidden row out of the published average', async () => {
-		await postFeedback({ ...feedback, sessionId: 'hide-low-0001', rating: 1, accurate: false });
-		await postFeedback({ ...feedback, sessionId: 'hide-high-001', rating: 5, accurate: true });
+		await postFeedback({
+			...feedback,
+			sessionId: 'hide-low-0001',
+			rating: 1,
+			familyRank: 0,
+			matchRankPos: 0,
+		});
+		await postFeedback({
+			...feedback,
+			sessionId: 'hide-high-001',
+			rating: 5,
+			familyRank: 1,
+			matchRankPos: 1,
+		});
 
 		const before = await publishedStats();
 		expect(before).toMatchObject({ total: 2, averageRating: 3, accurateYes: 1, accurateNo: 1 });
+		expect(before.familyJudged).toBe(2);
+		expect(before.familyRanks).toEqual({ top1: 1, top3: 0, top8: 0, beyond: 1 });
+		expect(before.matchJudged).toBe(2);
+		expect(before.matchRanks).toEqual({ top1: 1, top3: 0, top8: 0, beyond: 1 });
 
 		const hiddenId = await idFor('hide-low-0001');
 		expect((await patchFeedback(hiddenId, { status: 'hidden' }, 'mod')).status).toBe(200);
@@ -378,6 +563,11 @@ describe('PATCH /api/feedback/:id', () => {
 		// dropped the cache. That is the point of `invalidateStatsCache()` there.
 		const after = await publishedStats();
 		expect(after).toMatchObject({ total: 1, averageRating: 5, accurateYes: 1, accurateNo: 0 });
+		// Hiding a row has to move every published figure, the bars included.
+		expect(after.familyJudged).toBe(1);
+		expect(after.familyRanks).toMatchObject({ top1: 1, beyond: 0 });
+		expect(after.matchJudged).toBe(1);
+		expect(after.matchRanks).toMatchObject({ top1: 1, beyond: 0 });
 
 		const counts = ((await (await getQueue('mod')).json()) as any).data.counts;
 		expect(counts).toEqual({ new: 1, reviewed: 0, hidden: 1, commented: 2 });

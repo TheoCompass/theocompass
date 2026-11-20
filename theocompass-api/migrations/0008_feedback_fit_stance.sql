@@ -1,0 +1,57 @@
+-- ==========================================
+-- WHERE THE READER ACTUALLY IS (task 0.9, follow-up)
+-- ==========================================
+--
+-- The card asked the reader to place *their church* in the list: which family
+-- came closest, which denomination inside it. That question only has an answer
+-- if the reader belongs to a church. A curious reader, someone seeking one, and
+-- someone doubting the one they were raised in have no position to give, so the
+-- two escapes both lied: the escape hatch (`0`) was stored as a miss and pulled
+-- the published accuracy down, and a skip was stored as NULL and disappeared.
+-- The figure said "the top match was right for 58% of readers" when what it
+-- measured was "58% of readers who happen to have a church".
+--
+-- This column is the question those readers can answer: how close is the top
+-- match to where you actually are?
+--
+--   fit        "That's about where I am"
+--   close      "Close, but not quite"
+--   off        "Not close"
+--   exploring  "I'm exploring -- I don't have a church to compare against"
+--   NULL       the question was skipped
+--
+-- Values are validated in src/feedback.ts rather than by a CHECK, the same
+-- bargain 0005-0007 make.
+--
+-- `exploring` is an answer, not a skip, and it is the reason this column is
+-- worth a migration: it is stored (so the queue can show it and the panel can
+-- count it) and it derives `accurate = NULL`, so it leaves the accuracy
+-- denominator without leaving the table. The two escapes that used to be
+-- indistinguishable are now distinguishable.
+--
+-- `accurate` -- the published "Top 1 match accuracy" figure -- becomes a
+-- derivation of this column when it is present (`fit` -> 1, `close` / `off` ->
+-- 0, `exploring` -> NULL) and keeps its 0007 behaviour (`match_rank_pos`, then
+-- the old boolean) when it is not. That keeps one denominator spanning every
+-- wording the card has ever used, and it makes one answer recordable that never
+-- was: "the #1 match describes me better than the church I belong to" -- a rank
+-- of 1 with a stance of `off`, i.e. a miss that knows exactly where it missed.
+--
+-- No backfill, deliberately. A stance reconstructed from an old rank would be a
+-- guess written on the reader's behalf, and `/api/stats` would publish it as an
+-- answer; instead every legacy row keeps the `accurate` value it already has.
+-- The cost is that `stanceJudged` starts at zero and grows, which is why the
+-- panel gates the new sentence on the same minimum sample as the other figures.
+--
+-- No index either: every read of this column happens inside the single
+-- aggregate scan in quiz-stats.ts, which reads each row anyway, so an index on
+-- it would never be chosen. (The indexes added in 0007 are in the same
+-- position.)
+--
+-- User-generated data (see 0001), so a `data:sync-remote` re-seed keeps it.
+--
+-- Apply with:
+--   npm run db:migrate-local
+--   npm run db:migrate-remote
+
+ALTER TABLE feedback ADD COLUMN fit_stance TEXT;

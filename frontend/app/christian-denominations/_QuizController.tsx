@@ -26,7 +26,7 @@ import {
   TOLERANCE_SHORT,
   TOLERANCE_DESCRIPTIONS,
 } from './_constants';
-import { normalizeAxisKey } from './_helpers';
+import { filterDenomsByActive, filterFamiliesByActive, normalizeAxisKey } from './_helpers';
 import { PageHeader } from './_components/_PageHeader';
 import { isAnyDialogOpen } from '../_components/_Dialog';
 import { Modals } from './_components/_Modals';
@@ -1035,6 +1035,22 @@ export default function QuizController() {
     ? shuffledAnswers 
     : (currentQuestion?.answers || []);
 
+  /**
+   * The lists the feedback card picks positions from.
+   *
+   * Filtered exactly as the dashboard's own list is, because the card's two
+   * pickers promise the numbers in them are the numbers on the page: with
+   * "active only" on, a hidden tradition must not keep a rank.
+   */
+  const feedbackFamilies = useMemo(
+    () => (activeOnly ? filterFamiliesByActive(familyMatches, allCoordinates) : familyMatches),
+    [activeOnly, familyMatches, allCoordinates]
+  );
+  const feedbackResults = useMemo(
+    () => (activeOnly ? filterDenomsByActive(results, allCoordinates) : results),
+    [activeOnly, results, allCoordinates]
+  );
+
   // KEYBOARD SHORTCUTS (quiz view only)
   useEffect(() => {
     if (currentView !== "quiz") return;
@@ -1659,6 +1675,8 @@ export default function QuizController() {
             is nothing to rate. */}
         <PostQuizFeedback
           mode={selectedMode ?? "quick"}
+          familyMatches={feedbackFamilies}
+          results={feedbackResults}
           topMatchId={results[0]?.id ?? null}
           topMatchName={results[0]?.name ?? null}
           answeredCount={answeredQuestionCount || questions.length}

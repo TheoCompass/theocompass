@@ -339,9 +339,11 @@ sends (a `Message-ID` that is present and unique per send).
 ## 12. Post-Quiz Feedback
 
 `POST /api/feedback` records how a run felt — a 1–5 rating of the overall quiz
-experience, whether the top match described the reader (yes / no / skipped) and
-an optional comment — from the card that sits under the results dashboard.
-`GET /api/feedback` is the moderator queue behind it, behind the same
+experience, how close the top match is to where the reader actually is (one tap,
+four answers, 0008), where their own church sat if they want to be precise (two
+pickers: the closest family, then the denomination inside it, each answerable or
+skippable) and an optional comment — from the card that sits under the results
+dashboard. `GET /api/feedback` is the moderator queue behind it, behind the same
 `X-Admin-Code` as the roadmap editor and the report queue.
 
 **One rating, two questions.** The stars used to ask *how close the match felt*.
@@ -349,13 +351,118 @@ They now ask *how the quiz felt overall*, which is a different measurement, so
 rows carry `feedback.rating_metric` (`'experience'` for everything the handler
 writes, `'fit'` for the rows that predate the change — labelled by
 `migrations/0006_feedback_rating_metric.sql`). Only `'experience'` rows feed the
-published `total`, `averageRating` and `ratingHistogram`; the yes/no question
-never changed, so `accurateYes` / `accurateNo` still span every judged row,
-reset or no reset. Nothing is deleted and nothing is hidden: the queue keeps
-reading the old rows, tagged `match fit`, and a row can still be retired with
-`hidden`. The metric is a discriminator, not a reset button: the file is applied
-once (the UPDATE has no `WHERE`, so running it by hand a second time would
-relabel every new row too).
+published `total`, `averageRating` and `ratingHistogram`; the match question
+never changed its meaning, so `accurateYes` / `accurateNo` still span every
+judged row, reset or no reset. Nothing is deleted and nothing is hidden: the
+queue keeps reading the old rows, tagged `match fit`, and a row can still be
+retired with `hidden`. The metric is a discriminator, not a reset button: the
+file is applied once (the UPDATE has no `WHERE`, so running it by hand a second
+time would relabel every new row too).
+
+**The match question (0007).** That question used to be a yes/no about *the top
+match*. The copy never said *#1*, so a reader could reasonably answer about the
+list as a whole, and a "no" could not distinguish a near miss from a denomination
+that is simply not in the database. A single row of six rank buckets answered the
+first half of that and left the second: "my denomination is missing" and "none of
+these fitted" were two different answers, and `#4–#10` said nothing about which
+*level* was wrong.
+
+It is now the two things a reader can answer without translating anything, in the
+order the page asks them: **which family came closest** (`family_rank`, the place
+of the family in the family list the reader was just looking at) and then **your
+church in that family** (`match_rank_pos`, the place of the denomination in the
+full list). Each level has its own escape hatch — `0`, "none came close" and "not
+one of these" — and that is a judgement about the list, not a skip.
+`migrations/0007_feedback_match_rank.sql` adds both integer columns and indexes
+them. Integers rather than a text enum on purpose: the shortlist lengths are a UI
+decision (`FAMILY_OPTIONS` / `CHURCH_OPTIONS` in `_PostQuizFeedback.tsx`), so
+changing eight to six must not need a migration or a rewrite of rows written
+under the old list, and anything past the list is still a miss — which is why the
+published buckets are ranges (`=1`, `2-3`, `4-8`, the rest) rather than named
+places.
+
+The ranks are positions in the lists *on screen*: `_QuizController` hands the card
+the filtered lists (`filterFamiliesByActive` / `filterDenomsByActive`), so "active
+only" moves the page's numbering and the picker together and a hidden tradition
+never keeps a place in the count. The family options are the first
+`FAMILY_OPTIONS` = 8 rows of `familyMatches`; the church options are that
+family's first `CHURCH_OPTIONS` = 5 rows, but each is numbered by its index in
+the *full* `results` list — so a button can read `#7`, and the number on it is
+still the number on the page. A denomination absent from the visible list is
+simply not offered: the row sends the escape hatch instead of an invented
+position.
+
+`accurate` is *derived*, never asked twice: the stance when the row has one
+(0008), otherwise `match_rank_pos` (`1` → 1, anything else → 0), otherwise the
+boolean an old bundle sends, and `NULL` when nothing was answered — so the
+columns can never disagree and the published "Top 1 match accuracy" figure keeps
+one denominator across every wording the card has ever used. A tab still running
+the old card keeps working for the same reason. The backfill is deliberately
+one-directional: `accurate = 1` becomes `match_rank_pos = 1`; a legacy "no" leaves
+both columns `NULL`, because it never said how far off it was and writing a guess
+would invent an answer the panel would then publish. `family_rank` is never
+backfilled at all — the question was never asked. `fit_stance` is not backfilled
+either (see below). The 0007 indexes are there for the queue's future filters,
+not for `/api/stats`, which sums the whole table in one pass.
+
+**The stance question (0008).** Everything above asks the reader to place *their
+church* in a list. That question has no answer for a curious reader, a seeker, or
+someone doubting the tradition they were raised in, and their two exits both
+lied: the pickers' escape hatch `0` was stored as a *miss* and pulled the
+published accuracy down, and a skip was stored as `NULL` and disappeared. The
+figure then read as "the match is right for 58% of readers" while measuring "58%
+of readers who happen to have a church".
+
+So the card asks the answerable question first: **how close is the top match to
+where you actually are?** `migrations/0008_feedback_fit_stance.sql` adds a
+nullable `fit_stance` text column with four values — `fit`, `close`, `off`,
+`exploring` — validated by `parseStance()` in `src/feedback.ts` rather than by a
+`CHECK`, the same bargain 0005–0007 make (an unknown value is dropped to `NULL`
+rather than rejecting a rating). `exploring` means *no church to compare
+against*; it is stored as an answer, counted as one, and derives
+`accurate = NULL`, so it leaves the accuracy denominator without leaving the
+table. The two escapes that used to be indistinguishable are now distinguishable.
+
+The derivation, in full, because it decides a published number:
+
+| stance       | `accurate` | in `stanceCounts` | in the top-1 figure |
+| ------------ | ---------- | ----------------- | ------------------- |
+| `fit`        | 1          | yes               | numerator           |
+| `close`      | 0          | yes               | denominator         |
+| `off`        | 0          | yes               | denominator         |
+| `exploring`  | NULL       | yes               | neither             |
+| `NULL`       | from rank / legacy boolean | no    | as before 0007      |
+
+That makes one answer recordable that never was: *#1 as their church, yet the
+match is `off`* — the reader who says "the top match describes me better than the
+church I belong to". Under the old wording that row was a hit (their church was
+#1) and the disagreement was invisible. It is now a miss with a rank of 1.
+
+Two consequences to expect, both by design. The published accuracy moves when
+this ships — the denominator changes from "readers who answered" to "readers with
+a church to compare" — so treat the deploy as a discontinuity, the way the 0006
+metric reset was documented; the panel prints the exclusion as a sentence
+(`N of M said they were exploring`) rather than leaving it implied.
+`familyJudged` / `matchJudged` will also shrink relative to the accuracy count as
+the stance absorbs the coarse question, because an `exploring` reader skips the
+pickers entirely.
+
+The column is not backfilled: a stance reconstructed from an old rank would be a
+guess written on the reader's behalf, and `/api/stats` would publish it as an
+answer. It is not indexed either — every read of it happens inside the one
+aggregate scan, so an index would never be chosen. The stance is also what will
+decide whether a longer end-of-quiz journey is worth building: if `exploring` is
+a large share of `stanceJudged`, exploration is the product; if it is a few
+percent, the card stays this small.
+
+**Which question goes where.** The card keeps the pickers for everyone, not only
+for readers who said "not close": showing them only to misses would turn the
+published breakdowns into a list of misses. Their escape hatches were reworded to
+say coverage rather than fit — "none of these families", "not in this list" — so
+`0` now means exactly one thing per level. Identity, goals and "what are you
+looking for" questions are deliberately *not* here: they belong to an end-of-quiz
+journey, where they can change the result, and a feedback card is the wrong place
+to ask a question the page will not act on.
 
 The card (`_PostQuizFeedback.tsx`) is mounted by `_QuizController.tsx` outside
 `<main>`, so it is not part of the results the reader copies or prints. It shows
@@ -363,7 +470,7 @@ whenever there is a match to judge and the calculation finished — including on
 `mod` "skip to a result" runs, which are the only way to inspect the form without
 answering a whole quiz. What those runs stay out of is `/api/quiz/events` and the
 public figures, and a rating submitted from one can be set to `hidden` in the
-queue. Both the card and the `Give feedback ↓` link in the dashboard's closing
+queue. Both the card and the `Was #1 right? ↓` link in the dashboard's closing
 bar share one `feedbackEnabled` flag in `_QuizController`, so the link cannot
 point at a card that is not there; the section carries
 `id="feedback"` and takes its column from `WIDTHS.page` + `SHELL_GUTTERS` (the
@@ -378,44 +485,105 @@ idempotency key; `feedback.session_id` carries a UNIQUE index and the insert is
 as a success and shows the thank-you. `frontend/lib/api.ts` keeps that mapping in
 one place (`FeedbackOutcome`: `recorded` / `duplicate` / `failed`), and
 `submitQuizFeedback` never throws: the card shows a `mailto:` fallback carrying
-the rating only, never the comment.
+the rating, the stance and both positions in words, never the comment.
 
-**Accuracy is tri-state.** `undefined` means "skipped" and is stored as `NULL`,
-so a skip never counts as a "no" in `/api/stats`; the UI lets the reader clear a
-pressed yes/no by pressing it again.
+**Every answer is tri-state.** `null` means "skipped" and is stored as `NULL` in
+`fit_stance`, `family_rank`, `match_rank_pos` and `accurate`, so a skip is in
+neither the numerator nor the denominator of any published figure. The stance is
+the one that carries meaning when answered: `exploring` is a *stored* answer that
+reads back as `accurate = NULL`, which is why the queue prints it before the
+boolean rather than replacing it. The UI lets the reader clear a pressed button by
+pressing it again, and picking a different family clears the church under it — a
+position in the old shortlist means nothing in the new one, so keeping it would
+store an answer to a list the reader is no longer looking at. A value out of range
+is context that is dropped rather than a `400` — the rating and the note are still
+worth keeping, the stance falls back to the position, and the position falls back
+to the old boolean, which is also the path an old client takes.
 
 **Validation.** Rating must be an integer 1–5. The comment is trimmed, stripped
 of control characters and truncated to 500 characters server-side (the textarea
-counts to the same 500 client-side). `mode`, `topMatchId`, `topMatchName`,
-`answeredCount` and `appVersion` are context: optional, and dropped rather than
-rejecting the submission if they fail their range. `HOURLY_CAP = 120` rows an
-hour across the whole table is the only rate limit — enough headroom that it
-never fires on real traffic, and it stops a script rather than a retry (the
-session id already covers retries).
+counts to the same 500 client-side). `fitStance` is one of `FEEDBACK_STANCES`
+(`fit`, `close`, `off`, `exploring`) and anything else — including a non-string —
+is dropped to `NULL`. `familyRank` (0–`FAMILY_RANK_MAX` = 8) and `matchRankPos`
+(0–`MATCH_RANK_POS_MAX` = 500) are the two positions; `mode`, `topMatchId`,
+`topMatchName`, `answeredCount` and `appVersion` are context: optional, and
+dropped rather than rejecting the submission if they fail their range.
+`HOURLY_CAP = 120` rows an hour across the whole table is the only rate limit —
+enough headroom that it never fires on real traffic, and it stops a script rather
+than a retry (the session id already covers retries).
 
 **What is published.** `GET /api/stats` gains a `feedback` object —
-`total`, `averageRating`, `accurateYes`, `accurateNo`, `ratingHistogram[5]`
-(index 0 is one star). The first, second and fifth count `rating_metric =
-'experience'` rows only, and `total` is their denominator, so the printed
-"4.2 out of 5, from 37 ratings" and the histogram always agree. The accuracy
-pair is unchanged in scope — every non-hidden judged row — which is the point:
-the reset does not move it. No comment, no row, no id ever leaves the table
-through the public endpoint: `/api/stats` returns counts, an average and a
-histogram. The landing panel (`frontend/app/_components/_LiveStats.tsx`) prints
-the tile under **What readers said** when *either* figure has ten answers:
-`total >= MIN_FEEDBACK` (10) for the average and histogram, else
-`accurateYes + accurateNo >= 10` for the accuracy line alone, with "Experience
-ratings are still building" in place of the mean. A payload without `feedback`
-still renders nothing, and a new rating invalidates the 60s stats cache.
+`total`, `averageRating`, `ratingHistogram[5]` (index 0 is one star),
+`accurateYes`, `accurateNo`, two breakdowns each with the count of rows that
+answered it (`familyJudged` + `familyRanks`, `matchJudged` + `matchRanks`, with
+`top1`, `top3`, `top8`, `beyond` — always all four keys, zeros included), and the
+stance as `stanceJudged` + `stanceCounts` (`fit`, `close`, `off`, `exploring`).
+The rating figures count `rating_metric = 'experience'` rows only, and `total` is
+their denominator, so the printed "4.2 out of 5, from 37 ratings" and the
+histogram always agree. The top-1 pair and both breakdowns are unchanged in
+scope — every non-hidden judged row — which is the point: the star reset does not
+move them.
+
+`stanceJudged` is the only denominator on the payload that is **not** a subset of
+`accurateYes + accurateNo`: it is larger, by exactly the `exploring` rows, because
+those rows answered this question and were left out of the accuracy split. That is
+why it travels beside the counts instead of being inferred from them, and why
+`topOneAccuracy()` in `frontend/lib/quiz-stats.ts` still divides
+`accurateYes / (accurateYes + accurateNo)` — the exclusion already happened
+server-side. `stanceBreakdown()` shapes the four counts into bars and hides below
+`MIN_JUDGED` like every other figure, which matters on the deploy day when the
+column is empty.
+
+`familyRanks` is where the *family* sat; `matchRanks` is where the reader's own
+*denomination* sat. The buckets are ranges — `=1`, `2-3`, `4-8`, and `beyond`,
+which holds `0` (the coverage escape hatch) together with every position past the
+eighth — so neither shortlist length is baked into the schema and the escape hatch
+is counted as the answer it is rather than as a missing one.
+
+Each breakdown is a *separate* measurement with its own denominator: only the
+rows that answered that level. A reader who named a family and skipped the church
+is in `familyJudged` and not in `matchJudged`, so the church denominator is
+usually the smaller of the two. On any database holding pre-0007 answers both are
+also smaller than `accurateYes + accurateNo`, because a legacy "no" answered the
+yes/no without naming a position. Neither figure is wrong; the panel prints each
+list with its own count and its own percentage instead of implying one total. No
+comment, no row, no id ever leaves the table through the public endpoint:
+`/api/stats` returns counts, an average and histograms. The landing panel
+(`frontend/app/_components/_LiveStats.tsx`) prints the tile under **What readers
+said** when *either* figure has ten answers: `total >= MIN_FEEDBACK` (10) for the
+average and histogram, else `accurateYes + accurateNo >= 10` for the top-1 line
+alone, else `stanceJudged >= 10` once the stance exists, with "Experience ratings
+are still building" in place of the mean. The two sets of bars appear under the
+histogram — "Where the closest family sat" first, then "Where their own church
+sat" — once `familyRankBreakdown()` / `matchRankBreakdown()` in
+`frontend/lib/quiz-stats.ts` have ten answers each to divide, and carry a `title`
+explaining that skipped answers, and legacy "no" rows, are in neither list, and
+that the church list is the shorter one because the second picker is optional. The
+bars read `#1`, `#2–#3`, `#4–#8` and `none / #9+`: the last one is labelled for
+both kinds of answer it holds, because on the family list the coverage escape
+hatch is the only thing that can land there (the card offers eight families) while
+on the church list a real ninth place does too. Between the histogram and those
+bars, `stanceBreakdown()` adds one sentence — "N of M readers who answered said
+they were exploring" — which is the only place the excluded readers are visible;
+without it the top-1 denominator would silently be a different population from the
+one above it. A payload without `feedback` still renders nothing, and a new rating
+invalidates the 60s stats cache.
 
 **Privacy line.** The `feedback` table stores no email, IP, user agent or cookie
-— the rating, its metric, the yes/no, the comment and the run's context are the
-whole row. The landing panel says so, and says that comments are read by a
-moderator and never published. The GA4 event is `quiz_feedback_submitted` with
-`{ quiz_mode, rating, rating_metric, accurate, has_comment, outcome }` — shapes
-only; the comment never leaves the request body. `rating_metric` is there for the
-same reason as the SQL column: a GA4 average over `rating` alone would mix two
-questions.
+— the rating, its metric, the stance, the two positions, the comment and the run's
+context are the whole row. The landing panel says so, and says that comments are
+read by a moderator and never published. The GA4 event is
+`quiz_feedback_submitted` with `{ quiz_mode, rating, rating_metric, fit_stance,
+family_rank, match_rank_pos, accurate, has_comment, outcome }` — shapes only; the
+comment never leaves the request body. `rating_metric` is there for the same
+reason as the SQL column: a GA4 average over `rating` alone would mix two
+questions. `fit_stance` carries `"skipped"` for a cleared question, so the four
+answers and the skip are all distinguishable in an export. `family_rank` and
+`match_rank_pos` are the two precision dimensions, with `"skipped"` in place of a
+cleared question so the skip is visible rather than missing. `accurate` stays in
+the event as the derived yes/no — stance first, then position — so an exploration
+built before the pickers keeps working, with `exploring` reported as `"skipped"`
+because it is not a judgement about position 1.
 
 **Reading the queue.** `GET /api/feedback` returns `data.counts`
 (`new` / `reviewed` / `hidden` / `commented`) plus the rows, newest first, and
@@ -436,15 +604,34 @@ curl -s -H "X-Admin-Code: $ADMIN_CODE" "https://<worker-host>/api/feedback?statu
 
 # or straight from the table
 npx wrangler d1 execute theocompass-db --remote \
-  --command "SELECT id, rating, accurate, comment, created_at FROM feedback WHERE status = 'new' ORDER BY created_at DESC LIMIT 50"
+  --command "SELECT id, rating, accurate, family_rank, match_rank_pos, comment, created_at FROM feedback WHERE status = 'new' ORDER BY created_at DESC LIMIT 50"
 ```
 
-`accurate` comes back as `true` / `false` / `null`, and `null` is the skip: it is
-in neither `accurateYes` nor `accurateNo`. Each row also carries `ratingMetric`
-(`"experience"` / `"fit"`), which `/mod/feedback` prints beside the stars — the
-same number means two things, so it is never shown without it. A response from a
-worker deployed before `0006` has no such field, and the page labels that as
-`match fit`, which is what those rows are.
+`familyRank` and `matchRankPos` are integers or `null`, and `accurate` is derived
+from the stance when there is one (`fit` → `true`, `close` / `off` → `false`,
+`exploring` → `null`) and from the second position otherwise (`true` for `1`,
+`false` for every other position, `null` for a skip). Each level is independent: a
+row can name a family and no church, so the
+queue prints them in the order the card asked — "closest family was #3, their
+church was #5 in the list" — and shows whichever parts exist. The stance comes
+before both when present ("not close to where they are; closest family was #1"),
+because it is the sentence the published figure follows; `exploring` prints as
+"exploring, no church to compare against" and is the one stance answer that is
+absent from the accuracy split. `0` is the coverage escape hatch at either level
+("none of the families listed" / "their church was not in the list") and is
+printed as the answer it is. `null` in both positions is either a skip or a
+submission from before the pickers existed: it is in neither `accurateYes` nor
+`accurateNo` and in no bar of either breakdown. A legacy "no" has
+`accurate = false` with both positions `null` — the row predates the question, so
+the queue shows "no match fitted (stance and position not given)" instead of
+guessing how far off it was — and a legacy "yes" has `accurate = true` with both
+`null`, which it prints as "#1 was the best match", the only thing that row
+actually said.
+Each row also carries `ratingMetric` (`"experience"` / `"fit"`), which
+`/mod/feedback` prints beside the stars — the same number means two things, so it
+is never shown without it. A response from a worker deployed before `0006` has no
+such field, and the page labels that as `match fit`, which is what those rows
+are.
 
 **Setting a status.** `PATCH /api/feedback/:id` takes `{ "status": "..." }` and
 nothing else — the note is never editable through the API. `status` is a CHECK
@@ -453,9 +640,10 @@ constraint in the schema and a validation in the handler, so a fourth value is a
 public consequence: `/api/stats` filters it out, so the published figures move on
 the next request (the write invalidates the 60s stats cache). Which one moves
 follows the metric: an `experience` row leaves the average, the histogram and
-the rating count; a legacy `fit` row leaves only the accuracy pair, because that
-is all it was already contributing. The row stays in the table as evidence —
-nothing is ever deleted.
+the rating count; a legacy `fit` row leaves only the top-1 pair. Either way the
+row leaves both breakdowns, because neither rank column is scoped by
+`rating_metric`. The row stays in the table as evidence — nothing is ever
+deleted.
 
 ```bash
 curl -s -X PATCH -H 'X-Admin-Code: mod' -H 'Content-Type: application/json' \
@@ -474,22 +662,40 @@ unlocked. Filtering is server-side (`?commented=1`, `?status=`) rather than a
 `.filter()` over one page, which would hide notes past the limit.
 
 **The landing figure.** `_QuizAccuracy.tsx` adds one row to the quiz card's
-`<dl>`: `accurateYes / (accurateYes + accurateNo)`, the denominator printed
-inline and the number linked to `#collective-results`. Skips sit on neither side
-of that fraction. Both the row and the panel below it read the payload through
+`<dl>`: `topOneAccuracy()` — `accurateYes / (accurateYes + accurateNo)`, which is
+how often the *#1* match was the right one — with the denominator printed inline
+and the number linked to `#collective-results`. Since 0008 the two counts behind
+it come from the stance question first (`fit` yes, `close` / `off` no) with the
+church's position as the fallback, so a row whose church was #1 but whose stance
+was `off` is now a miss, and an `exploring` row sits on neither side of the
+fraction. Skips still do too. The old export name `quizAccuracy` is kept as an
+alias so an unchanged import cannot silently stop meaning the same figure. Both
+the row and the panel below it read the payload through
 `frontend/lib/quiz-stats.ts`, so a page view makes one `/api/stats` request, not
-two; the row hides until `MIN_JUDGED` (10) answers are judged *and* the panel's
-own `MIN_QUIZZES` gate is met, so it never links to a panel that is not there.
+two; the row hides until `MIN_JUDGED` (10) answers are judged *and* the panel's own
+`MIN_QUIZZES` gate is met, so it never links to a panel that is not there. The
+panel it links to prints both breakdowns
+under the star histogram — family first, then church — each with its own
+denominator. Since 0008 the top-1 row is *not* the church `#1` bar restated: the
+stance decides the row first, so a `#1 church, not close` answer is in the bar and
+not in the numerator, and an `exploring` answer is in neither.
 
 **Local demo data.** The landing tile only appears once `total >= 10`, which a
 fresh local database never reaches, so `feedback_seed.sql` holds twelve fake
-ratings (`session_id` `demo-0001`…`demo-0012`) that clear the gate. They clear
-the accuracy row's gate too: 8 yes / 3 no is eleven judged answers, so the card
-prints **73% of 11 answers** and the panel below shows the same eleven split:
+ratings (`session_id` `demo-0001`…`demo-0012`) that clear the gate. They clear the
+other three gates as well, and deliberately not by the same margin: the stance is
+7 `fit` / 2 `close` / 1 `off` / 2 `exploring`, so the top-1 figure is 7 of 10 =
+70%; nine of the twelve named the right *family* first (90%, buckets 9 / 1 / 0 / 0)
+while seven had their own *church* first (70% of 10 answers, buckets 7 / 1 / 1 / 1).
+The family figure is therefore never the church figure restated — a reader whose
+family came closest at #1 can still sit further down that family's shortlist,
+which is exactly the distinction the two-level card was built to measure. The two
+`exploring` rows carry no positions at all, because that is what the card lets a
+reader with no church do:
 
 ```bash
 cd theocompass-api
-npm run db:seed-feedback-local    # 12 rows: avg 3.8, histogram [1,1,2,4,4], 8 yes / 3 no / 1 skip
+npm run db:seed-feedback-local    # 12 rows: avg 3.8, histogram [1,1,2,4,4], stance 7/2/1/2, family 9/1/0/0, church 7/1/1/1
 npm run db:clear-feedback-local   # DELETE FROM feedback WHERE session_id LIKE 'demo-%'
 ```
 
@@ -498,28 +704,54 @@ is not part of `data:sync-local`. Re-running the seed is a no-op: `demo-*` hits
 the unique session index and is skipped, exactly like a retried submission. The
 insert is `ON CONFLICT DO NOTHING`, so it also can't overwrite a real row. The
 stats payload is cached for 60s per isolate, so restart `wrangler dev` (or wait a
-minute) before expecting the tile, or the accuracy row, to appear or disappear.
+minute) before expecting the tile, or the top-1 row, to appear or disappear.
 
 The demo rows take the column default (`rating_metric = 'experience'`), so they
-still drive the tile. One wrinkle for an existing local database: migration
-`0006` relabels every row it finds, demo rows included, to `'fit'` — and the
-seed cannot replace them, because their session ids already exist. Run
-`db:clear-feedback-local` and then `db:seed-feedback-local` once after migrating
-and the twelve rows come back as experience ratings. (Remote has no demo rows to
+still drive the tile. Three wrinkles for an existing local database: migration
+`0006` relabels every row it finds, demo rows included, to `'fit'`, `0007` only
+backfills `accurate = 1` → `match_rank_pos = 1` (never `family_rank`), so a row
+seeded before the pickers has no position in either list and appears in neither
+set of bars, and `0008` adds `fit_stance` *empty* on purpose — a stance guessed
+from an old rank would be an invented answer. The seed cannot replace any of them,
+because the session ids already exist. Run `db:clear-feedback-local` and then
+`db:seed-feedback-local` once after migrating and the twelve rows come back as
+experience ratings with all three breakdowns filled. (Remote has no demo rows to
 worry about, and no `--remote` seed to run.)
+
+The one local database the migration cannot repair is one that ran the *draft*
+`0007`: wrangler records a migration by name, so the rewritten file never runs
+again there and the table keeps the draft's `match_rank` text column and neither
+new column. The header of `0007_feedback_match_rank.sql` carries the five
+statements that bring such a database level (`ADD COLUMN` twice, the same
+backfill, the two indexes); the stale `match_rank` column can stay, since nothing
+reads it. Then clear and re-seed the demo rows as above. Remote never applied the
+draft version, so `db:migrate-remote` needs none of this.
 
 Migration `migrations/0005_feedback.sql` adds `session_id`, `answered_count`,
 `top_match_name`, `app_version` and `status` to the table created in `0001`,
 plus the unique session index and the created/rating indexes.
 `0006_feedback_rating_metric.sql` adds `rating_metric` (`NOT NULL DEFAULT
 'experience'`), relabels the rows that predate the change as `'fit'` and indexes
-the column. Both are `0001` user-generated data, so a `data:sync-remote` re-seed
-keeps every rating. `test/feedback.spec.ts` pins the storage shape (including
-`rating_metric = 'experience'`), the tri-state, the idempotent replay, the four
+the column. `0007_feedback_match_rank.sql` adds `family_rank` and
+`match_rank_pos`, backfills the unambiguous half of the history (`accurate = 1`
+→ `match_rank_pos = 1`) and indexes both; it leaves a legacy "no" `NULL` rather
+than guessing, and never invents a `family_rank`. `0008_feedback_fit_stance.sql`
+adds `fit_stance` and nothing else — no backfill (a reconstructed stance would be
+a guess), no index (every read is inside the one aggregate scan) — and from then
+on `accurate` is derived from it first. All four are additive over the table
+`0001` created, so a `data:sync-remote` re-seed keeps every rating.
+`test/feedback.spec.ts` pins the storage shape (including
+`rating_metric = 'experience'`, the stance and the position that derive
+`accurate`), the derivation across all three wordings (stance beats position beats
+the legacy boolean), `exploring` staying out of the accuracy split while being
+stored, dropping a position that is not one, dropping a stance that is not one,
+the legacy yes/no path, the two-level tri-state, the idempotent replay, the four
 `400`s, truncation, the hourly `429` and the queue (with and without the code);
-`test/stats.spec.ts` pins the aggregate, the `hidden` exclusion and the `fit`
-exclusion — a legacy row moves neither `total`, `averageRating` nor the
-histogram, while its yes/no still moves `accurateNo`.
+`test/stats.spec.ts` pins the aggregate, the `hidden` exclusion, the `fit`
+exclusion, both sets of bucket counts with their own denominator, and the stance
+counts with the one denominator that is larger than `accurateYes + accurateNo` —
+a legacy row moves neither `total`, `averageRating` nor the histogram, while its
+yes/no still moves `accurateNo` and it appears in no bar of any breakdown.
 
 **Shipping it.** Three deploys, and `git push` is only the first: Pages rebuilds
 the frontend from the push on its own (the card and `/mod/feedback` are live as
@@ -530,24 +762,42 @@ then deploy, with `ADMIN_CODE` already set as a secret:
 
 ```bash
 cd theocompass-api
-npm run db:migrate-remote      # 0005_feedback.sql + 0006_feedback_rating_metric.sql, in order
+npm run db:migrate-remote      # 0005 + 0006 + 0007 + 0008, in order
 npx wrangler deploy            # POST/GET /api/feedback, PATCH /api/feedback/:id, stats.feedback
 ```
 
 `0006` is the one to watch: it relabels every existing rating `'fit'`, so the
-published average restarts from zero while the accuracy figure does not move.
+published average restarts from zero while the top-1 figure does not move.
 Ordering is safe in both directions — the column defaults to `'experience'`, so
 a rating written by the old worker between the migration and the deploy is
 labelled correctly, and an old worker reading the new column simply ignores it.
 What is *not* safe is deploying the new worker before `0006`: the insert names a
 column that does not exist yet and every submission fails.
 
+`0007` is additive in both directions and still goes first: an old worker's
+INSERT does not name `family_rank` or `match_rank_pos` (the row stores NULL,
+which is exactly what a card that never asked the question should leave), while
+the new worker's INSERT does — so a deploy without the migration fails every
+submission. Its backfill only rewrites `accurate = 1` rows, so the published
+top-1 figure is identical before and after it runs; both breakdowns start at
+zero and fill as new answers arrive, and on a database that has only ever seen
+the old card they stay empty rather than showing a fabricated split.
+
+`0008` is the one that moves a published number. Same ordering rule (the new
+INSERT names `fit_stance`, so migrate first), and the discontinuity is the point
+rather than a bug: the accuracy denominator becomes "readers with a church to
+compare" instead of "readers who answered", so expect the figure to change on the
+first stance-answering day and read it from then on. Until answers arrive
+`stanceJudged` is zero, the panel's exploring sentence does not render, and every
+row keeps the `accurate` value it already had — which is also why the migration
+needs no backfill and why a rolled-back deploy is harmless.
+
 A stale worker is loud once you know the tell: every unknown `/api/*` path
 answers `200` with `{"status":"TheoCompass API Active","version":"2.0"}`, so
 `POST /api/feedback` against an undeployed worker *looks* like a success and
 stores nothing. `submitQuizFeedback` therefore trusts only an explicit boolean
 `recorded`, and `/api/stats` simply has no `feedback` key, which is how the
-tile and the accuracy row stay quiet. A new frontend against an old worker is
+tile and the top-1 row stay quiet. A new frontend against an old worker is
 quieter still: the queue has `ratingMetric` missing from every row and labels
 them all `match fit`, which is exactly what they are. Smoke-test the live worker
 with `GET /api/feedback` (a `401` means the route exists) and `POST` a rating

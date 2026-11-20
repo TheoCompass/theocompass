@@ -103,7 +103,13 @@ type PostureRow = {
 
 /**
  * One row, because the whole feedback aggregate is a single pass over a small
- * table: `rating_1..5` build the histogram without a second GROUP BY.
+ * table: `rating_1..5` build the histogram without a second GROUP BY, and the
+ * `family_*` / `match_*` sums build the two breakdowns the same way.
+ *
+ * The buckets are ranges on purpose. `family_rank` and `match_rank_pos` are
+ * positions in the list the reader saw (0 is that list's escape hatch), so the
+ * published buckets are `=1`, `2-3`, `4-8` and everything else -- which stays
+ * true if the card ever shows six families instead of eight.
  */
 type FeedbackRow = {
   total: number | null;
@@ -115,6 +121,21 @@ type FeedbackRow = {
   rating_3: number | null;
   rating_4: number | null;
   rating_5: number | null;
+  family_top1: number | null;
+  family_top3: number | null;
+  family_top8: number | null;
+  family_beyond: number | null;
+  family_judged: number | null;
+  match_top1: number | null;
+  match_top3: number | null;
+  match_top8: number | null;
+  match_beyond: number | null;
+  match_judged: number | null;
+  stance_fit: number | null;
+  stance_close: number | null;
+  stance_off: number | null;
+  stance_exploring: number | null;
+  stance_judged: number | null;
 };
 
 const DAILY_DAYS = 14;
@@ -177,9 +198,32 @@ function histogramFrom(rows: HistogramRow[] | undefined): number[] {
  * `total` is the number of *experience* ratings, not the number of rows: it is
  * the denominator printed beside `averageRating`, so it has to match the
  * average and the histogram. Rows from before the stars changed question carry
- * `rating_metric = 'fit'` and are left out of all five numbers. Their yes/no
- * answers are not left out -- "did the top match describe you?" is the same
- * question it always was.
+ * `rating_metric = 'fit'` and are left out of all five numbers. Their rank
+ * answers are not left out -- "where was the best match?" is the same question
+ * the yes/no was asking.
+ *
+ * There are four figures here and four denominators, and none of them is the
+ * row count:
+ *
+ *   stanceJudged the stance (0008): fit / close / off / exploring, four
+ *                mutually exclusive buckets. The only denominator that
+ *                includes `exploring`, and the only one that is not a subset
+ *                of the accuracy split.
+ *   familyRanks  the family the reader picked, including 0 for "none of these"
+ *                familyJudged = the four buckets, i.e. the rows that named one
+ *   matchRanks   where their denomination sat, 0 for "not one of these"
+ *                matchJudged  = the four buckets
+ *   accurateYes/accurateNo
+ *                every judged row, including the pre-0007 yes/no answers that
+ *                never named a position. That is the figure the panel has
+ *                published since before the positions existed, so its
+ *                denominator has to keep spanning both wordings. `exploring`
+ *                rows are absent from it on purpose: they are not a judgement
+ *                about position 1.
+ *
+ * The escape hatch counts as an answer in both breakdowns: "none of these
+ * fitted" is a judgement about the list, not a shrug. A skipped question is NULL
+ * and sits in no bucket and in no denominator.
  *
  * `accurateShare` is deliberately not computed here: the panel already owns
  * `share()` and divides yes by the readers who actually answered, so the two
@@ -200,6 +244,33 @@ function feedbackFrom(row: FeedbackRow | undefined) {
       numeric(row?.rating_4),
       numeric(row?.rating_5),
     ],
+    // Always every key, zeros included: the client formats each bucket and a
+    // missing key would render as "undefined%" instead of "0%".
+    familyJudged: numeric(row?.family_judged),
+    familyRanks: {
+      top1: numeric(row?.family_top1),
+      top3: numeric(row?.family_top3),
+      top8: numeric(row?.family_top8),
+      beyond: numeric(row?.family_beyond),
+    },
+    matchJudged: numeric(row?.match_judged),
+    matchRanks: {
+      top1: numeric(row?.match_top1),
+      top3: numeric(row?.match_top3),
+      top8: numeric(row?.match_top8),
+      beyond: numeric(row?.match_beyond),
+    },
+    // The stance (0008): one population, four buckets, `exploring` included.
+    // It is the only figure here whose denominator is *not* a subset of
+    // `accurateYes + accurateNo` -- it is larger, because `exploring` rows are
+    // answers to this question and NULL in the accuracy column.
+    stanceJudged: numeric(row?.stance_judged),
+    stanceCounts: {
+      fit: numeric(row?.stance_fit),
+      close: numeric(row?.stance_close),
+      off: numeric(row?.stance_off),
+      exploring: numeric(row?.stance_exploring),
+    },
   };
 }
 
@@ -307,6 +378,18 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     // different question and an average over both would measure neither. The
     // accuracy terms keep their original scope -- every rated, non-hidden row --
     // so the percentage a reader sees is unaffected by that reset.
+    //
+    // The two position sums (0007) are scoped to non-hidden rows too, for the
+    // same reason: hiding a row has to move every published figure, or the panel
+    // would show a breakdown that disagrees with its own headline. They are
+    // independent of `rating_metric` -- the position question is new, and the
+    // rows that predate it are excluded by being NULL rather than by their
+    // metric.
+    //
+    // `family_rank = 0` and `match_rank_pos = 0` are the two escape hatches, and
+    // they belong in the `beyond` bucket rather than outside the sample: "none
+    // of these fitted" is an answer about the list. The `judged` sums therefore
+    // equal the four buckets, and are what the bars divide by.
     env.DB.prepare(
       `SELECT SUM(CASE WHEN rating_metric = 'experience' THEN 1 ELSE 0 END) AS total,
               AVG(CASE WHEN rating_metric = 'experience' THEN rating END) AS average,
@@ -316,7 +399,27 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
               SUM(CASE WHEN rating_metric = 'experience' AND rating = 2 THEN 1 ELSE 0 END) AS rating_2,
               SUM(CASE WHEN rating_metric = 'experience' AND rating = 3 THEN 1 ELSE 0 END) AS rating_3,
               SUM(CASE WHEN rating_metric = 'experience' AND rating = 4 THEN 1 ELSE 0 END) AS rating_4,
-              SUM(CASE WHEN rating_metric = 'experience' AND rating = 5 THEN 1 ELSE 0 END) AS rating_5
+              SUM(CASE WHEN rating_metric = 'experience' AND rating = 5 THEN 1 ELSE 0 END) AS rating_5,
+              SUM(CASE WHEN family_rank = 1 THEN 1 ELSE 0 END) AS family_top1,
+              SUM(CASE WHEN family_rank BETWEEN 2 AND 3 THEN 1 ELSE 0 END) AS family_top3,
+              SUM(CASE WHEN family_rank BETWEEN 4 AND 8 THEN 1 ELSE 0 END) AS family_top8,
+              SUM(CASE WHEN family_rank = 0 OR family_rank > 8 THEN 1 ELSE 0 END) AS family_beyond,
+              SUM(CASE WHEN family_rank IS NOT NULL THEN 1 ELSE 0 END) AS family_judged,
+              SUM(CASE WHEN match_rank_pos = 1 THEN 1 ELSE 0 END) AS match_top1,
+              SUM(CASE WHEN match_rank_pos BETWEEN 2 AND 3 THEN 1 ELSE 0 END) AS match_top3,
+              SUM(CASE WHEN match_rank_pos BETWEEN 4 AND 8 THEN 1 ELSE 0 END) AS match_top8,
+              SUM(CASE WHEN match_rank_pos = 0 OR match_rank_pos > 8 THEN 1 ELSE 0 END) AS match_beyond,
+              SUM(CASE WHEN match_rank_pos IS NOT NULL THEN 1 ELSE 0 END) AS match_judged,
+              -- The stance (0008), four mutually exclusive answers. Unlike the two
+              -- position sums this one also counts 'exploring', and stance_judged
+              -- is the sum of the four: it is a different population from
+              -- accurate_yes + accurate_no, because 'exploring' rows are judged
+              -- here and NULL in the accuracy column.
+              SUM(CASE WHEN fit_stance = 'fit' THEN 1 ELSE 0 END) AS stance_fit,
+              SUM(CASE WHEN fit_stance = 'close' THEN 1 ELSE 0 END) AS stance_close,
+              SUM(CASE WHEN fit_stance = 'off' THEN 1 ELSE 0 END) AS stance_off,
+              SUM(CASE WHEN fit_stance = 'exploring' THEN 1 ELSE 0 END) AS stance_exploring,
+              SUM(CASE WHEN fit_stance IS NOT NULL THEN 1 ELSE 0 END) AS stance_judged
        FROM feedback
        WHERE rating IS NOT NULL AND status <> 'hidden'`
     ),

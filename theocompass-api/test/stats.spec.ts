@@ -38,19 +38,30 @@ async function seedFeedback(seed: {
 	sessionId: string;
 	rating: number | null;
 	accurate?: number | null;
+	/** How close the top match is to where the reader is (0008). Omitted for pre-0008 rows. */
+	fitStance?: 'fit' | 'close' | 'off' | 'exploring' | null;
+	/** The family's place in the list the reader saw (0007). Omitted for a pre-0007 row. */
+	familyRank?: number | null;
+	/** The denomination's place in the full list; 0 for "not one of these". */
+	matchRankPos?: number | null;
 	comment?: string | null;
 	status?: string;
 	/** Which question the rating answered. Defaults to the current one. */
 	ratingMetric?: 'experience' | 'fit';
 }): Promise<void> {
 	await env.DB.prepare(
-		`INSERT INTO feedback (session_id, rating, accurate, comment, status, rating_metric)
-		 VALUES (?, ?, ?, ?, ?, ?)`
+		`INSERT INTO feedback
+		   (session_id, rating, accurate, fit_stance, family_rank, match_rank_pos, comment, status,
+		    rating_metric)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	)
 		.bind(
 			seed.sessionId,
 			seed.rating,
 			seed.accurate ?? null,
+			seed.fitStance ?? null,
+			seed.familyRank ?? null,
+			seed.matchRankPos ?? null,
 			seed.comment ?? null,
 			seed.status ?? 'new',
 			seed.ratingMetric ?? 'experience'
@@ -140,6 +151,22 @@ describe('GET /api/stats', () => {
 				accurateYes: 0,
 				accurateNo: 0,
 				ratingHistogram: [0, 0, 0, 0, 0],
+				familyJudged: 0,
+				familyRanks: {
+					top1: 0,
+					top3: 0,
+					top8: 0,
+					beyond: 0,
+				},
+				matchJudged: 0,
+				matchRanks: {
+					top1: 0,
+					top3: 0,
+					top8: 0,
+					beyond: 0,
+				},
+				stanceJudged: 0,
+				stanceCounts: { fit: 0, close: 0, off: 0, exploring: 0 },
 			},
 		});
 		expect(data.daily).toHaveLength(14);
@@ -300,7 +327,118 @@ describe('feedback aggregates', () => {
 			accurateYes: 2,
 			accurateNo: 1,
 			ratingHistogram: [0, 1, 1, 1, 1],
+			// Rows seeded without a position are pre-0007 rows: they count in the
+			// boolean split and in no bar.
+			familyJudged: 0,
+			familyRanks: { top1: 0, top3: 0, top8: 0, beyond: 0 },
+			matchJudged: 0,
+			matchRanks: { top1: 0, top3: 0, top8: 0, beyond: 0 },
+			// None of these four rows saw the stance question, so it has no
+			// answers and no denominator.
+			stanceJudged: 0,
+			stanceCounts: { fit: 0, close: 0, off: 0, exploring: 0 },
 		});
+	});
+
+	it('counts every position bucket, hidden rows and legacy rows excluded', async () => {
+		await seedFeedback({
+			sessionId: 'fb-rank-top1-01',
+			rating: 5,
+			accurate: 1,
+			familyRank: 1,
+			matchRankPos: 1,
+		});
+		await seedFeedback({
+			sessionId: 'fb-rank-top3-01',
+			rating: 4,
+			accurate: 0,
+			familyRank: 1,
+			matchRankPos: 3,
+		});
+		await seedFeedback({
+			sessionId: 'fb-rank-top8-01',
+			rating: 3,
+			accurate: 0,
+			familyRank: 4,
+			matchRankPos: 8,
+		});
+		// Both escape hatches at once: no family came close, and no denomination
+		// in the one that came closest. It is an answer, so it lands in `beyond`.
+		await seedFeedback({
+			sessionId: 'fb-rank-beyond-1',
+			rating: 3,
+			accurate: 0,
+			familyRank: 0,
+			matchRankPos: 0,
+		});
+		// Hidden: out of the bars as well as out of the average.
+		await seedFeedback({
+			sessionId: 'fb-rank-hidden-1',
+			rating: 1,
+			accurate: 0,
+			familyRank: 1,
+			matchRankPos: 1,
+			status: 'hidden',
+		});
+		// A pre-0007 "no": it is in accurateNo and in no bucket, which is why the
+		// two kinds of denominator differ on a real database.
+		await seedFeedback({ sessionId: 'fb-rank-legacy-1', rating: 2, accurate: 0 });
+		// A family named but no denomination picked: judged for the family, and a
+		// skipped question for the church -- the two columns are independent.
+		await seedFeedback({
+			sessionId: 'fb-rank-family-1',
+			rating: 4,
+			accurate: null,
+			familyRank: 2,
+			matchRankPos: null,
+		});
+
+		const data = await getStats();
+		expect(data.feedback.familyRanks).toEqual({ top1: 2, top3: 1, top8: 1, beyond: 1 });
+		expect(data.feedback.familyJudged).toBe(5);
+		expect(data.feedback.matchRanks).toEqual({ top1: 1, top3: 1, top8: 1, beyond: 1 });
+		expect(data.feedback.matchJudged).toBe(4);
+		expect(data.feedback.accurateYes).toBe(1);
+		expect(data.feedback.accurateNo).toBe(4);
+		// Six experience ratings in the average; the hidden 1* row is not one.
+		expect(data.feedback.total).toBe(6);
+	});
+
+	it('counts the stance, and keeps "exploring" out of the accuracy split', async () => {
+		await seedFeedback({ sessionId: 'fb-stance-fit-01', rating: 5, accurate: 1, fitStance: 'fit' });
+		await seedFeedback({
+			sessionId: 'fb-stance-close-1',
+			rating: 4,
+			accurate: 0,
+			fitStance: 'close',
+		});
+		await seedFeedback({ sessionId: 'fb-stance-off-01', rating: 3, accurate: 0, fitStance: 'off' });
+		// Judged here, and NULL in the accuracy split: no church to compare with.
+		await seedFeedback({
+			sessionId: 'fb-stance-explor',
+			rating: 4,
+			accurate: null,
+			fitStance: 'exploring',
+		});
+		// Hidden rows move no figure at all, the stance included.
+		await seedFeedback({
+			sessionId: 'fb-stance-hidden',
+			rating: 1,
+			accurate: 0,
+			fitStance: 'off',
+			status: 'hidden',
+		});
+		// A pre-0008 row: it answers the accuracy question and none of the stance.
+		await seedFeedback({ sessionId: 'fb-stance-legacy', rating: 2, accurate: 1 });
+
+		const data = await getStats();
+		expect(data.feedback.stanceJudged).toBe(4);
+		expect(data.feedback.stanceCounts).toEqual({ fit: 1, close: 1, off: 1, exploring: 1 });
+		// The two denominators differ by exactly the exploring row, which is the
+		// point of the column: `exploring` is an answer, and not a miss.
+		expect(data.feedback.accurateYes).toBe(2);
+		expect(data.feedback.accurateNo).toBe(2);
+		expect(data.feedback.total).toBe(5);
 	});
 
 	it('never publishes the comment, only numbers about it', async () => {
@@ -354,17 +492,22 @@ describe('feedback aggregates', () => {
 	it('keeps match-fit ratings out of the average but in the accuracy split', async () => {
 		// The stars used to ask how close the match felt. Those numbers answer a
 		// different question, so they must not move the experience average -- but
-		// their yes/no is an answer to the question that is still being asked.
+		// their position answer is an answer to the question that is still being
+		// asked, and neither position column is scoped by the rating metric.
 		await seedFeedback({
 			sessionId: 'fb-old-fit-001',
 			rating: 1,
 			accurate: 0,
+			familyRank: 1,
+			matchRankPos: 3,
 			ratingMetric: 'fit',
 		});
 		await seedFeedback({
 			sessionId: 'fb-new-exp-001',
 			rating: 5,
 			accurate: 1,
+			familyRank: 1,
+			matchRankPos: 1,
 			ratingMetric: 'experience',
 		});
 
@@ -375,6 +518,13 @@ describe('feedback aggregates', () => {
 			accurateYes: 1,
 			accurateNo: 1,
 			ratingHistogram: [0, 0, 0, 0, 1],
+			familyJudged: 2,
+			familyRanks: { top1: 2, top3: 0, top8: 0, beyond: 0 },
+			matchJudged: 2,
+			matchRanks: { top1: 1, top3: 1, top8: 0, beyond: 0 },
+			// Neither row answered the stance question either (0008).
+			stanceJudged: 0,
+			stanceCounts: { fit: 0, close: 0, off: 0, exploring: 0 },
 		});
 	});
 

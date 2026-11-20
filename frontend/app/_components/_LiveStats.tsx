@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { QuizStats } from "../../lib/api";
+import type { QuizStats, RankBucket } from "../../lib/api";
 import { FALLBACK_GROUP_BASE, TIER_STEPS } from "../../lib/palette";
-import { loadQuizStats, MIN_FEEDBACK, MIN_QUIZZES } from "../../lib/quiz-stats";
+import {
+  familyRankBreakdown,
+  loadQuizStats,
+  matchRankBreakdown,
+  MIN_FEEDBACK,
+  MIN_QUIZZES,
+  stanceBreakdown,
+  type RankBreakdownView,
+} from "../../lib/quiz-stats";
 import { formatDay } from "../../lib/roadmap";
 import { FAMILY_COLORS } from "../../lib/taxonomy";
 
@@ -289,21 +297,104 @@ function FamiliesTile({ stats }: { stats: QuizStats }) {
 }
 
 /**
- * How the quiz felt overall, plus how often the top match was judged to fit.
+ * The published ranges as a reader thinks of them, not as the enum spells them.
  *
- * Two measurements with two different histories. The stars used to ask how close
- * the match felt and now ask about the experience, so `/api/stats` counts only
- * `rating_metric = 'experience'` rows in the average and the histogram; the
- * yes/no question never changed, so its pair still spans every judged row,
- * including the older ones.
+ * `beyond` is the one bucket that holds two kinds of answer: the pickers' coverage
+ * escape hatch (`0`, "none of these families" / "not in this list") and every
+ * position past the eighth. It is labelled for both, because on the family list
+ * `0` is the *only* thing that bucket can hold -- the card offers eight families
+ * -- so a bar labelled "#9+" alone would name a rank nobody could have picked,
+ * while on the church list the same bucket really does hold #9 and beyond.
+ */
+const RANK_LABELS: Record<RankBucket, string> = {
+  top1: "#1",
+  top3: "#2–#3",
+  top8: "#4–#8",
+  beyond: "none / #9+",
+};
+
+/**
+ * One level of the match answer as bars: the four published ranges, and each
+ * one's share of the answers that named a position at that level.
+ *
+ * Both levels print through this, in the order the card asks them, because they
+ * are two measurements of the same reader: the family picker's denominator is
+ * everyone who named a family, the church picker's is everyone who then named a
+ * denomination. Those two numbers are rarely equal -- the second picker is
+ * optional -- so each list says how many answers it is made of.
+ */
+function RankBars({
+  title,
+  note,
+  ariaLabel,
+  view,
+}: {
+  title: string;
+  note: string;
+  ariaLabel: string;
+  view: RankBreakdownView;
+}) {
+  const max = Math.max(1, ...view.buckets.map((bucket) => bucket.count));
+  return (
+    <div className="mt-4">
+      <p className="text-2xs text-ink-muted" title={note}>
+        {title}, from <span className="num font-mono">{formatCount(view.judged)}</span> answer
+        {view.judged === 1 ? "" : "s"}
+      </p>
+      <ul className="mt-2 space-y-1" aria-label={ariaLabel}>
+        {view.buckets.map(({ bucket, count }) => (
+          <li key={bucket} className="flex items-center gap-2">
+            <span className="w-20 shrink-0 text-right text-3xs text-ink-muted">
+              {RANK_LABELS[bucket]}
+            </span>
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cerulean-100">
+              <div
+                aria-hidden="true"
+                className="h-full rounded-full bg-cerulean-600"
+                style={{
+                  width: `${Math.max(count === 0 ? 0 : 2, Math.round((count / max) * 100))}%`,
+                }}
+              />
+            </div>
+            <span className="num w-8 shrink-0 text-right font-mono text-3xs text-ink-muted">
+              {share(count, view.judged)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * How the quiz felt overall, where the best match sat, and how often it was #1.
+ *
+ * Three measurements with three different histories. The stars used to ask how
+ * close the match felt and now ask about the experience, so `/api/stats` counts
+ * only `rating_metric = 'experience'` rows in the average and the histogram.
+ * The match question is two pickers since 0007 -- closest family, then their
+ * church inside it -- so it publishes two breakdowns and each row that answered
+ * a level counts in that level.
+ * The top-1 line is the old yes/no renamed, and since 0008 the stance answers it
+ * first: a row that said "not close" is a miss even if its church was #1, and a
+ * row that said "exploring" -- no church to compare against -- is not in the
+ * figure at all. That exclusion is printed rather than implied: the sentence
+ * under the histogram says how many of the stance answers were `exploring`, so
+ * the denominator above it can be read as "readers with a church to compare".
  *
  * That split is why the gate is a union rather than a single count. Until ten
  * experience ratings exist the tile says so instead of printing a mean, but it
- * still appears once ten readers have judged their match -- resetting the stars
- * must not hide a percentage that is still meaningful. Neither figure waits for
- * BREAKDOWN_RUNS: ten responses are already worth printing, and each one travels
- * with its own denominator. An older cached payload without the field renders
- * nothing rather than a zero.
+ * still appears once ten readers have judged their stance -- resetting the stars,
+ * or gaining a question, must not hide a percentage that is still meaningful.
+ * Neither figure waits for BREAKDOWN_RUNS: ten responses are already worth
+ * printing, and each one travels with its own denominator. An older cached
+ * payload without the field renders nothing rather than a zero.
+ *
+ * The two breakdowns carry denominators of their own, neither of them the top-1
+ * one: a "no" written before 0007 never said how far off the match was, so those
+ * rows sit under the headline and in no bar below it. Each level is listed with
+ * the number of answers it is made of, and the second is usually smaller than
+ * the first -- naming a family commits the reader to nothing further.
  *
  * The comments never appear here. A count is a statistic; a sentence typed by
  * one reader, shown to all of them, is not.
@@ -315,11 +406,15 @@ function FeedbackTile({ stats }: { stats: QuizStats }) {
   const total = feedback.total;
   const judged = feedback.accurateYes + feedback.accurateNo;
   const hasRatings = total >= MIN_FEEDBACK;
-  if (!hasRatings && judged < MIN_FEEDBACK) return null;
+  const stances = stanceBreakdown(feedback);
+  if (!hasRatings && judged < MIN_FEEDBACK && !stances) return null;
 
   const histogram = feedback.ratingHistogram ?? [];
   const hasHistogram = hasRatings && histogram.length === 5;
   const max = Math.max(1, ...histogram);
+  const families = familyRankBreakdown(feedback);
+  const matches = matchRankBreakdown(feedback);
+  const exploring = stances?.buckets.find((bucket) => bucket.stance === "exploring")?.count ?? 0;
 
   return (
     <article className="flex h-full flex-col border border-rule bg-paper p-4 md:p-5">
@@ -372,11 +467,38 @@ function FeedbackTile({ stats }: { stats: QuizStats }) {
         </p>
       )}
 
+      {stances && (
+        <p className="mt-3 text-2xs leading-relaxed text-ink-soft">
+          <span className="num font-mono">{formatCount(exploring)}</span> of{" "}
+          <span className="num font-mono">{formatCount(stances.judged)}</span> readers who answered
+          said they were exploring — no church to compare the match against — so they are counted as
+          their own answer, not as a wrong match.
+        </p>
+      )}
+
+      {families && (
+        <RankBars
+          title="Where the closest family sat"
+          ariaLabel="Rank of the closest family"
+          note="This list counts only the answers that named a family. A skipped question, and a 'no' written before this question existed, are not in it. The last row counts 'none of these families', which is an answer about coverage."
+          view={families}
+        />
+      )}
+
+      {matches && (
+        <RankBars
+          title="Where their own church sat"
+          ariaLabel="Rank of their own church"
+          note="The second picker is optional, so this list is usually shorter than the family one above it. A skipped question, and a 'no' written before this question existed, are in neither. The last row counts 'not in this list' together with any position past #8."
+          view={matches}
+        />
+      )}
+
       <p className="mt-auto pt-3 text-3xs leading-relaxed text-ink-muted">
         {judged > 0 ? (
           <>
-            {share(feedback.accurateYes, judged)} of {formatCount(judged)} answers said the top match
-            described them. Comments are read by a moderator and counted, never quoted.
+            {share(feedback.accurateYes, judged)} of {formatCount(judged)} answers said the #1 match
+            was the best one. Comments are read by a moderator and counted, never quoted.
           </>
         ) : (
           "Nobody has judged their top match yet."
@@ -673,7 +795,12 @@ function MethodDetails({ stats }: { stats: QuizStats }) {
           <li>
             The stars in the feedback card rate the quiz experience as a whole, not how close the
             top match was. Ratings from before that question changed are kept out of the average;
-            the match-accuracy figure is unaffected, because it is a different question.
+            the top-1 match figure is unaffected, because it answers a different question.
+          </li>
+          <li>
+            The rank breakdown counts only answers that named a rank, which is why its denominator
+            can be smaller than the top-1 one: a “no” written before that question existed never
+            said how far off the match was.
           </li>
           <li>
             Tolerance and certainty average only runs that answered both sliders, so the two figures

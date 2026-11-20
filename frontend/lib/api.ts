@@ -189,6 +189,31 @@ export async function updateRoadmapTask(
 // Anonymous quiz statistics
 // ---------------------------------------------------------------------------
 
+/**
+ * The published positions of the match answer, as ranges rather than places.
+ *
+ * `top1` is #1, `top3` is #2-#3, `top8` is #4-#8 and `beyond` is everything
+ * lower -- including the pickers' escape hatch (`0`, "none of these"), which is
+ * an answer and not a skip. Ranges are why the lists the card prints can change
+ * length without a migration on either side of the wire.
+ */
+export const RANK_BUCKETS = ["top1", "top3", "top8", "beyond"] as const;
+export type RankBucket = (typeof RANK_BUCKETS)[number];
+export type RankBreakdown = Record<RankBucket, number>;
+
+/**
+ * How close the top match is to where the reader actually is (0008) -- the four
+ * answers the card offers, in the order it offers them.
+ *
+ * `fit` and `close` and `off` are judgements about position 1; `exploring` is
+ * the answer for a reader who has no church to compare against (curious,
+ * seeking, doubting, or not Christian at all). It is an answer rather than a
+ * skip, and the API keeps it out of the accuracy denominator instead of
+ * counting it as a miss.
+ */
+export const FEEDBACK_STANCES = ["fit", "close", "off", "exploring"] as const;
+export type FeedbackStance = (typeof FEEDBACK_STANCES)[number];
+
 export interface QuizStats {
   totalQuizzes: number;
   today: number;
@@ -223,6 +248,37 @@ export interface QuizStats {
     accurateYes: number;
     accurateNo: number;
     ratingHistogram: number[];
+    /**
+     * The two-level match answer (0007), as two independent tallies. Each
+     * counts only the rows that answered *that* level, so `familyJudged` and
+     * `matchJudged` differ on any database where a reader named a family and
+     * then skipped the second picker -- and both are smaller than
+     * `accurateYes + accurateNo`, because a "no" written before the pickers
+     * existed named no position at all. Optional for the same reason as
+     * `feedback` itself: an older cached payload has no such keys.
+     *
+     * `familyRanks` is where the *family* sat in the family list, `matchRanks`
+     * where the *denomination* sat in the full list. Both are ranges (`=1`,
+     * `2-3`, `4-8`, the rest), so the length of either list can change without
+     * a migration; `beyond` also holds the escape hatch (`0`), which is an
+     * answer rather than a skip.
+     */
+    familyJudged?: number;
+    familyRanks?: RankBreakdown;
+    matchJudged?: number;
+    matchRanks?: RankBreakdown;
+    /**
+     * The stance question (0008), one population in four mutually exclusive
+     * buckets. `exploring` -- a reader with no church to compare against -- is
+     * an answer, so it sits here while being absent from
+     * `accurateYes + accurateNo`: that pair only judges position 1.
+     *
+     * The only figure on this payload whose denominator is not a subset of the
+     * accuracy split, which is why `stanceJudged` travels beside the counts
+     * instead of being inferred from them.
+     */
+    stanceJudged?: number;
+    stanceCounts?: Record<FeedbackStance, number>;
   };
 }
 
@@ -298,18 +354,41 @@ export async function recordQuizCompletion(completion: QuizCompletion): Promise<
 
 /**
  * The card at the bottom of the results page: how the quiz felt overall (1-5
- * stars), whether the top match described the reader, and an optional sentence
- * in their own words.
+ * stars), how close the top match is to where the reader actually is, where
+ * their church sat if they want to be precise, and an optional sentence in their
+ * own words.
  *
- * `accurate` is tri-state. `null` means the reader skipped the question, which
- * the API stores as NULL rather than as a "no", so a shrug never counts against
- * the accuracy figure.
+ * `fitStance` is the one question every reader can answer, and it is what the
+ * published accuracy figure follows: `fit` is a hit, `close` and `off` are
+ * misses, and `exploring` is neither -- it is a reader with no church to compare
+ * against, and the API stores it as an answer while leaving it out of the
+ * accuracy denominator.
+ *
+ * The match question is two positions, both tri-state through `null` (the
+ * reader skipped that picker) because the API stores a skip as NULL rather than
+ * as a miss. `familyRank` is the closest family's place in the family list the
+ * card printed, `matchRankPos` their denomination's place in the full list;
+ * `0` is the escape hatch at each level ("none of these families", "not in this
+ * list") and is a real answer, not a skip -- JSON keeps it, so it is never
+ * dropped.
+ *
+ * `accurate` is the pre-0007 spelling of the same answer and is still accepted
+ * by the worker, so an old tab can submit after a deploy; new code sends the
+ * stance (and optionally the two positions) and the worker derives the boolean:
+ * stance first, then `matchRankPos`, then nothing.
  */
 export interface QuizFeedback {
   /** Per-card id: a retry after a dropped response is the same submission. */
   sessionId: string;
   /** The quiz experience, 1-5. Not how close the match felt -- that was the old question. */
   rating: number;
+  /** How close the top match is to where they are; null for a skip. */
+  fitStance?: FeedbackStance | null;
+  /** Closest family's place, 1-based; 0 for "none of these families"; null for a skip. */
+  familyRank?: number | null;
+  /** Their denomination's place in the full list; 0 for "not in this list"; null for a skip. */
+  matchRankPos?: number | null;
+  /** Legacy yes/no about the #1 match. Ignored when a stance or a position is sent. */
   accurate?: boolean | null;
   comment?: string | null;
   mode?: "quick" | "standard" | "deep" | null;
@@ -373,8 +452,36 @@ export interface FeedbackRow {
   /**
    * Tri-state: `true` yes, `false` no, `null` skipped. A skipped question is a
    * shrug, and the queue has to show it as one instead of as a disagreement.
+   *
+   * Derived, not asked: the stance when there is one, otherwise `matchRankPos`,
+   * otherwise the old bundle's boolean. An `exploring` row is `null` here on
+   * purpose -- it is judged, just not against a church.
    */
   accurate: boolean | null;
+  /**
+   * How close the top match is to where the reader is (0008). `null` covers both
+   * a skipped question and every row written before it existed, and the queue
+   * reads both as "not answered" -- which is why the stance is printed before
+   * the boolean rather than instead of it.
+   *
+   * Optional because a worker deployed before 0008 does not send it.
+   */
+  fitStance?: FeedbackStance | null;
+  /**
+   * Where the closest *family* sat in the family list, 1-based; `0` for "none
+   * came close"; `null` for a skip. Optional for the same reason as
+   * `ratingMetric`: a worker deployed before 0007 does not send it.
+   */
+  familyRank?: number | null;
+  /**
+   * Where their denomination sat in the full list, 1-based; `0` for "not one of
+   * these"; `null` for a skip. This is the position `accurate` falls back to
+   * when the row has no stance.
+   *
+   * `null` is also a "no" written before the pickers existed: that row never
+   * said how far off the match was.
+   */
+  matchRankPos?: number | null;
   /** The reader's words, verbatim, capped at 500 characters server-side. */
   comment: string | null;
   mode: string | null;

@@ -54,10 +54,64 @@ function countFor(filter: FeedbackFilter, counts: FeedbackCounts): number {
   return counts[filter];
 }
 
-function accuracyLabel(accurate: boolean | null): string {
-  if (accurate === true) return "the match fitted";
-  if (accurate === false) return "the match did not fit";
-  return "skipped that question";
+/**
+ * Where the reader actually is, in the moderator's words (0008). Printed first
+ * because it is the answer the published accuracy follows, and because
+ * "exploring" is the sentence a reader with no church could not say before.
+ */
+function stancePart(stance: FeedbackRow["fitStance"]): string | null {
+  if (stance === "fit") return "match is about where they are";
+  if (stance === "close") return "close, but not quite";
+  if (stance === "off") return "not close to where they are";
+  if (stance === "exploring") return "exploring, no church to compare against";
+  return null;
+}
+
+/**
+ * Where the reader's church sat, in the moderator's words.
+ *
+ * Both positions are printed, in the order the card asked them, because they
+ * answer different questions: the family rank says how close the *quiz's* list of
+ * families came, the church rank says where the reader's own denomination sat in
+ * the full list. A row can carry one and not the other -- naming a family
+ * commits the reader to nothing further -- so each part is optional.
+ *
+ * `0` is the card's escape hatch at each level ("none of these families", "not
+ * in this list") and is an answer about coverage, not a gap: it is printed as
+ * one. A row with neither position is either a skip or a submission from before
+ * the pickers existed, and the `accurate` boolean is all that can be said about
+ * it; a legacy "no" gets its own wording rather than a guessed position, because
+ * the queue must not invent how far off the match was.
+ */
+function familyPart(rank: FeedbackRow["familyRank"]): string | null {
+  if (rank === 0) return "none of the families listed";
+  if (typeof rank === "number") return `closest family was #${rank}`;
+  return null;
+}
+
+function churchPart(pos: FeedbackRow["matchRankPos"]): string | null {
+  if (pos === 0) return "their church was not in the list";
+  if (typeof pos === "number") return `their church was #${pos} in the list`;
+  return null;
+}
+
+/**
+ * The match answer as one line. The stance comes first and the positions follow
+ * it as the detail, because the stance is the question every reader could
+ * answer: a row that says "not close" and names #1 is the disagreement worth
+ * reading, and it used to be indistinguishable from a plain hit.
+ */
+function matchLabel(row: FeedbackRow): string {
+  const stance = stancePart(row.fitStance);
+  const family = familyPart(row.familyRank);
+  const church = churchPart(row.matchRankPos);
+  const position = family && church ? `${family}, ${church}` : family ?? church;
+  if (stance && position) return `${stance}; ${position}`;
+  if (stance) return stance;
+  if (position) return position;
+  if (row.accurate === true) return "#1 was the best match";
+  if (row.accurate === false) return "no match fitted (stance and position not given)";
+  return "skipped the match questions";
 }
 
 /**
@@ -128,8 +182,8 @@ function Summary({
         ) : (
           " of the queue."
         )}{" "}
-        Hiding a row takes it out of the published average and out of the accuracy figure; the note
-        itself is never published.
+        Hiding a row takes it out of the published average, the top-1 figure and the rank
+        breakdown; the note itself is never published.
       </p>
     </section>
   );
@@ -278,7 +332,7 @@ function FeedbackCard({
           </span>
           <span className="text-3xs text-ink-muted">{ratingMetricLabel(row.ratingMetric)}</span>
           <span aria-hidden="true">&middot;</span>
-          <span>{accuracyLabel(row.accurate)}</span>
+          <span>{matchLabel(row)}</span>
           {row.topMatchName && (
             <>
               <span aria-hidden="true">&middot;</span>

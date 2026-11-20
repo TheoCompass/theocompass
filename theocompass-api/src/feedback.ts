@@ -8,11 +8,37 @@ import { invalidateStatsCache } from "./quiz-stats";
  *   GET   /api/feedback      the queue (moderator code)
  *   PATCH /api/feedback/:id  move a row between new / reviewed / hidden
  *
- * Three things and a sentence: how the quiz felt overall (1-5 stars), whether
- * the top match described the reader (yes / no / skipped), and an optional note.
- * The card lives at the bottom of the results page, so it is answered right
- * after the result it describes, while the reader still remembers whether it
- * rang true.
+ * Four things and a sentence: how the quiz felt overall (1-5 stars), how close
+ * the top match is to where the reader actually is, which family and which
+ * denomination inside it came closest, and an optional note. The card lives at
+ * the bottom of the results page, so it is answered right after the result it
+ * describes, while the reader still remembers whether it rang true.
+ *
+ * The match question is two levels of the list the reader is looking at, with
+ * the names on the card: pick the family that came closest, then the
+ * denomination inside it. `family_rank` is that family's place in the family
+ * list (0 for "none of these") and `match_rank_pos` the chosen denomination's
+ * place in the full list (0 for "not one of these"). Both are positions, so
+ * neither asks the reader to translate their result into a bucket, and
+ * "my denomination is missing" now has a control instead of a paragraph.
+ *
+ * The stance question comes first because it is the only one every reader can
+ * answer: "how close is the top match to where you actually are?" -- about
+ * right, close but not quite, not close, or *exploring*. That last answer is a
+ * first-class answer, not a skip: a curious reader, a seeker and a doubter have
+ * no church to compare against, and asking them where "their church" sat turned
+ * an unanswerable question into a recorded miss. `fit_stance` is what keeps
+ * their answer out of the accuracy denominator instead of deflating it.
+ *
+ * `accurate` -- the published "Top 1 match accuracy" figure -- is derived from
+ * the stance when there is one: `fit` is a 1, `close` and `off` are a 0, and
+ * `exploring` is NULL (judged, but not against a church). Without a stance it
+ * falls back to `match_rank_pos`, and without that to the boolean an old bundle
+ * sends, so every wording the card has ever used still lands in the same column
+ * and the figure stays continuous. A reader who names the #1 match as their
+ * church but says the match is `off` is now a miss with a rank of 1: that
+ * disagreement -- "the top match describes me better than the church I belong
+ * to" -- used to be unrecordable, and it is exactly the signal worth reading.
  *
  * The stars changed question once. They used to ask how close the match felt,
  * and rows written then carry `rating_metric = 'fit'`; everything this handler
@@ -39,6 +65,57 @@ import { invalidateStatsCache } from "./quiz-stats";
 
 export const FEEDBACK_STATUSES = ["new", "reviewed", "hidden"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
+
+/**
+ * How long the two pickers are. The card shows eight families and, inside the
+ * chosen one, five denominations -- both counted from the top of the list the
+ * results page is showing, so the ranks the card prints are the ranks the
+ * reader sees. The API does not enforce the length (a future card may show ten),
+ * it only has to accept what a card sends: anything past the list is still a
+ * miss, and the published buckets are ranges rather than named places.
+ */
+export const FAMILY_RANK_MAX = 8;
+export const MATCH_RANK_POS_MAX = 500;
+
+/**
+ * A 1-based position, or 0 for the picker's escape hatch. Anything else -- a
+ * string, a fraction, a negative, a value outside the range -- is dropped to
+ * NULL rather than failing the submission, the same bargain `optionalInt` makes
+ * for the rest of the row: a rating and a note are still worth keeping.
+ */
+export function parseRank(value: unknown, max: number): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  return value >= 0 && value <= max ? value : null;
+}
+
+/**
+ * How close the top match is to where the reader actually is (0008).
+ *
+ * Four answers, in the reader's words on the card:
+ *
+ *   fit        "That's about where I am"
+ *   close      "Close, but not quite"
+ *   off        "Not close"
+ *   exploring  "I'm exploring -- I don't have a church to compare against"
+ *
+ * `exploring` is the reason the column exists. Before it, a reader with no
+ * church had two options: the pickers' escape hatch (stored as a *miss*, which
+ * deflates the published accuracy) or a skip (stored as NULL, invisible). It is
+ * a real answer about the quiz, so it is stored -- and excluded from the
+ * accuracy denominator, because it is not a judgement about position 1.
+ *
+ * Validated here rather than by a CHECK constraint, the same bargain the other
+ * migrations make: an unknown value is dropped to NULL and the rest of the row
+ * is still worth keeping.
+ */
+export const FEEDBACK_STANCES = ["fit", "close", "off", "exploring"] as const;
+export type FeedbackStance = (typeof FEEDBACK_STANCES)[number];
+
+export function parseStance(value: unknown): FeedbackStance | null {
+  return typeof value === "string" && (FEEDBACK_STANCES as readonly string[]).includes(value)
+    ? (value as FeedbackStance)
+    : null;
+}
 
 const QUIZ_MODES = ["quick", "standard", "deep"] as const;
 type QuizMode = (typeof QUIZ_MODES)[number];
@@ -105,12 +182,13 @@ function optionalNote(value: unknown): string | null {
 }
 
 /**
- * Yes / no / skipped.
+ * Yes / no / skipped, the question the card asked before it named the positions.
  *
- * The card lets a reader clear their answer, so "skipped" is a real state and
- * maps onto NULL rather than onto `0` -- otherwise a shrug would be counted as
- * a disagreement. Both the boolean and 0/1 spellings are accepted; anything
- * else is dropped instead of failing the whole submission.
+ * Still exported and still honoured: a tab running an old bundle sends only this
+ * field, and its answer is the same answer. New rows send `matchRankPos` instead
+ * and this boolean is derived from it, so the two columns can never disagree.
+ * Both spellings (boolean and 0/1) are accepted; anything else is dropped
+ * instead of failing the whole submission.
  */
 export function parseAccurate(value: unknown): 0 | 1 | null {
   if (value === true || value === 1) return 1;
@@ -122,6 +200,9 @@ export type FeedbackInput = {
   sessionId: string;
   rating: number;
   accurate: 0 | 1 | null;
+  fitStance: FeedbackStance | null;
+  familyRank: number | null;
+  matchRankPos: number | null;
   comment: string | null;
   mode: QuizMode | null;
   topMatchId: string | null;
@@ -153,12 +234,40 @@ export function parseFeedback(body: unknown): ParseResult {
     return { ok: false, error: "rating must be an integer between 1 and 5." };
   }
 
+  // Derived, never asked twice, and in the order the questions were asked:
+  // stance (0008) first, then the denomination's position (0007), then the
+  // boolean an old bundle still sends. The current card sends `fitStance` and
+  // the two positions; a tab running the bundle before 0007 sends only
+  // `accurate`; every one of them ends up in the same two columns.
+  // `exploring` is judged but not against a church, so it leaves `accurate`
+  // NULL -- which is also how a skip is stored, and that is fine: the stance
+  // column is what tells the two apart.
+  const fitStance = parseStance(payload.fitStance);
+  const familyRank = parseRank(payload.familyRank, FAMILY_RANK_MAX);
+  const matchRankPos = parseRank(payload.matchRankPos, MATCH_RANK_POS_MAX);
+
+  const accurate: 0 | 1 | null =
+    fitStance === "exploring"
+      ? null
+      : fitStance === "fit"
+        ? 1
+        : fitStance !== null
+          ? 0
+          : matchRankPos === null
+            ? parseAccurate(payload.accurate)
+            : matchRankPos === 1
+              ? 1
+              : 0;
+
   return {
     ok: true,
     value: {
       sessionId,
       rating: payload.rating,
-      accurate: parseAccurate(payload.accurate),
+      accurate,
+      fitStance,
+      familyRank,
+      matchRankPos,
       comment: optionalNote(payload.comment),
       mode: isQuizMode(payload.mode) ? payload.mode : null,
       topMatchId: optionalId(payload.topMatchId),
@@ -215,15 +324,19 @@ export async function handlePostFeedback(
 
   const result = await env.DB.prepare(
     `INSERT INTO feedback
-       (session_id, rating, accurate, comment, mode, top_match_id, top_match_name,
-        answered_count, app_version, data_version, status, rating_metric)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'experience')
+       (session_id, rating, accurate, fit_stance, family_rank, match_rank_pos, comment, mode,
+        top_match_id, top_match_name, answered_count, app_version, data_version, status,
+        rating_metric)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'experience')
      ON CONFLICT(session_id) DO NOTHING`
   )
     .bind(
       feedback.sessionId,
       feedback.rating,
       feedback.accurate,
+      feedback.fitStance,
+      feedback.familyRank,
+      feedback.matchRankPos,
       feedback.comment,
       feedback.mode,
       feedback.topMatchId,
@@ -249,6 +362,9 @@ type FeedbackRow = {
   id: number;
   rating: number | null;
   accurate: number | null;
+  fit_stance: string | null;
+  family_rank: number | null;
+  match_rank_pos: number | null;
   comment: string | null;
   mode: string | null;
   top_match_id: string | null;
@@ -261,9 +377,9 @@ type FeedbackRow = {
   created_at: string | null;
 };
 
-const FEEDBACK_COLUMNS = `id, rating, accurate, comment, mode, top_match_id, top_match_name,
-                          answered_count, app_version, data_version, status, rating_metric,
-                          created_at`;
+const FEEDBACK_COLUMNS = `id, rating, accurate, fit_stance, family_rank, match_rank_pos, comment,
+                          mode, top_match_id, top_match_name, answered_count, app_version,
+                          data_version, status, rating_metric, created_at`;
 
 function feedbackFrom(row: FeedbackRow) {
   return {
@@ -276,6 +392,18 @@ function feedbackFrom(row: FeedbackRow) {
     // Tri-state, so "skipped" stays distinguishable from "no" in the queue --
     // the average never needs it, but reading the comments does.
     accurate: row.accurate === 1 ? true : row.accurate === 0 ? false : null,
+    // The stance the reader picked (0008), re-validated on the way out: a
+    // hand-inserted value that never came through parseStance reads as NULL
+    // rather than as a fifth answer the frontend has no label for. NULL is also
+    // every row written before the question existed.
+    fitStance: parseStance(row.fit_stance),
+    // The two positions behind `accurate`, kept for the queue: they say *where*
+    // the reader's church actually was, where the boolean only says that #1 was
+    // not it. Null means the question was skipped -- and, for `familyRank`,
+    // also every row written before the two-level card existed, because those
+    // never saw a family list at all.
+    familyRank: typeof row.family_rank === "number" ? row.family_rank : null,
+    matchRankPos: typeof row.match_rank_pos === "number" ? row.match_rank_pos : null,
     comment: row.comment,
     mode: row.mode,
     topMatchId: row.top_match_id,
