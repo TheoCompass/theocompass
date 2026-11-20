@@ -20,7 +20,7 @@ export const AXIS_LABELS: Record<string, { left: string; right: string; desc: st
   // It governs the printed sign too: `axisPosition` (in _helpers) turns position
   // into -100 (left pole) .. +100 (right pole), so both kinds of axis read the
   // same way and a "80" can no longer mean either end.
-  certainty: { left: "Unsure", right: "Certain", desc: "How firmly a tradition asserts its doctrinal positions", meta: true, invert: true },
+  certainty: { left: "Unsure", right: "Certain", desc: "How firmly you hold your own beliefs", meta: true, invert: true },
 };
 
 // --- FINGERPRINT CATEGORY GROUPING ---
