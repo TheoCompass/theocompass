@@ -234,10 +234,13 @@ export function toEntry(commit, tasks, unresolved) {
   // away on GitHub, and these bodies are essays: rendering all of them (twice,
   // once as HTML and once as the RSC payload) took a 580 KB page for prose
   // nobody reads from a list.
-  const lead = kept
-    .join("\n")
-    .trim()
-    .split(/\n\s*\n/)[0]
+  const opening = kept.join("\n").trim().split(/\n\s*\n/)[0] ?? "";
+  // A body that opens with a list has no opening paragraph to quote. The whole
+  // list read as one run-on sentence would be worse than the subject above it,
+  // so the first item -- with its wrapped lines -- stands in for it.
+  const quoted = /^\s*[-*]\s+/.test(opening) ? opening.split(/\n(?=[-*]\s)/)[0] : opening;
+  const lead = quoted
+    .replace(/^\s*[-*]\s+/, "")
     .replace(/\s*\n\s*/g, " ")
     .trim();
 
