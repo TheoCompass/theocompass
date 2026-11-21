@@ -8,6 +8,7 @@ import { CERTAINTY_MARK, CERTAINTY_SLOTS, SURFACE } from "../lib/palette";
 import { APP_STAGE, APP_VERSION } from "../lib/site";
 import { FINGERPRINT_AXIS_COUNT } from "./christian-denominations/_constants";
 import { LiveStats } from "./_components/_LiveStats";
+import { HeroStats } from "./_components/_HeroStats";
 import { QuizAccuracy } from "./_components/_QuizAccuracy";
 import { RoadmapMilestones } from "./_components/_RoadmapMilestones";
 
@@ -378,8 +379,10 @@ export default function Home() {
             certainty, and your posture toward everyone else.
           </p>
 
+          <HeroStats />
+
           <div
-            className="mt-8 flex w-full animate-fade-in-up flex-col gap-3 sm:w-auto sm:flex-row"
+            className="mt-6 flex w-full animate-fade-in-up flex-col gap-3 sm:w-auto sm:flex-row"
             style={{ animationDelay: "220ms", animationFillMode: "both" }}
           >
             <Link

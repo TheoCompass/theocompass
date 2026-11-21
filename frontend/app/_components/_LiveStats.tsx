@@ -1,33 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type { QuizStats, RankBucket } from "../../lib/api";
 import { FALLBACK_GROUP_BASE, TIER_STEPS } from "../../lib/palette";
 import {
+  BREAKDOWN_RUNS,
+  collectiveFigures,
   familyRankBreakdown,
+  formatCount,
+  formatScore,
+  hasFeedbackFigures,
   loadQuizStats,
   matchRankBreakdown,
   MIN_FEEDBACK,
   MIN_QUIZZES,
+  OPEN_COLLECTIVE_RESULTS,
   stanceBreakdown,
   type RankBreakdownView,
 } from "../../lib/quiz-stats";
 import { formatDay } from "../../lib/roadmap";
 import { FAMILY_COLORS } from "../../lib/taxonomy";
 
-/** Family shares, the score distribution and posture averages need a sample. */
-const BREAKDOWN_RUNS = 50;
-
 /** Until this many runs, the panel says so rather than implying a trend. */
 const EARLY_RUNS = 200;
-
-function formatCount(value: number): string {
-  return value.toLocaleString("en-GB");
-}
-
-function formatScore(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
 
 function share(part: number, total: number): string {
   if (total <= 0) return "—";
@@ -77,8 +73,34 @@ export function LiveStats() {
 /**
  * Presentational half, exported so the 10–49, 50–199 and 200+ states can be
  * rendered without a live database (and so the fetch wrapper stays trivial).
+ *
+ * The card keeps three figures visible and puts the analysis behind a
+ * disclosure: a landing page should not spend a screen height on charts before
+ * the reader has taken the quiz, and the figures that stay are the honest
+ * advertisement for the breakdown they can open.
  */
 export function LiveStatsPanel({ stats }: { stats: QuizStats }) {
+  const [open, setOpen] = useState(false);
+
+  // Two ways in, both deliberate. The accuracy row in the quiz card links to
+  // `#collective-results`, so the browser scrolls here and the hash effect
+  // opens the panel; the same click also fires a custom event, because once
+  // the hash already matches, a repeat click produces no `hashchange` and
+  // would leave a panel the reader had collapsed closed.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    const fromHash = () => {
+      if (window.location.hash === "#collective-results") show();
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    window.addEventListener(OPEN_COLLECTIVE_RESULTS, show);
+    return () => {
+      window.removeEventListener("hashchange", fromHash);
+      window.removeEventListener(OPEN_COLLECTIVE_RESULTS, show);
+    };
+  }, []);
+
   if (stats.totalQuizzes < MIN_QUIZZES) return null;
 
   const total = stats.totalQuizzes;
@@ -90,7 +112,8 @@ export function LiveStatsPanel({ stats }: { stats: QuizStats }) {
   return (
     <div className="reveal-static mx-auto mt-10 max-w-3xl">
       <section
-        aria-labelledby="collective-results"
+        id="collective-results"
+        aria-labelledby="collective-results-title"
         className="border border-rule bg-paper-raised p-5 md:p-7"
       >
         <header>
@@ -98,7 +121,7 @@ export function LiveStatsPanel({ stats }: { stats: QuizStats }) {
             <div>
               <p className="meta text-cerulean-800">Collective results</p>
               <h3
-                id="collective-results"
+                id="collective-results-title"
                 className="mt-1 font-serif text-xl font-bold text-ink md:text-2xl"
               >
                 What everyone&rsquo;s answers add up to
@@ -120,32 +143,125 @@ export function LiveStatsPanel({ stats }: { stats: QuizStats }) {
           </p>
         </header>
 
-        <div className={`mt-6 grid gap-5 ${detailed ? "md:grid-cols-2" : ""}`}>
-          <VolumeTile stats={stats} daily={daily} />
-          <FeedbackTile stats={stats} />
-          {detailed ? (
-            <>
-              <ClosenessTile stats={stats} histogram={histogram} />
-              <FamiliesTile stats={stats} />
-              <PostureTile stats={stats} />
-            </>
-          ) : (
-            <UnlockPanel total={total} />
-          )}
-        </div>
+        <CollectiveSummary stats={stats} />
 
-        <MethodDetails stats={stats} />
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          aria-expanded={open}
+          aria-controls="collective-results-panel"
+          className="group mt-5 flex w-full items-center justify-between gap-3 border-t border-rule pt-3 text-left"
+        >
+          <span className="text-2xs font-semibold text-cerulean-900 transition-colors group-hover:text-cerulean-800">
+            {open ? "Hide the full breakdown" : "See the full breakdown"}
+            {!detailed && (
+              <span className="ml-2 font-normal text-ink-muted">
+                {formatCount(total)} of {BREAKDOWN_RUNS} runs
+              </span>
+            )}
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            strokeWidth={2}
+            className={`h-4 w-4 shrink-0 text-ink-muted transition-transform duration-300 motion-reduce:transition-none ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        <div
+          id="collective-results-panel"
+          aria-hidden={!open}
+          inert={!open}
+          className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+            open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          }`}
+        >
+          <div className="overflow-hidden">
+            {/* Paired by content height, not by importance.
+                Two columns in reading order put the tallest tile (feedback)
+                beside a short one, so the short card stretched to the tall
+                card's height and its footer sank to the bottom of a hollow
+                box. Feedback now closes the grid as a full-width band with its
+                two rank lists side by side; the four smaller tiles pair where
+                their content is closest in size -- runs with closeness, family
+                shares with posture -- so a row's leftover space is a line or
+                two rather than half a tile. Below the gate there are only three
+                cards, and they stack as full-width bands instead. */}
+            <div className="mt-5 grid gap-5 md:grid-cols-2">
+              <VolumeTile
+                stats={stats}
+                daily={daily}
+                // Below the breakdown gate this grid is a stack of full-width
+                // bands, so the volume card takes both columns too -- at half
+                // width it would sit beside an empty cell, because the feedback
+                // band below it is too wide to fit in the other one.
+                className={detailed ? undefined : "md:col-span-2"}
+              />
+              {detailed && (
+                <>
+                  <ClosenessTile stats={stats} histogram={histogram} />
+                  <FamiliesTile stats={stats} />
+                  <PostureTile stats={stats} />
+                </>
+              )}
+              <FeedbackTile stats={stats} className="md:col-span-2" />
+              {!detailed && <UnlockPanel total={total} className="md:col-span-2" />}
+            </div>
+
+            <MethodDetails stats={stats} />
+          </div>
+        </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * The figures that stay on the page while the breakdown is closed.
+ *
+ * The list itself comes from `collectiveFigures()` in `lib/quiz-stats.ts`, which
+ * is where the gates live: runs are the card's own reason to exist
+ * (MIN_QUIZZES), the median appears with the closeness tile at BREAKDOWN_RUNS,
+ * and the rating appears with the star average at MIN_FEEDBACK. That matters
+ * beyond tidiness -- the hero strip quotes the same three figures, and a second
+ * copy of the arithmetic is how one surface ends up showing a number the other
+ * refuses to.
+ *
+ * An absent figure is simply not rendered, and the grid loses a column rather
+ * than printing a dash: a dash above "See the full breakdown" reads as a
+ * broken measurement.
+ */
+function CollectiveSummary({ stats }: { stats: QuizStats }) {
+  const items = collectiveFigures(stats);
+  const columns =
+    items.length >= 3 ? "sm:grid-cols-3" : items.length === 2 ? "sm:grid-cols-2" : "";
+
+  return (
+    <dl className={`mt-5 grid gap-x-6 gap-y-3 border-t border-rule pt-4 ${columns}`}>
+      {items.map((item) => (
+        <div key={item.key} className="flex h-full flex-col">
+          <dt className="meta text-cerulean-800">{item.label}</dt>
+          <dd className="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-1.5">
+            <span className="num font-mono text-2xl font-semibold leading-none text-ink">
+              {item.value}
+            </span>
+            {item.note && <span className="text-2xs text-ink-muted">{item.note}</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
 function VolumeTile({
   stats,
   daily,
+  className,
 }: {
   stats: QuizStats;
   daily: Array<{ date: string; count: number }>;
+  className?: string;
 }) {
   const since = formatDay(stats.trackingSince);
   const max = Math.max(1, ...daily.map((day) => day.count));
@@ -153,7 +269,7 @@ function VolumeTile({
   const last = daily[daily.length - 1];
 
   return (
-    <article className="flex h-full flex-col border border-rule bg-paper p-4 md:p-5">
+    <article className={`flex h-full flex-col border border-rule bg-paper p-4 md:p-5 ${className ?? ""}`}>
       <h4 className="meta">Runs recorded</h4>
       <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="num font-mono text-3xl font-semibold leading-none text-ink">
@@ -328,15 +444,17 @@ function RankBars({
   note,
   ariaLabel,
   view,
+  className = "",
 }: {
   title: string;
   note: string;
   ariaLabel: string;
   view: RankBreakdownView;
+  className?: string;
 }) {
   const max = Math.max(1, ...view.buckets.map((bucket) => bucket.count));
   return (
-    <div className="mt-4">
+    <div className={className}>
       <p className="text-2xs text-ink-muted" title={note}>
         {title}, from <span className="num font-mono">{formatCount(view.judged)}</span> answer
         {view.judged === 1 ? "" : "s"}
@@ -399,15 +517,16 @@ function RankBars({
  * The comments never appear here. A count is a statistic; a sentence typed by
  * one reader, shown to all of them, is not.
  */
-function FeedbackTile({ stats }: { stats: QuizStats }) {
+function FeedbackTile({ stats, className }: { stats: QuizStats; className?: string }) {
   const feedback = stats.feedback;
-  if (!feedback) return null;
+  // The same predicate the panel uses to decide whether this band exists, so the
+  // card beside it never stretches to fill a row that has only one occupant.
+  if (!feedback || !hasFeedbackFigures(feedback)) return null;
 
   const total = feedback.total;
   const judged = feedback.accurateYes + feedback.accurateNo;
   const hasRatings = total >= MIN_FEEDBACK;
   const stances = stanceBreakdown(feedback);
-  if (!hasRatings && judged < MIN_FEEDBACK && !stances) return null;
 
   const histogram = feedback.ratingHistogram ?? [];
   const hasHistogram = hasRatings && histogram.length === 5;
@@ -417,82 +536,95 @@ function FeedbackTile({ stats }: { stats: QuizStats }) {
   const exploring = stances?.buckets.find((bucket) => bucket.stance === "exploring")?.count ?? 0;
 
   return (
-    <article className="flex h-full flex-col border border-rule bg-paper p-4 md:p-5">
+    <article className={`flex h-full flex-col border border-rule bg-paper p-4 md:p-5 ${className ?? ""}`}>
       <h4 className="meta">What readers said</h4>
       <p className="mt-1 text-2xs text-ink-muted">Quiz experience, 1 to 5</p>
 
-      {hasRatings ? (
-        <>
-          <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="num font-mono text-3xl font-semibold leading-none text-ink">
-              {feedback.averageRating === null ? "—" : formatScore(feedback.averageRating)}
-            </span>
-            <span className="text-2xs text-ink-muted">
-              out of 5, from <span className="num font-mono">{formatCount(total)}</span> rating
-              {total === 1 ? "" : "s"}
-            </span>
-          </p>
+      {/* Rating on the left, the two rank ladders on the right. The ladders are
+          what made this tile taller than every other one, so as a full-width band
+          they can sit beside the rating instead of under it. Below md the two
+          stack in reading order, which is the order the card asked the questions. */}
+      <div className="mt-3 grid gap-x-6 gap-y-4 md:grid-cols-2">
+        <div className={families || matches ? undefined : "md:col-span-2"}>
+          {hasRatings ? (
+            <>
+              <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="num font-mono text-3xl font-semibold leading-none text-ink">
+                  {feedback.averageRating === null ? "—" : formatScore(feedback.averageRating)}
+                </span>
+                <span className="text-2xs text-ink-muted">
+                  out of 5, from <span className="num font-mono">{formatCount(total)}</span> rating
+                  {total === 1 ? "" : "s"}
+                </span>
+              </p>
 
-          {hasHistogram && (
-            <ul className="mt-4 space-y-1" aria-label="Quiz experience ratings by star">
-              {[5, 4, 3, 2, 1].map((star) => {
-                const count = histogram[star - 1] ?? 0;
-                return (
-                  <li key={star} className="flex items-center gap-2">
-                    <span className="num w-5 shrink-0 text-right font-mono text-3xs text-ink-muted">
-                      {star}★
-                    </span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cerulean-100">
-                      <div
-                        aria-hidden="true"
-                        className="h-full rounded-full bg-cerulean-600"
-                        style={{
-                          width: `${Math.max(count === 0 ? 0 : 2, Math.round((count / max) * 100))}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="num w-8 shrink-0 text-right font-mono text-3xs text-ink-muted">
-                      {share(count, total)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+              {hasHistogram && (
+                <ul className="mt-4 space-y-1" aria-label="Quiz experience ratings by star">
+                  {[5, 4, 3, 2, 1].map((star) => {
+                    const count = histogram[star - 1] ?? 0;
+                    return (
+                      <li key={star} className="flex items-center gap-2">
+                        <span className="num w-5 shrink-0 text-right font-mono text-3xs text-ink-muted">
+                          {star}★
+                        </span>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cerulean-100">
+                          <div
+                            aria-hidden="true"
+                            className="h-full rounded-full bg-cerulean-600"
+                            style={{
+                              width: `${Math.max(count === 0 ? 0 : 2, Math.round((count / max) * 100))}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="num w-8 shrink-0 text-right font-mono text-3xs text-ink-muted">
+                          {share(count, total)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p className="text-2xs leading-relaxed text-ink-soft">
+              Experience ratings are still building. The star question changed, so only answers to
+              the new one are averaged here.
+            </p>
           )}
-        </>
-      ) : (
-        <p className="mt-3 text-2xs leading-relaxed text-ink-soft">
-          Experience ratings are still building. The star question changed, so only answers to
-          the new one are averaged here.
-        </p>
-      )}
 
-      {stances && (
-        <p className="mt-3 text-2xs leading-relaxed text-ink-soft">
-          <span className="num font-mono">{formatCount(exploring)}</span> of{" "}
-          <span className="num font-mono">{formatCount(stances.judged)}</span> readers who answered
-          said they were exploring — no church to compare the match against — so they are counted as
-          their own answer, not as a wrong match.
-        </p>
-      )}
+          {stances && (
+            <p className="mt-3 text-2xs leading-relaxed text-ink-soft">
+              <span className="num font-mono">{formatCount(exploring)}</span> of{" "}
+              <span className="num font-mono">{formatCount(stances.judged)}</span> readers who
+              answered said they were exploring — no church to compare the match against — so they
+              are counted as their own answer, not as a wrong match.
+            </p>
+          )}
+        </div>
 
-      {families && (
-        <RankBars
-          title="Where the closest family sat"
-          ariaLabel="Rank of the closest family"
-          note="This list counts only the answers that named a family. A skipped question, and a 'no' written before this question existed, are not in it. The last row counts 'none of these families', which is an answer about coverage."
-          view={families}
-        />
-      )}
+        {(families || matches) && (
+          <div>
+            {families && (
+              <RankBars
+                title="Where the closest family sat"
+                ariaLabel="Rank of the closest family"
+                note="This list counts only the answers that named a family. A skipped question, and a 'no' written before this question existed, are not in it. The last row counts 'none of these families', which is an answer about coverage."
+                view={families}
+              />
+            )}
 
-      {matches && (
-        <RankBars
-          title="Where their own church sat"
-          ariaLabel="Rank of their own church"
-          note="The second picker is optional, so this list is usually shorter than the family one above it. A skipped question, and a 'no' written before this question existed, are in neither. The last row counts 'not in this list' together with any position past #8."
-          view={matches}
-        />
-      )}
+            {matches && (
+              <RankBars
+                title="Where their own church sat"
+                ariaLabel="Rank of their own church"
+                note="The second picker is optional, so this list is usually shorter than the family one above it. A skipped question, and a 'no' written before this question existed, are in neither. The last row counts 'not in this list' together with any position past #8."
+                view={matches}
+                className={families ? "mt-4" : undefined}
+              />
+            )}
+          </div>
+        )}
+      </div>
 
       <p className="mt-auto pt-3 text-3xs leading-relaxed text-ink-muted">
         {judged > 0 ? (
@@ -709,13 +841,13 @@ function PostureTile({ stats }: { stats: QuizStats }) {
   );
 }
 
-function UnlockPanel({ total }: { total: number }) {
+function UnlockPanel({ total, className }: { total: number; className?: string }) {
   const clamped = Math.min(total, BREAKDOWN_RUNS);
   const pct = Math.round((clamped / BREAKDOWN_RUNS) * 100);
   const remaining = Math.max(0, BREAKDOWN_RUNS - total);
 
   return (
-    <div className="border border-rule bg-paper p-4 md:p-5">
+    <div className={`border border-rule bg-paper p-4 md:p-5 ${className ?? ""}`}>
       <p className="meta">More detail at {BREAKDOWN_RUNS} runs</p>
       <p className="mt-2 text-2xs leading-relaxed text-ink-soft">
         {remaining} more run{remaining === 1 ? "" : "s"} unlock family shares, the closest-match

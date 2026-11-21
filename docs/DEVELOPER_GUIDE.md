@@ -198,19 +198,69 @@ other and can be set to `hidden` in `/mod/feedback`.
 
 `frontend/app/_components/_LiveStats.tsx` fetches `/api/stats` once per page view
 and renders nothing below 10 runs or if the request fails, so the landing page
-never waits on it and never shows a "0 quizzes taken" badge. The panel sits below
-the product card and has three states:
+never waits on it and never shows a "0 quizzes taken" badge. The request is
+memoised in `frontend/lib/quiz-stats.ts`, because three components now quote the
+same payload — the panel, the accuracy row in the quiz card, and the hero strip —
+so a page view still makes one `/api/stats` request.
 
-* **10–49 runs** — total, the 14-day sparkline, and a progress panel that says
-  how many runs unlock the rest.
-* **50–199 runs** — all four tiles, plus an "Early data" label.
-* **200+ runs** — all four tiles, label gone.
+**Above the buttons.** `_HeroStats.tsx` states the headline figures in one line
+between the intro and "Take the quiz", because a reader who never scrolls past the
+hero would otherwise never learn that other people have already taken the quiz. It
+is deliberately compact — values with a shortened label each, no notes, and a
+"See how that's counted" link to `#collective-results` ("1,284 runs recorded ·
+74.5% median match · 4.3 / 5 quiz rating"). The denominators stay in the panel's
+summary row; a strip is a pointer, not the published table. Its slot keeps a
+reserved height (`min-h-9 sm:min-h-5`) whether or not the payload arrives, so a
+late response cannot push the two buttons down while a thumb is aiming at them.
+Like the panel it renders nothing below `MIN_QUIZZES` and nothing on failure.
 
-The tiles are: runs (total, 14 UTC days, last 7 days, today), closeness
-(median/mean closest match and the five-tier distribution), family shares (top
-five families plus an explicit "Other families" remainder), and posture
-(tolerance/certainty averages, taken only over runs that answered both sliders).
-Every percentage names its own denominator.
+**One gate, both surfaces.** The hero strip and the panel's summary row both map
+over `collectiveFigures()` in `lib/quiz-stats.ts`, which is where the thresholds
+live: runs always (the card only exists above `MIN_QUIZZES`), the median closest
+match from `BREAKDOWN_RUNS` — 50, moved here from `_LiveStats.tsx` so the strip
+cannot print a median the closeness tile is still withholding — and the star
+average from `MIN_FEEDBACK` ratings. A figure that has not cleared its gate is
+absent from the list rather than present as a dash, so neither surface can print
+it early and changing a threshold cannot leave the other surface quoting the old
+number.
+
+**Tile order is a layout decision, not a ranking.** At two columns the tiles were
+placed in reading order, which put the tallest one (feedback: rating, histogram,
+two rank ladders) beside a short one: the short card stretched to the tall card's
+height and its footer sank to the bottom of a hollow box, and the remaining tile
+ended up alone in a half-empty row. Feedback now closes the grid as a full-width
+band — rating on the left, the two ladders side by side on the right — while runs
+pairs with closeness and family shares with the posture averages, the pairs whose
+content is closest in size. Below the 50-run gate the same grid is a stack of
+full-width bands (runs, feedback, the unlock panel): a half-width volume card
+there would sit beside an empty cell, because the band under it is too wide to
+fit. Rows still stretch their tiles to a common height, but the leftover space is
+now a line or two rather than half a tile.
+
+Everything else is a disclosure: "See the full breakdown" expands the tiles and
+the counting notes in place, with `aria-expanded`/`aria-controls` and `inert`
+while closed, so the nested `<summary>` in the notes is not reachable by tab. The
+accuracy row in the quiz card links to `#collective-results`, and the hash opens
+the disclosure, so the figure never points at hidden content; the click also calls
+`openCollectiveResults()` from `lib/quiz-stats.ts` (which fires
+`OPEN_COLLECTIVE_RESULTS`), because a repeat click on an unchanged hash produces
+no `hashchange`. The hero strip uses the same function, so both entry points
+behave the same way.
+
+The full breakdown has three states:
+
+* **10–49 runs** — total, the 14-day sparkline, the feedback band, and a
+  progress panel that says how many runs unlock the rest. All three cards are
+  full-width bands, the volume tile included.
+* **50–199 runs** — all five tiles, plus an "Early data" label.
+* **200+ runs** — all five tiles, label gone.
+
+The tiles are: runs (total, 14 UTC days, last 7 days, today), feedback (star
+average and histogram, rank breakdowns, and the top-1 line — see below),
+closeness (median/mean closest match and the five-tier distribution), family
+shares (top five families plus an explicit "Other families" remainder), and
+posture (tolerance/certainty averages, taken only over runs that answered both
+sliders). Every percentage names its own denominator.
 
 `GET /api/stats` keeps the original summary fields and adds `medianTopMatch`,
 `daily[14]` (zero-filled UTC days), `scoreHistogram[20]` (5-point buckets),
@@ -687,18 +737,18 @@ unlocked. Filtering is server-side (`?commented=1`, `?status=`) rather than a
 **The landing figure.** `_QuizAccuracy.tsx` adds one row to the quiz card's
 `<dl>`: `topOneAccuracy()` — `accurateYes / (accurateYes + accurateNo)`, which is
 how often the *#1* match was the right one — with the denominator printed inline
-and the number linked to `#collective-results`. Since 0008 the two counts behind
-it come from the stance question first (`fit` yes, `close` / `off` no) with the
-church's position as the fallback, so a row whose church was #1 but whose stance
-was `off` is now a miss, and an `exploring` row sits on neither side of the
-fraction. Skips still do too. The old export name `quizAccuracy` is kept as an
-alias so an unchanged import cannot silently stop meaning the same figure. Both
-the row and the panel below it read the payload through
-`frontend/lib/quiz-stats.ts`, so a page view makes one `/api/stats` request, not
-two; the row hides until `MIN_JUDGED` (10) answers are judged *and* the panel's own
-`MIN_QUIZZES` gate is met, so it never links to a panel that is not there. The
-panel it links to prints both breakdowns
-under the star histogram — family first, then church — each with its own
+and the number opening the `#collective-results` disclosure below. Since 0008 the
+two counts behind it come from the stance question first (`fit` yes, `close` /
+`off` no) with the church's position as the fallback, so a row whose church was
+#1 but whose stance was `off` is now a miss, and an `exploring` row sits on
+neither side of the fraction. Skips still do too. The old export name
+`quizAccuracy` is kept as an alias so an unchanged import cannot silently stop
+meaning the same figure. Both the row and the panel below it read the payload
+through `frontend/lib/quiz-stats.ts`, so a page view makes one `/api/stats`
+request, not two; the row hides until `MIN_JUDGED` (10) answers are judged *and*
+the panel's own `MIN_QUIZZES` gate is met, so it never links to a panel that is
+not there. The panel it links to prints both breakdowns under the star histogram
+— family first, then church — each with its own
 denominator. Since 0008 the top-1 row is *not* the church `#1` bar restated: the
 stance decides the row first, so a `#1 church, not close` answer is in the bar and
 not in the numerator, and an `exploring` answer is in neither.

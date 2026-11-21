@@ -5,6 +5,7 @@ import type { QuizStats } from "../../lib/api";
 import {
   loadQuizStats,
   MIN_QUIZZES,
+  openCollectiveResults,
   topOneAccuracy,
   type QuizAccuracy as Accuracy,
 } from "../../lib/quiz-stats";
@@ -61,6 +62,7 @@ export function QuizAccuracy() {
       <dd className="num font-mono font-semibold text-ink">
         <a
           href="#collective-results"
+          onClick={openCollectiveResults}
           className="underline decoration-rule decoration-1 underline-offset-2 transition-colors hover:text-cerulean-800"
           aria-label={`The first match was the best one for ${accuracy.percent}% of ${accuracy.judged} readers with a church to compare. See the collective results.`}
         >
