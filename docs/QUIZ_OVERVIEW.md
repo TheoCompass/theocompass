@@ -52,24 +52,24 @@ A single path: **mode select → tutorial → 30 questions → results dashboard
    - **1 · Select your Stance** — the answer row plus a live "Context" toggle revealing a definition.
    - **2 · Hold more than one?** — a working miniature of the opt-in: the same hint line, the "Hold more than one?" button, round-vs-square indicators, a live `n / 3` counter, the cap dimming, and "Back to one". Fixture options live in `DEMO_OPTIONS`; nothing here is scored.
    - **3 · Set your Certainty** (0–3) and **4 · Set Tolerance** (0–4) — static, non-interactive sliders with their plain-English labels.
-   - **5 · When nothing fits** — the three no-answer doors side by side, labelled by where they live: *None of the above* ("In the list"), *Apathetic* and *Hostile* silence ("Silence").
-   - A footer strip lists the keyboard shortcuts: `1–4` select/toggle, `Enter` confirm, `N` none of the above, `S`/`H` silence.
+   - **5 · When nothing fits** — the three no-answer doors side by side, labelled by where they live: *None of the above* ("In the list"), *No view* and *Rejection* ("Under the list"). The card titles match the question screen verbatim, so the tutorial teaches the buttons the reader is about to see.
+   - A footer strip lists the keyboard shortcuts: `1–4` select/toggle, `Enter` confirm, `N` none of the above, `S`/`H` no view / rejection.
 
 3. **The question screen** (one question at a time):
    - Category badge (color-coded), question number, shimmering progress bar, slide-in animation, and a short interstitial when the topic category changes.
    - **Answers are shuffled** per question; each has a **"Context"** pill revealing a definition.
    - **One answer unless the reader asks for more.** The line under the question reads *"Pick the one option closest to what you hold"*, with a **"Hold more than one?"** button beside it. That button opens a short disclaimer — one answer scores sharpest, three is the limit, the mode lapses on the next question — and only then do the rows turn into checkboxes with a `2 / 3` counter. Every affirmed option is scored, so a reader who genuinely holds two of the four positions is not forced to lie; everyone else keeps the simpler single choice. Silence and affirmations are mutually exclusive.
-   - **"None of the above"** closes the answer list as its own answer ("Nothing here is what I hold"). It is scored as *apathetic* silence internally, but the copy never says so and only this row lights up — the 🤷 button below has its own state, so the two no longer tick together. Keyboard `N` picks this one.
-   - **Silence buttons:** 🤷 *Apathetic* ("not relevant to me") and ✖ *Hostile* ("I reject this framing") — these auto-set certainty/tolerance and grey out the normal answers.
+   - **"None of the above"** closes the answer list as its own answer ("Nothing here is what I hold"). It is scored as *apathetic* silence internally, but the copy never says so and only this row lights up — the *I don't know* button below has its own state, so the two no longer tick together. Keyboard `N` picks this one.
+   - **The two no-answer buttons**, under the line *"Or say you have no position"*: **I don't know** ("I haven't settled this, or it isn't essential to me") and **I reject the question** ("The premise is wrong, not just the options"). They auto-set certainty/tolerance and grey out the normal answers; once one is chosen, a single line underneath spells out the consequence (neutral on the topic, or a penalty for traditions that affirm it). The mechanics are still called apathetic and hostile silence in the engine and in §6 of the developer guide.
    - **Certainty slider** and **Tolerance slider** appear only once a real answer is chosen, each with plain-English labels and a severity-colored summary badge. Ticking an extra option leaves them alone; they reset only when the answer set empties.
-   - **Keyboard play:** `1–4` to select (or toggle, in multi-select), `Enter` to confirm, `N` for none of the above, `S`/`H` for silence.
+   - **Keyboard play:** `1–4` to select (or toggle, in multi-select), `Enter` to confirm, `N` for none of the above, `S`/`H` for no view / rejection.
    - **Auto-save:** every change persists ("Progress saved" toast); refresh or come back later and resume exactly where they stopped; Back restores the previous answer.
 
 4. **Results dashboard:**
    - **#1 hero match** with a tiered badge (Near Perfect Match / Strong Affinity / Significant Overlap…) and a big match %.
    - In Quick mode the hero is the closest **denomination family**, with its best individual tradition called out; "Show Specific Traditions" toggles to individual denominations — with an honest disclaimer about 30-question precision.
    - Ranked **top 10 families / denominations**, expandable into the top 5 members.
-   - **Your Theological Fingerprint** — 14 axes grouped into *Theology / Practice / Posture / Conviction*; click any axis for definitions, intensity ("strong conviction" vs "neutral lean"), and a **Compare** dropdown against any of the 230 denominations showing the gap in points ("Well Aligned · 12pt").
+   - **Your Theological Fingerprint** — 14 axes grouped into *Theology / Practice / Posture / Conviction*, each labelled with both poles, a two-to-five word gloss under each ("Orthodox" → *creeds are settled authority*), the topic line, and a **Details** cue. A single line above the grid says every rail is a spectrum rather than a grade. Opening a row shows both poles as full sentences, your intensity ("strong conviction" vs "neutral lean"), and the **Compare** dropdown against any of the 230 denominations showing the gap in points ("Well Aligned · 12pt").
    - **2D compass scatter chart**, and a **Theological Label Cloud** (searchable belief labels with certainty rings). The cloud carries one chip per *affirmed option*, so a 3-tick multi-select answer adds up to three; identical label texts arriving from different questions collapse into one chip, and the chip keyed by the higher certainty wins.
    - **Shareable PNGs:** Download Results / Belief Labels / Fingerprint, plus "Post on r/TheoCompass", a Ko-Fi support link, and **Retake Quiz**.
 

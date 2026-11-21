@@ -303,11 +303,11 @@ export function QuizQuestionView({
               </span>
               <span>
                 <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">S</kbd>{" "}
-                apathetic
+                no view
               </span>
               <span>
                 <kbd className="border border-rule-strong bg-paper-raised px-1 font-mono text-3xs">H</kbd>{" "}
-                hostile
+                reject
               </span>
               {/* The flag is the one control in this view that does not look
                   like a control until you already know it is one, so the hint
@@ -558,11 +558,11 @@ export function QuizQuestionView({
 
             {/* ── Silence ───────────────────────────────────────────── */}
             <div className="mt-7 border-t border-rule pt-4">
-              <div className="meta">Or declare the question out of scope</div>
+              <div className="meta">Or say you have no position</div>
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {/* Same radio affordance as the answers above: these are two
                     more choices, not an aside. The glyph inside the radio says
-                    which kind of silence it is - dash = irrelevant, X = reject.
+                    which kind of silence it is - dash = no view, X = reject.
                     This row is lit only when silence was declared *here*, not
                     via the list's "None of the above" entry. */}
                 <button
@@ -590,12 +590,15 @@ export function QuizQuestionView({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-mini font-medium leading-tight text-ink">
-                      Apathetic silence
+                      I don&rsquo;t know
                     </span>
                     <span className="mt-0.5 block text-2xs leading-snug text-ink-muted">
-                      Not theologically relevant to me
+                      I haven&rsquo;t settled this, or it isn&rsquo;t essential to me
                     </span>
                   </span>
+                  <kbd className="ml-auto hidden shrink-0 border border-rule-strong bg-paper-raised px-1 font-mono text-3xs text-ink-muted sm:block">
+                    S
+                  </kbd>
                 </button>
 
                 <button
@@ -623,14 +626,32 @@ export function QuizQuestionView({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-mini font-medium leading-tight text-ink">
-                      Hostile silence
+                      I reject the question
                     </span>
                     <span className="mt-0.5 block text-2xs leading-snug text-ink-muted">
-                      I reject the framing of this question
+                      The premise is wrong, not just the options
                     </span>
                   </span>
+                  <kbd className="ml-auto hidden shrink-0 border border-rule-strong bg-paper-raised px-1 font-mono text-3xs text-ink-muted sm:block">
+                    H
+                  </kbd>
                 </button>
               </div>
+
+              {/* Said once, under the pair, and only after a choice is made:
+                  the two doors have different consequences, and the labels
+                  alone do not say what each one does to the score. */}
+              {(silenceType === "hostile" || apatheticSilenceSelected) && (
+                <p
+                  className={`mt-2 text-2xs leading-snug ${
+                    silenceType === "hostile" ? "text-punch-ink" : "text-ink-muted"
+                  }`}
+                >
+                  {silenceType === "hostile"
+                    ? "Recorded as rejecting the premise: traditions that affirm this question will match you less closely."
+                    : "No position recorded: you stay neutral on this topic instead of being placed on either side."}
+                </p>
+              )}
             </div>
           </div>
 

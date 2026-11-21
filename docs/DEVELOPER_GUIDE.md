@@ -52,8 +52,8 @@ The frontend owns the wording (`frontend/lib/d1-limit.ts`): `D1LimitError`, `D1_
 
 ## 6. Frontend State & Silence Logic
 The frontend tracks user progress in a Next.js client component (`userAnswers` state). A unique mechanic is the **Silence options**, which bypass the standard Certainty/Tolerance sliders and auto-inject specific logic directly into the payload:
-* **Apathetic Silence** ("Not relevant to me"): Injects Certainty 0, Tolerance 2. 
-* **Hostile Silence** ("I reject this framing"): Injects Certainty 3, Tolerance 1. 
+* **Apathetic Silence** — the question screen's **I don't know** button ("I haven't settled this, or it isn't essential to me"): Injects Certainty 0, Tolerance 2. 
+* **Hostile Silence** — the **I reject the question** button ("The premise is wrong, not just the options"): Injects Certainty 3, Tolerance 1. 
 The backend handles these automatically, forcing neutral coordinates (50) and applying amplified distance penalties.
 **"None of the above"** is the answer list's last row and, mathematically, the same case as *apathetic* silence — there is no fourth silence mechanic. The UI nevertheless presents it as its own answer ("Nothing here is what I hold") and lights only the row the reader pressed; the payload records which one with `silenceSource` (below), so restoring a question does not move the highlight.
 
@@ -68,7 +68,11 @@ Each `UserResponse` sends:
 The engine scores every affirmed option against every accepted view and applies the same Schism Drag twice: once across a denomination's branches, then across the user's own selections with `F = ((4 - T) / 4) * (C / 3)`, so a certain, exclusive reader who ticks several options is scored against all of them while an uncertain or tolerant one keeps best-match credit. A silenced question ignores `answerIds` entirely but must still count in the weighted average — it is scored as one neutral slot (`50` on every axis), never dropped.
 
 ### The tutorial (`currentView === "instructions"`)
-The five steps are defined inline in `_QuizController.tsx` (`totalSteps` is derived from `steps.length`). Step 2 is a live, unscored miniature of the multi-select opt-in: local `demoMultiSelect` / `demoPicks` state over the fixture list `DEMO_OPTIONS`, mirroring the real mode bar in `QuizQuestionView` **by hand**. If that chrome or its wording changes, change the tutorial too — nothing links them. Step 5 covers the three no-answer doors (*None of the above* in the list, apathetic and hostile silence below it), which is the user-facing statement of the rule in §6.
+The five steps are defined inline in `_QuizController.tsx` (`totalSteps` is derived from `steps.length`). Step 2 is a live, unscored miniature of the multi-select opt-in: local `demoMultiSelect` / `demoPicks` state over the fixture list `DEMO_OPTIONS`, mirroring the real mode bar in `QuizQuestionView` **by hand**. If that chrome or its wording changes, change the tutorial too — nothing links them. Step 5 covers the three no-answer doors — *None of the above* in the list, then **No view** and **Rejection** under it — using the same words as the question screen, which is the user-facing statement of the rule in §6.
+
+### The axis vocabulary (`AXIS_LABELS`)
+`_constants.ts` is the only place the fingerprint's pole words live, and each entry carries four layers: `left` / `right` (the names on the rail), `desc` (the topic line printed under every row), `hints` (the two-to-five word gloss printed under each pole) and `poles` (the full sentences shown when a row is opened). The panel, the export PNG and the denomination loader in `_QuizController` (which uses the keys to accept or drop a coordinate) all read the same map, so a new axis is one entry and nothing else.
+Two rules keep the rails honest. Treat `hints` as mandatory even though the type marks them optional (that is what let the chart and the export card compile untouched): "Orthodox" on a rail reads as a denomination or as a verdict, so the row has to say *creeds are settled authority* before anyone clicks. And a row must never claim a lean at exactly 0 — `AxisRow` treats `signed === 0` as its own case, bolds neither pole, and says "you sit at the midpoint"; the export card mirrors that.
 
 ## 7. Dev Tools (Auto-Finish)
 To speed up testing the Results UI without clicking through 30+ questions, the frontend includes a hidden Developer Tool. 

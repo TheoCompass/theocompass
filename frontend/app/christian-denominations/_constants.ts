@@ -1,26 +1,175 @@
 // --- CHART CONFIGURATION ---
-export const AXIS_LABELS: Record<string, { left: string; right: string; desc: string; meta?: boolean; invert?: boolean }> = {
-  theolconslib: { left: "Progressive", right: "Orthodox", desc: "View of scripture, tradition, and orthodoxy" },
-  socialconslib: { left: "Liberal", right: "Conservative", desc: "Stance on ethics, gender, and society" },
-  counterpromodern: { left: "Accommodating", right: "Counter-Cultural", desc: "Relationship to secular culture" },
-  supernat: { left: "Naturalistic", right: "Supernatural", desc: "Expectation of miracles and spiritual forces" },
-  cultsepeng: { left: "Engaged", right: "Separatist", desc: "Approach to worldly institutions and politics" },
-  clericegal: { left: "Congregational", right: "Hierarchical", desc: "Church polity and the locus of authority" },
-  divhumagency: { left: "Human Agency", right: "Divine Sovereignty", desc: "The mechanics of salvation (Arminian/Calvinist)" },
-  communindiv: { left: "Individualist", right: "Communitarian", desc: "Focus of faith and church life" },
-  liturgspont: { left: "Spontaneous", right: "Liturgical", desc: "Style and structure of worship" },
-  sacramfunct: { left: "Functional/Symbolic", right: "Sacramental", desc: "Efficacy of Baptism and Communion" },
-  literalcrit: { left: "Critical", right: "Literal", desc: "Method of reading the Bible" },
-  intellectexper: { left: "Experiential", right: "Intellectual", desc: "Primary mode of knowing God" },
+// One entry per axis, and the only place the pole vocabulary is written down.
+//
+// `desc` is the plain-language topic, now printed on every fingerprint row.
+// `hints` are the two-to-five word answer to "what does that word mean here",
+// printed under each pole label so nobody has to open anything: "Orthodox" on
+// these rails means doctrine settled by the creeds, not Eastern Orthodoxy.
+// `poles` are the full sentences behind those hints, shown when a row is opened.
+// Both are optional so the chart, the helpers and the export card keep compiling
+// against the same map, with or without them.
+export const AXIS_LABELS: Record<
+  string,
+  {
+    left: string;
+    right: string;
+    desc: string;
+    hints?: { left: string; right: string };
+    poles?: { left: string; right: string };
+    meta?: boolean;
+    invert?: boolean;
+  }
+> = {
+  theolconslib: {
+    left: "Progressive",
+    right: "Orthodox",
+    desc: "How scripture and doctrine are treated",
+    hints: { left: "doctrine can be revised", right: "creeds are settled authority" },
+    poles: {
+      left: "Scripture is read alongside modern scholarship and experience, and doctrine may be revised in light of them.",
+      right: "Scripture and the historic creeds are received as settled authority; doctrine is preserved, not rewritten.",
+    },
+  },
+  socialconslib: {
+    left: "Liberal",
+    right: "Conservative",
+    desc: "Stance on ethics, gender, and society",
+    hints: { left: "justice and inclusion", right: "traditional family norms" },
+    poles: {
+      left: "Ethics centre on justice, inclusion, and personal autonomy.",
+      right: "Ethics centre on traditional sexual and family norms, treated as binding teaching.",
+    },
+  },
+  counterpromodern: {
+    left: "Accommodating",
+    right: "Counter-Cultural",
+    desc: "Relationship to secular culture",
+    hints: { left: "adapt to the culture", right: "resist the culture" },
+    poles: {
+      left: "The church should restate its faith in the culture's language and forms.",
+      right: "The church should stand against secular culture's assumptions rather than adapt to them.",
+    },
+  },
+  supernat: {
+    left: "Naturalistic",
+    right: "Supernatural",
+    desc: "Expectation of miracles and spiritual forces",
+    hints: { left: "ordinary natural processes", right: "miracles expected today" },
+    poles: {
+      left: "God works through ordinary natural processes; miracle accounts are read as symbol or history.",
+      right: "Miracles, healing, and spiritual forces are expected to be active today.",
+    },
+  },
+  cultsepeng: {
+    left: "Engaged",
+    right: "Separatist",
+    desc: "Approach to worldly institutions and politics",
+    hints: { left: "work inside institutions", right: "keep your distance" },
+    poles: {
+      left: "Christians should work inside political and social institutions to shape them.",
+      right: "Christians should keep their distance from worldly institutions, politics included.",
+    },
+  },
+  clericegal: {
+    left: "Congregational",
+    right: "Hierarchical",
+    desc: "Where church authority sits",
+    hints: { left: "the local church decides", right: "bishops in a chain" },
+    poles: {
+      left: "Final authority sits with the congregation or the individual believer.",
+      right: "Authority flows through an ordered chain of bishops or elders.",
+    },
+  },
+  divhumagency: {
+    left: "Human Agency",
+    right: "Divine Sovereignty",
+    desc: "Who decides salvation",
+    hints: { left: "your response decides", right: "God's choice decides" },
+    poles: {
+      left: "Grace can be resisted; the person's response decides whether salvation takes effect.",
+      right: "God's choice is decisive; salvation is God's work from start to finish.",
+    },
+  },
+  communindiv: {
+    left: "Individualist",
+    right: "Communitarian",
+    desc: "Focus of faith and church life",
+    hints: { left: "personal relationship", right: "shaped by the church" },
+    poles: {
+      left: "Faith is primarily the individual's own relationship with God.",
+      right: "Faith is lived in a covenant community that shapes the believer.",
+    },
+  },
+  liturgspont: {
+    left: "Spontaneous",
+    right: "Liturgical",
+    desc: "Style and structure of worship",
+    hints: { left: "informal, Spirit-led", right: "fixed historic order" },
+    poles: {
+      left: "Worship is informal and led in the moment, with little fixed order.",
+      right: "Worship follows a fixed historic order, set prayers, and a calendar.",
+    },
+  },
+  sacramfunct: {
+    left: "Functional/Symbolic",
+    right: "Sacramental",
+    desc: "What Baptism and Communion do",
+    hints: { left: "signs of grace", right: "conveys the grace" },
+    poles: {
+      left: "Baptism and Communion are signs of a grace received elsewhere.",
+      right: "Baptism and Communion convey the grace they signify.",
+    },
+  },
+  literalcrit: {
+    left: "Critical",
+    right: "Literal",
+    desc: "How the Bible is read",
+    hints: { left: "genre and history matter", right: "plainly factual" },
+    poles: {
+      left: "Scripture is read with attention to genre, historical setting, and its human authors.",
+      right: "Scripture's factual claims are read as plainly true as written.",
+    },
+  },
+  intellectexper: {
+    left: "Experiential",
+    right: "Intellectual",
+    desc: "How God is known",
+    hints: { left: "encounter and feeling", right: "doctrine and study" },
+    poles: {
+      left: "God is known primarily through experience, feeling, and encounter.",
+      right: "God is known primarily through doctrine, study, and reasoned teaching.",
+    },
+  },
   // Meta-axes: how a belief is held, not what is believed.
-  tolerance: { left: "Accepting", right: "Dogmatic", desc: "Openness to other Christian traditions as valid expressions of faith", meta: true },
+  tolerance: {
+    left: "Accepting",
+    right: "Dogmatic",
+    desc: "Openness to other Christian traditions",
+    hints: { left: "other views are valid", right: "only this view is faithful" },
+    poles: {
+      left: "Other Christian traditions are valid expressions of the faith.",
+      right: "Only this tradition's position is the faithful one.",
+    },
+    meta: true,
+  },
   // Every other axis stores its affirmative pole as a LOW value, which renders on
   // the RIGHT. Certainty is the inverse: 100 = maximally certain. `invert` keeps
   // "Certain" on the right (and the dot with it) without changing the API contract.
   // It governs the printed sign too: `axisPosition` (in _helpers) turns position
   // into -100 (left pole) .. +100 (right pole), so both kinds of axis read the
   // same way and a "80" can no longer mean either end.
-  certainty: { left: "Unsure", right: "Certain", desc: "How firmly you hold your own beliefs", meta: true, invert: true },
+  certainty: {
+    left: "Unsure",
+    right: "Certain",
+    desc: "How firmly you hold your beliefs",
+    hints: { left: "held provisionally", right: "held firmly" },
+    poles: {
+      left: "Your answers are held provisionally, open to being wrong.",
+      right: "Your answers are held with confidence.",
+    },
+    meta: true,
+    invert: true,
+  },
 };
 
 // --- FINGERPRINT CATEGORY GROUPING ---

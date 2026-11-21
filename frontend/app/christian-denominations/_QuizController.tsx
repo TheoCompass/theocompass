@@ -1381,9 +1381,9 @@ export default function QuizController() {
         content: (
           <div>
             <p className="text-sm text-ink-soft mb-4">
-              Three ways to say a question misses you. They are not interchangeable, so
-              pick the one that is actually true — the first lives in the answer list,
-              the other two are declared underneath it.
+              Three ways out of a question that does not fit. They are not interchangeable,
+              so pick the one that is actually true — the first lives in the answer list,
+              the other two sit underneath it.
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="border border-rule bg-paper px-3 py-2.5">
@@ -1396,21 +1396,23 @@ export default function QuizController() {
                 </p>
               </div>
               <div className="border border-rule bg-paper px-3 py-2.5">
-                <span className="meta block">Silence</span>
+                <span className="meta block">Under the list</span>
                 <span className="mt-0.5 block text-mini font-medium text-ink">
-                  Apathetic silence
+                  No view
                 </span>
                 <p className="mt-0.5 text-2xs leading-snug text-ink-muted">
-                  The topic itself is not relevant to you. A soft, neutral stance.
+                  You don&rsquo;t know, or the topic isn&rsquo;t essential to you. A soft,
+                  neutral stance.
                 </p>
               </div>
               <div className="border border-punch-300 bg-punch-soft px-3 py-2.5">
-                <span className="meta block">Silence</span>
+                <span className="meta block">Under the list</span>
                 <span className="mt-0.5 block text-mini font-medium text-punch-ink">
-                  Hostile silence
+                  Rejection
                 </span>
                 <p className="mt-0.5 text-2xs leading-snug text-ink-soft">
-                  You reject the premise itself. Penalises traditions that affirm it.
+                  The premise itself is wrong. Traditions that affirm it are matched less
+                  closely.
                 </p>
               </div>
             </div>
@@ -1500,7 +1502,7 @@ export default function QuizController() {
 
             <div className="mb-3 flex items-start gap-2 border border-rule bg-muted-soft px-3 py-2 text-2xs leading-snug text-ink-soft">
               
-              <span><span className="font-semibold">During the quiz:</span> Press <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">1</kbd>–<kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">4</kbd> to select (they toggle while multi-select is on), <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">Enter</kbd> to confirm, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">N</kbd> for none of the above, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">S</kbd> / <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">H</kbd> for silence.</span>
+              <span><span className="font-semibold">During the quiz:</span> Press <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">1</kbd>–<kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs min-w-[18px] text-center">4</kbd> to select (they toggle while multi-select is on), <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">Enter</kbd> to confirm, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">N</kbd> for none of the above, <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">S</kbd> / <kbd className="inline-block border border-rule-strong bg-paper-raised px-1 font-mono font-bold text-3xs">H</kbd> for no view and rejection.</span>
             </div>
 
             <button 

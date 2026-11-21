@@ -35,7 +35,9 @@ function AxisRow({ axis, score }: { axis: string; score: number | undefined }) {
   // Same mapping as the in-app panel: the dot and the numeral come from one
   // function, so the PNG cannot drift from the screen.
   const { pct, signed } = axisPosition(score, isInverted);
-  const isLeft = pct < 50;
+  const isNeutral = signed === 0;
+  const isLeft = pct < 50 && !isNeutral;
+  const isRight = pct > 50 && !isNeutral;
   const conviction = getConvictionStyle(score);
   // Bar grows from the centre (neutral) toward the pole you lean to.
   const barLeft = Math.min(pct, 50);
@@ -44,22 +46,38 @@ function AxisRow({ axis, score }: { axis: string; score: number | undefined }) {
   return (
     <div className="border-b border-rule py-1.5 last:border-b-0">
       <div className="flex items-baseline justify-between gap-2">
-        <span
-          className={`text-3xs uppercase leading-tight tracking-wide ${
-            isLeft ? "font-semibold text-ink" : "text-ink-muted"
-          }`}
-        >
-          {labels.left}
+        <span className="min-w-0">
+          <span
+            className={`block text-3xs uppercase leading-tight tracking-wide ${
+              isLeft ? "font-semibold text-ink" : "text-ink-muted"
+            }`}
+          >
+            {labels.left}
+          </span>
+          {/* The gloss travels into the PNG too: a saved image with no hover
+              and no click needs to say what "Orthodox" means on this rail. */}
+          {labels.hints && (
+            <span className="block text-3xs leading-tight text-ink-muted">
+              {labels.hints.left}
+            </span>
+          )}
         </span>
         <span className="num shrink-0 font-mono text-2xs font-semibold text-ink">
           {formatSigned(signed)}
         </span>
-        <span
-          className={`text-right text-3xs uppercase leading-tight tracking-wide ${
-            !isLeft ? "font-semibold text-ink" : "text-ink-muted"
-          }`}
-        >
-          {labels.right}
+        <span className="min-w-0 text-right">
+          <span
+            className={`block text-3xs uppercase leading-tight tracking-wide ${
+              isRight ? "font-semibold text-ink" : "text-ink-muted"
+            }`}
+          >
+            {labels.right}
+          </span>
+          {labels.hints && (
+            <span className="block text-3xs leading-tight text-ink-muted">
+              {labels.hints.right}
+            </span>
+          )}
         </span>
       </div>
 
@@ -112,8 +130,13 @@ export default function ExportFingerprintCard({
       <div className="chart-grid border-b border-rule bg-paper-raised px-10 py-6 text-center">
         <p className="meta">Your 14-axis theological fingerprint</p>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-ink-soft">
-          Your position on each dimension, with the strength of your conviction shown
-          by the bar and the dot.
+          Your position on each dimension, with a plain-language gloss under every pole.
+          The bar shows how far you sit from the midpoint; the dot is where you landed.
+        </p>
+        {/* A saved image cannot be explained by a hover, and an axis called
+            "Orthodox" reads as a verdict unless it is denied once, plainly. */}
+        <p className="mx-auto mt-1 max-w-xl text-2xs leading-relaxed text-ink-muted">
+          Every rail is a spectrum, not a grade: neither end is the more faithful one.
         </p>
         {/* A saved file cannot be explained by hovering, so the scale is stated
             once: the sign names the end you lean to, the magnitude how far. */}

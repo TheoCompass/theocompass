@@ -34,8 +34,8 @@ Affirming several options is not free: the engine scores the user's position aga
 
 ## 3. The "Silence" Mechanics (Edge Cases)
 TheoCompass features unique "Silence" buttons to handle questions the user cannot or will not answer. These bypass the standard C and T sliders:
-*   **Apathetic Silence ("Not relevant to me"):** The user skips the question. The system assigns a neutral stance (Dimension score = 50) and forces `Certainty: 0` and `Tolerance: 2`. This creates a soft, moderate mismatch.
-*   **Hostile Silence ("I reject this framing"):** The user rejects the premise of the question entirely. The system assigns a neutral stance (50) but forces `Certainty: 3` and `Tolerance: 1`. If a denomination strongly affirms this question, the Hostile Silence creates a *massive* mathematical penalty against that denomination.
+*   **Apathetic Silence ("I don't know"):** The user skips the question. The system assigns a neutral stance (Dimension score = 50) and forces `Certainty: 0` and `Tolerance: 2`. This creates a soft, moderate mismatch.
+*   **Hostile Silence ("I reject the question"):** The user rejects the premise of the question entirely. The system assigns a neutral stance (50) but forces `Certainty: 3` and `Tolerance: 1`. If a denomination strongly affirms this question, the Hostile Silence creates a *massive* mathematical penalty against that denomination.
 
 **"None of the above" is not a fifth answer.** The button at the end of the answer list is the same apathetic silence: it means "none of these positions is mine", which is a statement about the question's relevance, not a competing theology. It shares state with the 🤷 button, and silence and affirmations are mutually exclusive — silencing clears the ticks, and ticking clears the silence.
 

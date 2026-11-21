@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { ChevronDown } from "lucide-react";
 import {
   CoordsMap,
   axisPosition,
@@ -8,7 +9,7 @@ import {
   getConvictionStyle,
   getGapStyle,
 } from "../../_helpers";
-import { AXIS_LABELS, FINGERPRINT_CATEGORIES } from "../../_constants";
+import { AXIS_LABELS, FINGERPRINT_AXIS_COUNT, FINGERPRINT_CATEGORIES } from "../../_constants";
 import { ConvictionSwatch } from "../_ConvictionSwatch";
 
 /** A single bipolar axis, drawn as a bar that diverges from the centre. */
@@ -40,8 +41,12 @@ function AxisRow({
   const mine = axisPosition(userScore, isInverted);
   const userPct = mine.pct;
   const signed = mine.signed;
-  const isLeft = userPct < 50;
-  const poleLabel = isLeft ? labels.left : labels.right;
+  // Neutral is its own case: at exactly 0 both poles are equally near, so
+  // bolding one of them, and saying "you lean toward …", was simply false.
+  const isNeutral = signed === 0;
+  const isLeft = userPct < 50 && !isNeutral;
+  const isRight = userPct > 50 && !isNeutral;
+  const leanPole = isLeft ? labels.left : labels.right;
   const otherLabel = isLeft ? labels.right : labels.left;
 
   const hasCompare = compareScore !== undefined;
@@ -57,6 +62,14 @@ function AxisRow({
   const gapUnits = hasCompare ? Math.round(Math.abs(signed - compareSigned)) : null;
 
   const conviction = getConvictionStyle(userScore);
+  const convictionSentence =
+    conviction.level === "Extreme"
+      ? "An extreme conviction."
+      : conviction.level === "Strong"
+      ? "A strong conviction."
+      : conviction.level === "Moderate"
+      ? "A moderate lean."
+      : "A balanced position.";
   // Bar grows from the centre (neutral) toward the tradition's pole.
   const barLeft = Math.min(userPct, 50);
   const barWidth = Math.abs(userPct - 50);
@@ -72,32 +85,55 @@ function AxisRow({
         type="button"
         onClick={onToggle}
         aria-expanded={isZoomed}
-        aria-label={`${labels.left} versus ${labels.right}. You sit at ${signed}, toward ${poleLabel}.${
-          hasCompare && gapStyle && compareName && gapUnits !== null
-            ? ` ${compareName} sits at ${compareSigned}: ${gapStyle.label}, ${gapUnits} points apart.`
+        aria-label={`${labels.left} versus ${labels.right}.${
+          labels.hints
+            ? ` ${labels.left} means ${labels.hints.left}; ${labels.right} means ${labels.hints.right}.`
             : ""
-        }`}
-        className="block w-full py-2 text-left"
+        } You sit at ${formatSigned(signed)}${
+          isNeutral ? ", at the midpoint" : `, toward ${leanPole}`
+        }.${
+          hasCompare && gapStyle && compareName && gapUnits !== null
+            ? ` ${compareName} sits at ${formatSigned(compareSigned)}: ${gapStyle.label}, ${gapUnits} points apart.`
+            : ""
+        } Activate for both definitions.`}
+        className="block w-full py-2 text-left transition-colors hover:bg-cerulean-50/50"
       >
         {/* Poles sit ABOVE the rail, full width. Squeezing them into 56px
-            columns is what made the axis names unreadable on a phone. */}
+            columns is what made the axis names unreadable on a phone.
+            Each pole carries its own gloss: "Orthodox" alone reads as a
+            tradition or as "correct", so the row says which sense it means
+            before the reader has to open anything. */}
         <span className="flex items-baseline justify-between gap-2">
-          <span
-            className={`text-3xs uppercase leading-tight tracking-wide ${
-              isLeft ? "font-semibold text-ink" : "text-ink-muted"
-            }`}
-          >
-            {labels.left}
+          <span className="min-w-0">
+            <span
+              className={`block text-3xs uppercase leading-tight tracking-wide ${
+                isLeft ? "font-semibold text-ink" : "text-ink-muted"
+              }`}
+            >
+              {labels.left}
+            </span>
+            {labels.hints && (
+              <span className="block text-3xs leading-tight text-ink-muted">
+                {labels.hints.left}
+              </span>
+            )}
           </span>
           <span className="num shrink-0 font-mono text-2xs font-semibold text-ink">
             {formatSigned(signed)}
           </span>
-          <span
-            className={`text-right text-3xs uppercase leading-tight tracking-wide ${
-              !isLeft ? "font-semibold text-ink" : "text-ink-muted"
-            }`}
-          >
-            {labels.right}
+          <span className="min-w-0 text-right">
+            <span
+              className={`block text-3xs uppercase leading-tight tracking-wide ${
+                isRight ? "font-semibold text-ink" : "text-ink-muted"
+              }`}
+            >
+              {labels.right}
+            </span>
+            {labels.hints && (
+              <span className="block text-3xs leading-tight text-ink-muted">
+                {labels.hints.right}
+              </span>
+            )}
           </span>
         </span>
 
@@ -145,6 +181,21 @@ function AxisRow({
           )}
         </span>
 
+        {/* The topic, always, plus the cue that says this row opens. Before
+            this line there was no hint that the row did anything at all: the
+            definitions lived behind an invisible tap target. */}
+        <span className="flex items-baseline justify-between gap-2 pb-1.5 text-3xs">
+          <span className="min-w-0 text-ink-muted">{labels.desc}</span>
+          <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-ink-muted underline decoration-dotted underline-offset-2">
+            Details
+            <ChevronDown
+              aria-hidden="true"
+              className={`h-3 w-3 transition-transform ${isZoomed ? "rotate-180" : ""}`}
+              strokeWidth={1.75}
+            />
+          </span>
+        </span>
+
         {/* Always-on verdict: colour and words, no tap required. */}
         {hasCompare && gapStyle && gap !== null && gapUnits !== null && (
           <span className="flex items-center justify-between gap-2 pb-1.5 text-3xs">
@@ -165,18 +216,39 @@ function AxisRow({
 
       {isZoomed && (
         <div className="mb-2 border border-rule bg-cerulean-50 px-3 py-2.5 text-xs leading-relaxed">
-          <p className="font-medium text-ink-soft">{labels.desc}</p>
-          <p className="mt-1 text-ink-muted">
-            You sit at <strong className="num text-ink">{formatSigned(signed)}</strong>,
-            leaning toward <strong className="text-ink">{poleLabel}</strong>, away from{" "}
-            {otherLabel}.{" "}
-            {conviction.level === "Extreme"
-              ? "An extreme conviction."
-              : conviction.level === "Strong"
-              ? "A strong conviction."
-              : conviction.level === "Moderate"
-              ? "A moderate lean."
-              : "A balanced position."}
+          {/* Both ends, in full. The topic line above the rail names the axis;
+              these two sentences say what each pole actually teaches, so a
+              reader can place themselves without leaving the results. */}
+          {labels.poles && (
+            <dl className="border-b border-rule pb-2">
+              <div>
+                <dt className="text-3xs font-semibold uppercase tracking-wide text-ink-soft">
+                  {labels.left}
+                </dt>
+                <dd className="mt-0.5 text-ink-muted">{labels.poles.left}</dd>
+              </div>
+              <div className="mt-1.5">
+                <dt className="text-3xs font-semibold uppercase tracking-wide text-ink-soft">
+                  {labels.right}
+                </dt>
+                <dd className="mt-0.5 text-ink-muted">{labels.poles.right}</dd>
+              </div>
+            </dl>
+          )}
+          <p className="mt-2 text-ink-muted">
+            {isNeutral ? (
+              <>
+                You sit at the midpoint, between{" "}
+                <strong className="text-ink">{labels.left}</strong> and{" "}
+                <strong className="text-ink">{labels.right}</strong>. {convictionSentence}
+              </>
+            ) : (
+              <>
+                You sit at <strong className="num text-ink">{formatSigned(signed)}</strong>,
+                leaning toward <strong className="text-ink">{leanPole}</strong>, away from{" "}
+                {otherLabel}. {convictionSentence}
+              </>
+            )}
           </p>
           {hasCompare && (
             <p className="mt-1 text-ink-muted">
@@ -293,7 +365,16 @@ export function FingerprintPanel({
         <div>
           <h2 className="font-display text-xl text-ink">Theological fingerprint</h2>
           <p className="mt-0.5 text-sm text-ink-soft">
-            Your position on 14 bipolar dimensions, grouped by category.
+            Your position on {FINGERPRINT_AXIS_COUNT} bipolar dimensions, grouped by category.
+          </p>
+          {/* Stated once, above everything: the pole names are positions on a
+              spectrum, and "Orthodox" is one end of a rail rather than a
+              verdict on the reader. Without this line the axis names read as a
+              ranking, which is the opposite of what the score does. */}
+          <p className="mt-1 max-w-[62ch] text-2xs leading-relaxed text-ink-muted">
+            Every rail is a spectrum, not a grade: neither end is the more faithful one. The
+            names describe where you sit, and the small line under each pole says what that
+            word means here. Open any row for both definitions.
           </p>
         </div>
         <div className="flex gap-2">
@@ -357,7 +438,7 @@ export function FingerprintPanel({
               {compareDenom?.name ?? "Comparison"}
             </span>
           </span>
-          <span className="text-ink-muted">Bar = how strongly you hold it</span>
+          <span className="text-ink-muted">Bar = distance from the midpoint</span>
           {compareStats && (
             <span className="flex items-center gap-1.5">
               <span className="text-ink-muted">Gap colour:</span>
