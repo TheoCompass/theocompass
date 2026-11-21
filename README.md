@@ -86,7 +86,9 @@ python3 scripts/export_roadmap_csv.py      # xlsx -> data/roadmap.csv (overwrite
 
 The generated upsert never writes a task's `status`, so statuses changed on `/roadmap`
 survive a content re-sync; pass `--reset-status` to the generator only when you want the
-sheet's statuses to win again. Details in `docs/DEVELOPER_GUIDE.md` §9.
+sheet's statuses to win again. It also bumps `updated_at` only for rows whose content
+actually changed, so an unchanged re-run is a true no-op and a sync cannot re-date a
+status edit. Details in `docs/DEVELOPER_GUIDE.md` §9.
 
 **New tables need migrations first.** `roadmap_phases`, `roadmap_tasks` and the extra
 `quiz_events` columns arrive through `npm run db:migrate-local` / `npm run db:migrate-remote`;
@@ -123,6 +125,29 @@ git switch main && git merge --no-ff feat/my-thing && git push
 git branch -d feat/my-thing
 ```
 
+**Commit messages are published.** `/changelog` is generated from them, so the
+message is the release note — write it for a reader, not for the diff:
+
+- Start with a conventional type (`feat`, `fix`, `perf`, `docs`, `refactor`, `chore`, `ci`,
+  `build`), an optional scope, and a subject in the imperative that says what changed and why
+  it matters: `feat(export): keep the card legible at 1080px`. `chore`/`ci`/`build` and the
+  merge commits GitHub writes itself are collapsed into a "Housekeeping" block, so a commit
+  that changes what a reader can do should not be labelled `chore`.
+- The body is published too (behind a "Why it changed" disclosure). Blank line after the
+  subject, prose paragraphs, no author emails — the page strips `Co-authored-by` and
+  `Signed-off-by` and never prints an address.
+- To pin a commit to the roadmap, add a trailer: `Task: p1-03`, or several at once
+  (`Tasks: 1.3, p2-07`); both the task id and the sheet's numbering resolve. The changelog
+  then links the commit to `/roadmap#p1-03`, and that task grows a "Latest" line pointing
+  back. The list of ids is in `data/roadmap.json` (or the roadmap sheet).
+- After a push, `cd frontend && npm run changelog` in the same commit that changes behaviour.
+  The page rebuilds from `git log` on Pages regardless, but committing the refreshed
+  `lib/changelog*.generated.ts` keeps the snapshot reviewable in the diff.
+- When a week's work is worth announcing, `node scripts/reddit_digest.mjs` drafts the
+  r/TheoCompass post from those same entries — `--open` copies the body and opens the submit
+  form, `--mark-posted <url>` records it. It never posts by itself; the selection rules and the
+  two slots you have to write yourself are in `docs/DEVELOPER_GUIDE.md` §15.
+
 **Undo**
 - `git reset --hard HEAD` — discard everything since the last commit.
 - `git checkout -- <file>` — revert a single file.
@@ -143,8 +168,19 @@ The frontend deploys to Cloudflare Pages with the `@cloudflare/next-on-pages` ad
 
 **Cloudflare Pages project settings (already configured in the dashboard):**
 - **Root directory:** `frontend`
-- **Build command:** `NEXT_PUBLIC_API_URL=https://theocompass-api.theocompass-project.workers.dev npx @cloudflare/next-on-pages@1`
+- **Build command:** `node ../scripts/build_changelog.mjs && NEXT_PUBLIC_API_URL=https://theocompass-api.theocompass-project.workers.dev npx @cloudflare/next-on-pages@1`
 - **Build output directory:** `.vercel/output/static`
+
+**Why the changelog step is chained into the build command:** `/changelog` renders
+`frontend/lib/changelog.generated.ts`, a snapshot of the Git history written by
+`scripts/build_changelog.mjs`. `@cloudflare/next-on-pages@1` invokes `next build` directly, so a
+`prebuild` npm script would never run here — the generator has to be part of the build command
+itself. Without it the page still builds, from the last committed snapshot; it just does not
+include the push that triggered the build. The generator reads `git log` for the commit being
+built and the public GitHub API for the older history, and it fails soft (no network, a rate
+limit, no `git` → a warning and the previous snapshot), so it can never break a deploy. Locally:
+`npm run changelog` in `frontend/` to refresh, `npm run changelog:check` to see whether the
+committed snapshot is stale.
 
 **Why `frontend/.npmrc` exists:** `npx @cloudflare/next-on-pages@1` re-resolves dependencies on every build and pulls the latest `wrangler`, which now requires `@cloudflare/workers-types@^5`, while `next-on-pages` requires `^4`. That mismatch aborts the build with `ERESOLVE`. `frontend/.npmrc` sets `legacy-peer-deps=true` so the build proceeds.
 

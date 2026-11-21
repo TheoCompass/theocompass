@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Check, Star } from "lucide-react";
+import Link from "next/link";
 import { createClientId, submitQuizFeedback, type FeedbackStance } from "../../../lib/api";
 import { trackEvent } from "../../../lib/gtag";
 import { APP_VERSION } from "../../../lib/site";
@@ -486,20 +487,36 @@ export function PostQuizFeedback({
         </header>
 
         {sent ? (
-          <div
-            ref={confirmationRef}
-            role="status"
-            tabIndex={-1}
-            className="mt-6 flex items-start gap-3 border border-rule bg-paper p-4 focus:outline-none"
-          >
-            <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-cerulean-800" />
-            <div>
-              <p className="text-sm font-semibold text-ink">Thank you — that is recorded.</p>
-              <p className="mt-1 text-2xs leading-relaxed text-ink-soft">
-                It is counted in the collective results, anonymously. Nothing else is asked of you.
-              </p>
+          <>
+            <div
+              ref={confirmationRef}
+              role="status"
+              tabIndex={-1}
+              className="mt-6 flex items-start gap-3 border border-rule bg-paper p-4 focus:outline-none"
+            >
+              <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-cerulean-800" />
+              <div>
+                <p className="text-sm font-semibold text-ink">Thank you — that is recorded.</p>
+                <p className="mt-1 text-2xs leading-relaxed text-ink-soft">
+                  It is counted in the collective results, anonymously. Nothing else is asked of you.
+                </p>
+              </div>
             </div>
-          </div>
+            {/* Outside the live region: the link is not part of what was just
+                recorded, and inside `role="status"` it would be re-announced as
+                if it were. Only after submitting, too — before that it competes
+                with the form for the one thing this card asks for. */}
+            <p className="mt-3 text-2xs leading-relaxed text-ink-muted">
+              This is an open beta and it changes most weeks —{" "}
+              <Link
+                href="/changelog"
+                className="underline decoration-rule-strong underline-offset-2 hover:text-ink"
+              >
+                see what changed
+              </Link>
+              .
+            </p>
+          </>
         ) : phase === "failed" ? (
           <div className="mt-6 border border-punch-500/40 bg-punch-50 p-4">
             <p className="text-sm font-semibold text-ink">That did not go through.</p>

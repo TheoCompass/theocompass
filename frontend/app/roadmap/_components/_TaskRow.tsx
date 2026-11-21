@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import {
   ROADMAP_STATUS_META,
   ROADMAP_STATUS_ORDER,
   type RoadmapStatus,
   type RoadmapTask,
 } from "../../../lib/roadmap";
+import { LATEST_BY_TASK } from "../../../lib/changelog-tasks.generated";
+import { formatBuildDate } from "../../../lib/site";
 
 /** The status as a chip: a coloured dot plus the sheet's own wording. */
 export function StatusChip({ status }: { status: RoadmapStatus }) {
@@ -30,6 +33,13 @@ export function StatusChip({ status }: { status: RoadmapStatus }) {
  *
  * When a moderator is unlocked the chip is replaced by a select in the same
  * place, so the list does not reflow as editing is turned on and off.
+ *
+ * The row is also an anchor: `/changelog` links each `Task: p1-03` trailer to
+ * `/roadmap#p1-03`, so `id` has to be the task id and the scroll has to clear
+ * the sticky chrome. The "Latest" line closes the loop in the other direction —
+ * it names the newest commit that touched this task — and it appears only for
+ * tasks a commit has actually named, because an empty line saying "nothing yet"
+ * on 60 rows is noise, not information.
  */
 export function TaskRow({
   task,
@@ -42,9 +52,12 @@ export function TaskRow({
   saving: boolean;
   onChange: (status: RoadmapStatus) => void;
 }) {
+  const latest = LATEST_BY_TASK[task.id];
+
   return (
     <li
-      className={`flex flex-wrap items-start gap-x-3 gap-y-2 py-3 transition-opacity ${
+      id={task.id}
+      className={`flex scroll-mt-24 flex-wrap items-start gap-x-3 gap-y-2 py-3 transition-opacity ${
         saving ? "opacity-60" : ""
       }`}
     >
@@ -54,6 +67,19 @@ export function TaskRow({
         <p className="text-mini font-semibold leading-snug text-ink">{task.name}</p>
         {task.description && (
           <p className="mt-0.5 text-2xs leading-relaxed text-ink-soft">{task.description}</p>
+        )}
+
+        {latest && (
+          <p className="mt-1 text-3xs leading-snug text-ink-muted">
+            <span className="meta">Latest</span>{" "}
+            <Link
+              href={`/changelog#${latest.short}`}
+              className="underline decoration-rule-strong underline-offset-2 transition-colors hover:text-ink"
+            >
+              {latest.subject}
+            </Link>
+            <span className="num"> &middot; {formatBuildDate(latest.date.slice(0, 10))}</span>
+          </p>
         )}
 
         {(task.type || task.role) && (

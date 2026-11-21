@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { CERTAINTY_MARK, CERTAINTY_SLOTS, SURFACE } from "../lib/palette";
-import { APP_STAGE, APP_VERSION } from "../lib/site";
+import { APP_STAGE, APP_VERSION, formatBuildDate } from "../lib/site";
+import { CHANGELOG_SUMMARY } from "../lib/changelog-tasks.generated";
 import { FINGERPRINT_AXIS_COUNT } from "./christian-denominations/_constants";
 import { LiveStats } from "./_components/_LiveStats";
 import { HeroStats } from "./_components/_HeroStats";
@@ -430,6 +431,32 @@ export default function Home() {
               <dt className="text-ink-muted">Account needed</dt>
               <dd className="font-semibold text-ink">No</dd>
             </div>
+            {/* The build date is a fact about the product like the rest of this
+                row, and the most trust-relevant one: it is the claim "we keep
+                correcting this" in a form a reader can check. It comes from
+                lib/site.ts, the same constant the downloaded cards print, so a
+                stale build is visible in review instead of plausible.
+
+                The link and the count are that same claim with evidence
+                attached: the date says when, `/changelog` says what, and the
+                number makes "changes most weeks" checkable instead of
+                adjectival. Both come from the generated file, so the count
+                cannot drift from the page it points at. */}
+            <div className="flex items-baseline gap-1.5">
+              <dt className="text-ink-muted">Updated</dt>
+              <dd className="num font-mono font-semibold text-ink">
+                <Link
+                  href="/changelog"
+                  className="underline decoration-rule-strong underline-offset-2 hover:decoration-ink"
+                >
+                  {formatBuildDate()}
+                  <span className="font-sans font-normal text-ink-muted">
+                    {" · "}
+                    {CHANGELOG_SUMMARY.last30d} changes in 30 days →
+                  </span>
+                </Link>
+              </dd>
+            </div>
             {/* Appears once enough readers have judged their top match; see
                 _QuizAccuracy.tsx. Shares the panel's fetch. */}
             <QuizAccuracy />
@@ -451,7 +478,13 @@ export default function Home() {
         <div className="reveal-static mx-auto max-w-3xl">
           <h2 className="font-serif text-2xl font-bold text-ink md:text-3xl">What the beta adds</h2>
           <p className="mt-2 text-sm leading-relaxed text-ink-soft md:text-base">
-            Four things changed in this build. Open one to see what it looks like.
+            Four things changed in this build. Open one to see what it looks like.{" "}
+            <Link
+              href="/changelog"
+              className="font-semibold text-cerulean-900 underline decoration-cerulean-300 underline-offset-2 hover:decoration-cerulean-900"
+            >
+              Or read the full changelog →
+            </Link>
           </p>
 
           <div className="mt-6 divide-y divide-rule border-y border-rule">
@@ -538,6 +571,9 @@ export default function Home() {
           <nav className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
             <Link href="/roadmap" className="text-ink-soft transition-colors hover:text-ink">
               Full roadmap
+            </Link>
+            <Link href="/changelog" className="text-ink-soft transition-colors hover:text-ink">
+              Changelog
             </Link>
             <a
               href="https://www.reddit.com/r/TheoCompass"

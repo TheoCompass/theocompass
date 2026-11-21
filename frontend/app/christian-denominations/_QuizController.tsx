@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import html2canvas from "html2canvas-pro";
 import { DEFAULT_X_AXIS, DEFAULT_Y_AXIS } from "./CompassChart";
 import { useRouter } from 'next/navigation';
@@ -1697,6 +1698,10 @@ export default function QuizController() {
             <div className="meta flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
               <a href="https://theocompass.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-ink">TheoCompass.com</a>
               <a href="https://www.reddit.com/r/TheoCompass" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-ink">r/TheoCompass</a>
+              {/* The one internal link in this row, and the only one that answers
+                  "is this thing still being worked on?" while the reader is still
+                  in the quiz. */}
+              <Link href="/changelog" className="transition-colors hover:text-ink">Changelog</Link>
               <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-accent">Support on Ko-fi</a>
               <a href="mailto:theocompass.project@gmail.com" className="transition-colors hover:text-ink">Contact</a>
             </div>

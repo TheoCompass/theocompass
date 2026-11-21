@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "changelog": "node ../scripts/build_changelog.mjs",
+    "changelog:check": "node ../scripts/build_changelog.mjs --check",
+    "digest": "node ../scripts/reddit_digest.mjs"
   },
   "dependencies": {
     "html2canvas-pro": "^2.0.2",

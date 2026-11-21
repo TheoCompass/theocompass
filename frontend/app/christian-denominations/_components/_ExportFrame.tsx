@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { forwardRef, type ReactNode } from "react";
-import { APP_STAGE, APP_VERSION } from "../../../lib/site";
+import { APP_STAGE, APP_VERSION, formatBuildDate } from "../../../lib/site";
 
 /**
  * The chrome every download wears.
@@ -82,7 +82,7 @@ const ExportFrame = forwardRef<HTMLDivElement, ExportFrameProps>(function Export
         {footnote && <p className="mt-1 text-2xs text-ink-muted">{footnote}</p>}
         <div className="mx-auto my-3 h-px w-12 bg-rule-strong" />
         <p className="font-mono text-3xs uppercase tracking-[0.14em] text-ink-muted">
-          TheoCompass {APP_VERSION} · {APP_STAGE}
+          TheoCompass {APP_VERSION} · {APP_STAGE} · build {formatBuildDate()}
         </p>
         <p className="mt-1 font-mono text-3xs uppercase tracking-[0.14em] text-ink-muted">
           theocompass.com · Generated {timestamp}

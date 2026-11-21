@@ -141,7 +141,11 @@ python3 scripts/export_roadmap_csv.py      # only when the xlsx changed (overwri
 safe to re-run. It deliberately **does not write the `status` column**: statuses
 edited on `/roadmap` live in D1 and must survive a content re-sync. Pass
 `--reset-status` to the generator when you actually want the sheet's statuses
-back.
+back. `updated_at` is bumped only for rows whose content actually changed — a
+null-safe `CASE` (`name IS NOT excluded.name OR …`) on every upsert, with
+`status` in the comparison only under `--reset-status` — so an unchanged re-run
+is a true no-op and a sync can no longer overwrite the timestamp a moderator's
+PATCH just wrote.
 
 **Tables** (`migrations/0002_roadmap.sql`): `roadmap_phases` (one row per phase)
 and `roadmap_tasks` (`id` = `p3-04`, `phase_index` + `task_index` render as `3.4`,
@@ -877,3 +881,240 @@ with `GET /api/feedback` (a `401` means the route exists) and `POST` a rating
 whose `sessionId` you can delete again — the insert invalidates the stats cache,
 so a `total` that does not move is the second tell, and a stored
 `rating_metric = 'experience'` on that row is the third.
+
+## 13. Build Identity (`frontend/lib/site.ts`)
+
+One file says which build a reader is looking at. `APP_VERSION` changes when the
+quiz changes, `APP_STAGE` when the project does, and `APP_UPDATED` (ISO
+`YYYY-MM-DD`) moves with the version.
+
+Three surfaces print them, and each reads the constants instead of spelling out
+its own string: the hero badge (`v2.0 open beta`), the landing page's product
+facts (`Updated 21 Nov 2026`), and the footer of every downloaded card
+(`TheoCompass v2.0 · Open beta · build 21 Nov 2026`). The card matters most: a PNG
+outlives the tab it came from, so it is the only place a reader can tell two
+builds apart months later.
+
+Bump `APP_UPDATED` in the same commit as `APP_VERSION`. It is a fact in the
+source, not a fetch — §14's changelog dates commits, not this constant, so the
+two cannot contradict each other — and a date that goes stale is meant to show
+up in review. The landing page shows a date rather than a cadence on purpose:
+"updated weekly" can be false on any given week, "21 Nov 2026" cannot.
+`formatBuildDate` formats by hand rather than through `Intl`, so the
+statically-built HTML and the hydrated client cannot disagree.
+
+## 14. The Changelog (`/changelog`)
+
+The changelog is not a document. It is a view of the Git history: there is no
+file anyone edits to publish a release note, and no second copy of the truth to
+fall out of date. `frontend/app/changelog/page.tsx` is a server component that
+renders `frontend/lib/changelog.generated.ts`, so the HTML a crawler gets is the
+HTML a reader gets, and the page is prerendered as static content beside the
+landing page, the quiz and the roadmap.
+
+### What writes the data
+
+`scripts/build_changelog.mjs` (no dependencies, Node's `https` and `child_process`)
+merges two sources, newest first and de-duplicated by SHA:
+
+- `git log` in the working copy for the commits reachable from the checkout
+  being built — exact for HEAD, which matters because a deploy starts seconds
+  after a push and the REST API has not indexed that commit yet;
+- the public GitHub API (`/repos/TheoCompass/theocompass/commits`, at most three
+  pages of 100) for the older history, because a Pages checkout can be shallow.
+  The repository is public, so no token is needed; `GITHUB_TOKEN` is honoured
+  when present but never required.
+
+It writes two files. `lib/changelog.generated.ts` is the page's data — every
+entry, sorted, with `feat(scope): …` split into its type, scope and subject and
+`Task:` trailers resolved against `data/roadmap.json`. `lib/changelog-tasks.generated.ts`
+is a small `Partial<Record<taskId, { short, date, subject }>>` used by the
+roadmap's client bundle, so a 70 KB module of prose never ships to the browser
+that only wants "which commit last touched this row". It also carries
+`CHANGELOG_SUMMARY` (`{ last7d, last30d, latest }`): the landing page is a client
+component, so its "42 changes in 30 days" has to come from these three numbers
+rather than from the entries.
+
+Reading the history itself lives in `scripts/lib/changelog-commits.mjs`
+(`collectEntries`), which `scripts/reddit_digest.mjs` imports too — one
+definition of "a product change", two consumers.
+
+Both files are deterministic — same commits in, same bytes out; no timestamp of
+"now", no `Math.random`, no JSON key order surprises — which is what makes
+`node scripts/build_changelog.mjs --check` meaningful. It regenerates in memory
+and exits non-zero if the committed snapshot differs, so CI or a pre-push hook
+can catch a stale changelog the way a lockfile check catches a stale dependency.
+`npm run changelog` / `npm run changelog:check` in `frontend/` are thin wrappers.
+
+The generator **fails soft**: no network, a rate limit, no `git`, an unparsable
+date — it warns, keeps the previous snapshot and exits 0. A changelog is worth a
+slightly stale row; it is never worth a failed deploy. That is also why the
+Pages build command chains it (`node ../scripts/build_changelog.mjs && npx
+@cloudflare/next-on-pages@1`) rather than relying on a `prebuild` script:
+next-on-pages calls `next build` itself, so `prebuild` would never fire.
+
+### What an entry is
+
+- `type` / `scope` / `subject` — from the conventional-commit prefix. A message
+  that does not parse is typed `change` with the whole subject, and a merge is
+  typed `merge`. Chips are verbs ("Added", "Fixed"), drawn from
+  `CHANGELOG_TYPE_META` in the same palette as `ROADMAP_STATUS_META`, because
+  `feat`/`fix` are Git's words rather than a reader's.
+- `lead` — the opening paragraph of the commit message, `Task:` and
+  `Co-authored-by`/`Signed-off-by` trailers removed. Only that paragraph
+  travels: these bodies run to many paragraphs, and rendering all of them twice
+  (HTML and the RSC payload) made a 580 KB page. The full message is one click
+  away on GitHub. No author email is ever carried over.
+- `tasks` — `Task: p1-03`, `Tasks: 1.3, p2-07` and `#1.3` all resolve, by task
+  id or by the sheet's numbering. Unknown tokens are collected and printed as a
+  warning naming the commit, so a typo surfaces in the build log instead of
+  silently dropping the link.
+- `housekeeping` — `chore`/`ci`/`build` types plus GitHub's own `Merge pull
+  request #…` commits. They are real work but not changes a reader can use, so
+  the page collapses them into one disclosure at the foot. Product entries stay
+  above, which also means the month headings count only what moved.
+
+### The two-way link with the roadmap
+
+A commit that names a task gets a chip linking to `/roadmap#p1-03`; the roadmap
+row (`_TaskRow.tsx`) carries `id={task.id}` and grows a "Latest" line that links
+back to `/changelog#<short>`. The "Latest" line is absent, not empty, for the
+tasks no commit has named — until the trailer convention is in use, that is all
+61 of them, and an empty line on every row would be noise.
+
+There is deliberately **no backfill**: nothing in the history says which sheet
+row a pre-convention commit touched, and guessing from the diff would be a
+fabrication published under the task's name. The link appears the first time a
+commit says `Task:` itself.
+
+Before trusting a change to the generator, check three things:
+`node scripts/build_changelog.mjs --check` (deterministic), the rendered
+`.next/server/app/changelog.html` (`id="<short>"` anchors, month headings, one
+housekeeping block), and the client chunk for the roadmap
+(`grep -r 'changelog#' .next/static/chunks`) to confirm the other half still
+points at the anchors this page emits.
+
+### Where the changelog is linked, and why there
+
+The page is evidence, so it is attached to claims and nowhere else:
+
+- the landing page's facts row: `Updated 21 Nov 2026 · 42 changes in 30 days →`,
+  both numbers from `CHANGELOG_SUMMARY` in `lib/changelog-tasks.generated.ts`.
+  The count is measured back from the newest commit, not from the wall clock, so
+  a rebuild with no new commits prints the same number;
+- the "What the beta adds" subtitle, which says four things changed and offers
+  the rest;
+- `/roadmap`, twice: the intro ("the same history in date order") and the
+  closing note, which also explains the `Task:` trailer;
+- the quiz footer's meta row, the one internal link there;
+- the feedback card, but only after a submission and outside `role="status"`, so
+  a screen reader does not re-announce the panel it was just told about.
+
+There is no nav slot. A nav item says "we have a changelog"; these placements
+say "here is the change you were just told about", which is the only reason
+anyone opens one.
+
+## 15. Announcing changes (the Reddit digest)
+
+`scripts/reddit_digest.mjs` drafts the weekly post for
+[r/TheoCompass](https://www.reddit.com/r/TheoCompass) from the same entries the
+changelog renders — `scripts/lib/changelog-commits.mjs`, shared by both scripts,
+so the page and the post cannot disagree about what a product change is.
+
+**It does not post.** Posting needs a Reddit OAuth token; a script app needs the
+account password, and the password grant stops working the moment 2FA is on. An
+unattended bot also has no way to notice that the third bullet reads badly in
+public. Selection is the part worth automating; judgement is not. What a
+different design would need, if this ever changes: an app registered at
+reddit.com/prefs/apps, a unique `User-Agent` such as
+`node:theocompass-digest:v1 (by /u/oroq)`, and a token refreshed at most hourly.
+
+### The window and the ranking
+
+1. **Window** — the entries after `lastSha` in `data/reddit_digest.json`, or
+   after `--since YYYY-MM-DD` when given (which overrides both the boundary and
+   the cadence gate), or the last seven days on a first run.
+2. **Filter** — out: `chore`/`ci`/`build` (already `housekeeping`), `merge`,
+   `docs`, `refactor`, `test`, `style`. In: what a reader could see or use.
+3. **Score** — `feat` 3, `perf`/`fix` 2, anything else 1; plus 2 when the commit
+   names a roadmap task; plus up to 2 for a subject long enough to carry detail.
+4. **Shape** — the top five as bullets. A scope with two or more bullets gets a
+   bold heading (`**Feedback**`); a scope with one becomes a plain bullet up
+   front, because five headings over five bullets reads like a form. Everything
+   after the fifth is one `Also:` line, by name.
+
+### The two places a human has to edit
+
+The draft says so at the top, and it is serious: **the title and the closing
+question are proposals.**
+
+- The title is the week's top `feat` subject when it is at most 70 characters,
+  otherwise `What changed in TheoCompass — 21 Nov 2026`. A subject is a commit
+  message, not a headline.
+- The closing question rotates through three variants by ISO week so
+  consecutive posts do not open the same way. It is there to be replaced with
+  the question you actually want answered this week.
+
+Everything else in the draft — bullets, the range, the two links — is
+mechanical and should stay that way.
+
+
+### State, and what `--mark-posted` records
+
+`data/reddit_digest.json` is committed and is the only memory the script has:
+
+```json
+{
+  "version": 1,
+  "lastPostedAt": "2026-11-21T23:01:14.524Z",
+  "lastSha": "4c46467d4d354b97301774a01a4d3a3192ed1cee",
+  "posts": [{ "sha": "…", "date": "…", "recordedAt": "…", "title": "…", "url": "…" }]
+}
+```
+
+`--mark-posted <url>` appends to `posts[]`, sets `lastPostedAt` to now and
+`lastSha` to the `through:` SHA written in the newest draft's comment block — not
+to the newest commit in the repository. That difference is the point: anything
+pushed between drafting and posting stays in the next window instead of
+disappearing from both. `posts[]` is also what a future "discussed on
+r/TheoCompass" line on `/changelog` would read; nothing reads it yet.
+
+### Running it
+
+```bash
+node scripts/reddit_digest.mjs                      # draft since the last post
+node scripts/reddit_digest.mjs --open               # draft, copy the body, open the form
+node scripts/reddit_digest.mjs --since 2026-11-14   # explicit window
+node scripts/reddit_digest.mjs --min 5              # stricter threshold
+node scripts/reddit_digest.mjs --mark-posted <url>  # record what went out
+node scripts/reddit_digest.mjs --offline            # git only, no GitHub API
+```
+
+The draft lands in `output/reddit-YYYY-MM-DD.md` — gitignored, because it is a
+thing you edit once and paste, not a page. Re-running keeps a draft that already
+exists (and `--open` copies the text as you left it); delete the file to
+regenerate it. `--open` copies the body with `pbcopy` and opens the submit form
+with `?title=` prefilled: Reddit honours the title parameter and discards
+`text=`, so the clipboard is the only route that keeps the Markdown intact. Both
+steps are macOS-only; elsewhere the script prints the path and the title and
+says so.
+
+Two gates keep the volume down, and both are gates rather than warnings:
+
+- fewer than `--min` product changes (default 3) prints what there is and exits
+  0 — a quiet week is a valid outcome, and six posts a year worth reading beat
+  fifty that are not;
+- less than five days after the last recorded post, it refuses and prints the
+  date the gate opens. `--since` is the override, and using it is a decision.
+
+### House rules
+
+- **r/TheoCompass only.** It is the project's own subreddit; a build log posted
+  into someone else's community is spam whatever the intent.
+- **One post a week, at most**, and never the same text in two subreddits. If a
+  post is worth cross-posting, rewrite it for the room.
+- **Say you built it.** The draft's first person is deliberate: "the feedback I
+  act on most" is a claim a maintainer can make and a brand cannot.
+- The script fails soft on the network (git only, still drafts), loudly on a
+  malformed `--mark-posted` URL, and exits 1 only when there is no history to
+  read at all.

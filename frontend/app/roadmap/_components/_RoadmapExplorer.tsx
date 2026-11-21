@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { fetchRoadmap, updateRoadmapTask } from "../../../lib/api";
 import { D1_LIMIT_HEADING, d1LimitMessage, isD1LimitError } from "../../../lib/d1-limit";
@@ -229,7 +230,14 @@ export function RoadmapExplorer() {
             : ""}
           The landing page shows the three milestones — Beta, Official launch and
           Extensions; this is the whole plan, phase by phase, with the status of every
-          task — including the ones that are months away.
+          task — including the ones that are months away.{" "}
+          <Link
+            href="/changelog"
+            className="underline decoration-rule-strong underline-offset-2 hover:decoration-ink"
+          >
+            The changelog
+          </Link>{" "}
+          is the same history in date order, commit by commit.
         </p>
 
         {loading && (
@@ -315,14 +323,24 @@ export function RoadmapExplorer() {
             )}
 
             <p className="mt-8 border-t border-rule pt-4 text-3xs leading-relaxed text-ink-muted">
-              Statuses are maintained by hand as work lands. Found something that has shipped
-              and is still marked as planned?{" "}
+              Statuses are maintained by hand as work lands, and where a commit names its
+              task — a{" "}
+              <code className="font-mono text-3xs text-ink-soft">Task: p0-01</code>{" "}
+              trailer — the row links to that commit. Found something that has shipped and
+              is still marked as planned?{" "}
               <a
                 href="mailto:theocompass.project@gmail.com"
                 className="underline decoration-rule-strong underline-offset-2 hover:text-ink"
               >
                 Send a correction
               </a>
+              . Every change is also listed newest-first in the{" "}
+              <Link
+                href="/changelog"
+                className="underline decoration-rule-strong underline-offset-2 hover:text-ink"
+              >
+                changelog
+              </Link>
               .
             </p>
           </>
