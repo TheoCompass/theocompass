@@ -19,6 +19,37 @@
   --color-rule-strong: #b6c9cb;
   --color-muted-soft: #e6efec;
 
+  /* ─── Panel plate: the ground a weight-ranked card stands on ──────────────
+     One blue and white, five mixes, darkening toward the core: `plate-1` is the
+     `1/5` card (core dogma) and carries the most ink, `plate-5` the `5/5` card
+     (non-essential) and is the white of any other panel. Each step is the same
+     blue mixed into white at 0 / 25 / 50 / 75 / 100% - the way the category
+     washes are built - so this is a value ramp and not a hue assignment: the
+     ordering lives in lightness alone, which is why it still reads in greyscale
+     and through a photocopier, and why it agrees with the rail instead of
+     competing with it.
+
+     The span is 21.6 L* in four even steps (~5.4 each), so adjacent cards are
+     separable side by side and five cards read as one scale rather than as five
+     unrelated panels. The floor is measured, not chosen. The rail IS the navy
+     ink, so a navy ground erases it (1.00:1); the 11px tier line is ink-muted,
+     which falls to 2.21:1 on navy; and a chip's wash has to stay lighter than
+     the ground it stands on. At `plate-1` the rail and ink keep 6.74:1 - past
+     that the rail stops being the loudest line on the card - and the washes
+     still clear 1.69:1. From `plate-3` up they converge on the near-white
+     fills, which is why a chip never relies on its own wash alone.
+
+     Header strips are deliberately NOT tokens: they are `bg-white/75` over the
+     body, which lands `plate-1`'s strip on #e9f0f8 and holds ink-muted at
+     4.88:1 on every step. The header therefore never needs re-auditing when the
+     ramp moves - and on the white card the strip *is* the body, where the
+     hairline under the header carries the structure instead.               */
+  --color-plate-1: #a6c2e4;      /* 1/5 core dogma - most ink */
+  --color-plate-2: #bcd1eb;      /* 2/5 primary */
+  --color-plate-3: #d3e1f2;      /* 3/5 secondary */
+  --color-plate-4: #e9f0f8;      /* 4/5 tertiary */
+  --color-plate-5: #ffffff;      /* 5/5 non-essential - no ink */
+
   /* ─── Interaction: Cerulean ───────────────────────────────────────────────
      Fill with white text 4.6:1 · as small text use accent-ink (6.0:1).      */
   --color-accent: #457b9d;       /* Cerulean (palette) */

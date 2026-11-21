@@ -1,8 +1,16 @@
 "use client";
 import { useState, useMemo } from "react";
-import { CERTAINTY_TEXT, HUE_BASE } from "../../lib/palette";
-import { TIER_DESCRIPTIONS, TIER_LABELS } from "./_constants";
+import { CERTAINTY_TEXT, categoryTints } from "../../lib/palette";
+import {
+  QUIZ_CATEGORY_LABELS,
+  QUIZ_CATEGORY_SHORT_LABELS,
+  TIER_DESCRIPTIONS,
+  TIER_LABELS,
+  tierPlate,
+  tierWeight,
+} from "./_constants";
 import { CertaintyMeter } from "./_components/_CertaintyMeter";
+import { TierNumeral } from "./_components/_TierNumeral";
 
 export interface Label {
   /** Usually a string; the API sometimes sends the whole label object. */
@@ -67,44 +75,21 @@ interface TheologicalLabelCloudProps {
 
 type ViewMode = "importance" | "category";
 
-// Two facts per belief, one channel each, and neither channel is colour:
+// Three facts per belief, one channel each, and colour is never the only one:
+//   which topic   -> the chip's BORDER, in that topic's `cat-*` hue, plus the
+//                    topic's own short word printed inside the chip (or, in the
+//                    topic view, the named heading above it)
 //   how essential -> the tier's own WORD, on a quiet pill on the chip, plus a
 //                    1/5 - 5/5 numeral in the heading that owns the group
 //   how sure      -> HOW MANY of three ticks are filled
 //
-// The first channel has now been tried four times. Five hues had no order; a
-// monotone navy ramp was ordered but unreadable at 3px, where its steps sit
-// 13 L* apart and blur into one another. A word is ordinal by definition,
-// needs no legend, and cannot be confused with the category dot above it.
+// Only the topic may be a hue, and only because a hue suits an unordered set.
+// Essentiality was colour-coded four times and reverted four times: five hues had
+// no order; a monotone navy ramp was ordered but unreadable at 3px, where its
+// steps sit 13 L* apart and blur into one another. A word is ordinal by
+// definition, needs no legend, and cannot be mistaken for a topic.
 const TOLERANCE_TEXT = TIER_LABELS;
 const TOLERANCE_DESCRIPTIONS = TIER_DESCRIPTIONS;
-
-
-const CATEGORY_LABELS: Record<string, string> = {
-  "GOD": "The Nature of God, Christ, & the Holy Spirit",
-  "CHR": "The Church: Its Nature and Structure", 
-  "SCR": "Scripture and Authority",
-  "SAL": "Humanity, Sin, and Salvation",
-  "SAC": "Sacraments and Rites",
-  "WOR": "Worship and Spiritual Life",
-  "ESC": "The Last Things (Eschatology)",
-  "ETH": "Christian Ethics and Life in the World",
-  "MET": "Overarching Theological Approaches",
-  "GEN": "General"
-};
-
-const CATEGORY_SHORT_LABELS: Record<string, string> = {
-  "GOD": "God & Christ",
-  "CHR": "Church",
-  "SCR": "Scripture",
-  "SAL": "Salvation",
-  "SAC": "Sacraments",
-  "WOR": "Worship",
-  "ESC": "Eschatology",
-  "ETH": "Ethics",
-  "MET": "Approaches",
-  "GEN": "General"
-};
 
 
 
@@ -179,8 +164,8 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
     return Object.entries(groups)
       .map(([cat, labels]) => ({
         id: cat,
-        title: CATEGORY_LABELS[cat] || cat,
-        shortTitle: CATEGORY_SHORT_LABELS[cat] || cat,
+        title: QUIZ_CATEGORY_LABELS[cat] || cat,
+        shortTitle: QUIZ_CATEGORY_SHORT_LABELS[cat] || cat,
         // Tier first, so the tier pills cluster into runs. That makes the word
         // do the grouping job inside a topic without adding five sub-headers to
         // a list that may only hold eight beliefs.
@@ -197,11 +182,18 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
       });
   }, [filteredLabels]);
 
-  // Accordion state: which groups are expanded (for category view only)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set([]));
+  // Accordion state: the groups the reader has CLOSED. Everything opens by
+  // default - the panel exists to show every belief, and five clicks to reveal
+  // five shelves made the default view an empty index. Storing the collapsed
+  // set rather than the expanded one is also what makes that safe: an expanded
+  // set has to be seeded with group names that do not exist yet whenever labels
+  // arrive after mount or a search reveals a group the first snapshot lacked,
+  // and every one of those groups would start closed. "Open unless closed"
+  // needs no seeding and survives all three cases.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
 
   const toggleGroup = (title: string) => {
-    setExpandedGroups(prev => {
+    setCollapsedGroups(prev => {
       const next = new Set(prev);
       if (next.has(title)) next.delete(title);
       else next.add(title);
@@ -268,21 +260,35 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
   // error rather than a no-op.
   if (!userLabels || userLabels.length === 0) return null;
 
-  // One belief: its name, its certainty as a tick count, and - only when the
-  // surrounding heading does not already say it - its tier as a word.
+  // One belief: its name, its topic, its certainty as a tick count, and - only
+  // when the surrounding heading does not already say it - its tier as a word.
   //
-  // That rule is why the importance view shows no pill: it sits inside a card
-  // headed "[1/5] Core Dogma", so twelve chips each repeating "Core Dogma"
+  // That rule is why the importance view shows no tier pill: it sits inside a
+  // card headed "[1/5] Core Dogma", so twelve chips each repeating "Core Dogma"
   // would be twelve lines of noise. The topic view interleaves tiers under a
-  // category heading, so there the chip must speak for itself.
-  const renderLabelPill = (labelObj: Label, keyPrefix: string, idx: number, showTier = true) => {
+  // category heading, so there the chip must speak for itself - and by the same
+  // rule it does not restate the topic, which the accordion header just named.
+  //
+  // The border is the topic's hue in both views, because that is the one thing a
+  // chip in a tier card is not otherwise saying: nothing else on screen tells a
+  // Scripture conviction from a Worship one when they sit in the same group.
+  const renderLabelPill = (
+    labelObj: Label,
+    keyPrefix: string,
+    idx: number,
+    showTier = true,
+    showCategory = false,
+  ) => {
     const actualLabelText = labelText(labelObj.label);
     const tolerance = Math.max(0, Math.min(4, labelObj.tolerance ?? 2));
     const certainty = Math.max(0, Math.min(3, labelObj.certainty ?? 0));
     const isExpandedLabel = expandedLabel === actualLabelText;
+    const isHoveredLabel = hoveredLabel === actualLabelText;
     const certaintyWord = CERTAINTY_TEXT[certainty];
     const tierName = TOLERANCE_TEXT[tolerance];
-    const categoryName = CATEGORY_SHORT_LABELS[labelObj.category] || labelObj.category;
+    const categoryName =
+      QUIZ_CATEGORY_SHORT_LABELS[labelObj.category] || labelObj.category || "General";
+    const tints = categoryTints(labelObj.category);
 
     return (
       <div
@@ -295,11 +301,22 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
           onMouseEnter={() => setHoveredLabel(actualLabelText)}
           onMouseLeave={() => setHoveredLabel(null)}
           aria-expanded={isExpandedLabel}
-          aria-label={`${actualLabelText}. ${certaintyWord}, ${tierName}.`}
-          className={`inline-flex max-w-full cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border border-rule bg-paper-raised px-2.5 py-1.5 text-left text-mini font-medium leading-tight text-ink transition-colors hover:border-rule-strong hover:bg-paper ${
-            hoveredLabel && hoveredLabel !== actualLabelText ? "opacity-40" : "opacity-100"
-          } ${isExpandedLabel ? "border-ink" : ""}`}
+          aria-label={`${actualLabelText}. ${[showCategory ? categoryName : null, certaintyWord, tierName]
+            .filter(Boolean)
+            .join(", ")}.`}
+          className={`inline-flex max-w-full cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border-2 px-2 py-1 text-left text-mini font-medium leading-tight text-ink transition-[translate,background-color,opacity] hover:-translate-y-px motion-reduce:hover:translate-y-0 ${
+            hoveredLabel && !isHoveredLabel ? "opacity-40" : "opacity-100"
+          }`}
+          style={{
+            borderColor: tints.hue,
+            backgroundColor: isHoveredLabel || isExpandedLabel ? tints.hoverWash : tints.wash,
+          }}
         >
+          {showCategory && (
+            <span className="shrink-0 text-3xs font-semibold uppercase tracking-wider text-ink-soft">
+              {categoryName}
+            </span>
+          )}
           <span className="min-w-0">{actualLabelText}</span>
           {showTier && (
             <span className="shrink-0 rounded-[2px] bg-muted-soft px-1.5 py-0.5 text-3xs font-semibold leading-none text-ink-soft">
@@ -310,9 +327,14 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
         </button>
 
         {/* Full-row inspector: the chip wraps onto its own line, so on a phone
-            the description gets the whole width instead of a 24rem sliver. */}
+            the description gets the whole width instead of a 24rem sliver. It
+            inherits the chip's topic hue so the panel reads as that chip opened
+            rather than as a second, unrelated box. */}
         {isExpandedLabel && (
-          <div className="mt-1.5 animate-fade-in border border-rule bg-paper-raised">
+          <div
+            className="mt-1.5 animate-fade-in border"
+            style={{ borderColor: tints.hue, backgroundColor: tints.wash }}
+          >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-rule px-3 py-2">
               <span className="flex items-center gap-1.5 text-2xs font-semibold text-ink">
                 <CertaintyMeter value={certainty} size="sm" />
@@ -324,7 +346,14 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
                 </span>
                 {tierName}
               </span>
-              <span className="text-2xs text-ink-muted">{categoryName}</span>
+              <span className="flex items-center gap-1.5 text-2xs text-ink-muted">
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: tints.hue }}
+                />
+                {categoryName}
+              </span>
             </div>
             <div className="space-y-1 px-3 py-2">
               <p className="text-2xs leading-snug text-ink-muted">
@@ -409,22 +438,44 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
           {availableCategories.length > 1 && (
             <div className="flex flex-wrap gap-1.5 items-center">
               <span className="text-3xs font-bold uppercase tracking-wider text-ink-muted mr-1 shrink-0">Filter:</span>
-              {availableCategories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => toggleCategoryFilter(cat)}
-                  className={`border px-2.5 py-1 text-2xs font-medium transition-colors ${
-                    activeCategories.has(cat)
-                      ? "bg-accent-soft border-accent text-accent"
-                      : "bg-paper-raised border-rule text-ink-muted hover:border-rule-strong hover:text-ink-soft"
-                  }`}
-                >
-                  {CATEGORY_SHORT_LABELS[cat] || cat}
-                  <span className="ml-1 opacity-60">
-                    {Array.from(labelMap.values()).filter(l => (l.category || "GEN") === cat).length}
-                  </span>
-                </button>
-              ))}
+              {availableCategories.map(cat => {
+                const isActive = activeCategories.has(cat);
+                const tints = categoryTints(cat);
+                const count = Array.from(labelMap.values())
+                  .filter(l => (l.category || "GEN") === cat).length;
+                // Same border hue as the chips below, so this row doubles as the
+                // key to them: reading "Scripture · 4" in teal is how a reader
+                // learns what a teal border means. Selection is the wash and the
+                // tick, never the accent — accent-cerulean is too close to the
+                // "God & Christ" periwinkle to stand for "this button is on".
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => toggleCategoryFilter(cat)}
+                    aria-pressed={isActive}
+                    className="inline-flex items-center gap-1.5 border-2 px-2 py-0.5 text-2xs font-medium text-ink transition-colors"
+                    style={{
+                      borderColor: tints.hue,
+                      backgroundColor: isActive ? tints.hoverWash : tints.wash,
+                    }}
+                  >
+                    {isActive && (
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 12 12"
+                        className="h-2.5 w-2.5 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2 6.5 4.5 9 10 3" />
+                      </svg>
+                    )}
+                    {QUIZ_CATEGORY_SHORT_LABELS[cat] || cat}
+                    <span className="num opacity-60">{count}</span>
+                  </button>
+                );
+              })}
               {hasActiveFilters && (
                 <button
                   onClick={clearAllFilters}
@@ -439,8 +490,17 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
 
         {/* Legend — explains only what is actually on screen. The tier pill
             appears in the topic view alone (the importance view names the tier
-            in its card heading), so the pill key only appears there too. */}
+            in its card heading), so the pill key only appears there too; the
+            border key names where the topic is written, which is the same split
+            one level down. */}
         <div className="flex flex-col gap-2 border border-rule bg-paper p-2.5 lg:flex-row lg:items-center lg:gap-6">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="meta shrink-0">Border = topic</span>
+            <span className="text-2xs text-ink-muted">
+              {viewMode === "category" ? "named by the header above" : "named on the chip"} —
+              the hue only makes a topic findable again
+            </span>
+          </div>
           {viewMode === "category" && (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span
@@ -530,17 +590,29 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
                 return (
                   <div
                     key={group.tolerance}
-                    className="overflow-hidden border border-rule bg-paper-raised"
+                    className={`overflow-hidden border border-rule ${tierPlate(group.tolerance)} ${tierWeight(group.tolerance).rail}`}
                   >
                     {/* Card Header — the tier's place in the scale (1/5 … 5/5)
-                        and its meaning, on every width. The numeral replaces
-                        the colour rail: a number is ordinal without being a
-                        shade anyone has to tell apart. */}
-                    <div className="border-b border-rule bg-paper/80 px-3 py-2.5 sm:px-5 sm:py-3">
+                        and its meaning, on every width. The rank is spoken three
+                        times here, all three in value and never in hue: the
+                        ground (plate-1 … plate-5, a blue that runs from the
+                        card's own ink blue down to paper white), the margin
+                        rail (4px, 2px, or the card's own hairline) and the
+                        numeral block (filled 11px, filled 10px, outlined 10px).
+                        Three channels, two granularities, one direction - see
+                        `TIER_PLATE` for why the ground is allowed five steps
+                        while the rail keeps three.
+
+                        The strip is a 75% white veil over that ground rather
+                        than a colour of its own, so it is the body, bleached:
+                        it stays lighter than the body on every step and holds
+                        this 11px line at 4.88:1 or better without the ramp
+                        being re-audited each time it moves. On the `5/5` card
+                        the ground is already white, so the veil changes
+                        nothing and the hairline below does the dividing. */}
+                    <div className="border-b border-rule bg-white/75 px-3 py-2.5 sm:px-5 sm:py-3">
                       <div className="flex items-center gap-2">
-                        <span className="num flex shrink-0 items-center rounded-[2px] bg-ink px-1.5 py-0.5 font-mono text-3xs font-bold leading-none text-paper">
-                          {group.tolerance + 1}/5
-                        </span>
+                        <TierNumeral tolerance={group.tolerance} />
                         <span className="font-serif font-bold text-ink">{group.title}</span>
                         <span className="num ml-auto font-mono text-3xs text-ink-muted">
                           {group.labels.length} {group.labels.length === 1 ? "label" : "labels"}
@@ -555,7 +627,9 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
                     <div className="px-3 py-3 sm:px-5 sm:py-4">
                       <div className="flex flex-wrap gap-2">
                         {group.labels.map((labelObj, idx) =>
-                          renderLabelPill(labelObj, `imp-${group.tolerance}`, idx, false)
+                          // No tier word (the card heading has it); the topic word
+                          // appears here because a tier card names no topic.
+                          renderLabelPill(labelObj, `imp-${group.tolerance}`, idx, false, true)
                         )}
                       </div>
                     </div>
@@ -577,19 +651,20 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
           /* ─── CATEGORY VIEW (Accordion) ─── */
           <div className="space-y-2">
             {categoryGroups.map((group) => {
-              const isExpanded = expandedGroups.has(group.title);
+              const isExpanded = !collapsedGroups.has(group.title);
               return (
                 <div key={group.id} className="bg-paper-raised rounded-[4px] border border-rule overflow-hidden transition-all">
                   {/* Accordion Header */}
                   <button
                     onClick={() => toggleGroup(group.title)}
+                    aria-expanded={isExpanded}
                     className="flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-paper sm:px-5 sm:py-3.5"
                   >
                     <div className="flex items-center gap-2">
                       <span
                         aria-hidden="true"
                         className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: HUE_BASE[group.id] ?? HUE_BASE.GEN }}
+                        style={{ backgroundColor: categoryTints(group.id).hue }}
                       />
                       <span className="font-bold text-ink">{group.shortTitle}</span>
                       <span className="rounded-[3px] bg-muted-soft px-2 py-0.5 text-3xs font-medium text-ink-muted">
@@ -611,7 +686,9 @@ export default function TheologicalLabelCloud({ userLabels, className = "", embe
                     <div className="px-3 pb-3 pt-1 sm:px-5 sm:pb-4">
                       <div className="flex flex-wrap gap-2">
                         {group.labels.map((labelObj, idx) =>
-                          renderLabelPill(labelObj, `cat-${group.id}`, idx)
+                          // Tier word on, topic word off: the accordion header
+                          // above already names the topic and carries its dot.
+                          renderLabelPill(labelObj, `cat-${group.id}`, idx, true, false)
                         )}
                       </div>
                     </div>

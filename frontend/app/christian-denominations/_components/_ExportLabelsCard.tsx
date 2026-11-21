@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { CERTAINTY_TEXT } from "../../../lib/palette";
-import { TIER_DESCRIPTIONS, TIER_LABELS } from "../_constants";
+import { CERTAINTY_TEXT, categoryTints } from "../../../lib/palette";
+import { QUIZ_CATEGORY_SHORT_LABELS, TIER_DESCRIPTIONS, TIER_LABELS, tierPlate, tierWeight } from "../_constants";
 import { modeLabel } from "../_helpers";
 import { labelText, uniqueLabels, type Label } from "../TheologicalLabelCloud";
 import { CertaintyMeter } from "./_CertaintyMeter";
 import ExportFrame from "./_ExportFrame";
+import { TierNumeral } from "./_TierNumeral";
 
 /**
  * The quiz stores a label either as a bare object or wrapped one level down in
@@ -94,6 +95,10 @@ export default function ExportLabelsCard({
           One line per conviction your answers carried, grouped by dogmatic weight from
           core doctrine to personal preference.
         </p>
+        <p className="mx-auto mt-1 max-w-xl text-2xs text-ink-muted">
+          Each line is outlined in its topic&apos;s colour and names that topic, so the
+          grouping survives a greyscale photocopy.
+        </p>
 
         <div className="mt-4 inline-flex items-baseline gap-2 border border-rule px-4 py-1.5">
           <span className="num font-mono text-2xl font-bold leading-none text-ink">
@@ -135,14 +140,22 @@ export default function ExportLabelsCard({
           {groups.filter((group) => group.items.length > 0).map((group) => (
             <div
               key={group.tolerance}
-              className="overflow-hidden border border-rule bg-paper-raised"
+              className={`overflow-hidden border border-rule ${tierPlate(group.tolerance)} ${tierWeight(group.tolerance).rail}`}
             >
-              {/* Tier header — its place in the scale, its name, its meaning */}
-              <div className="border-b border-rule bg-paper/80 px-5 py-3">
+              {/* Tier header — its place in the scale, its name, its meaning.
+                  Same rail, numeral and graded plate as the app: this is the
+                  surface a reader prints, so it is the one that most needs the
+                  rank to survive without colour - which is also why the ground
+                  ranks here and not just the rail, since a tinted card still
+                  separates from its neighbours on a bad photocopier, and the
+                  ramp ends on white rather than on a pale tint so the `5/5`
+                  card costs its whole ground to the printer. The strip is a
+                  75% white veil over that ground (see globals.css), not a
+                  colour of its own, so it stays lighter than the body and
+                  holds the 11px line above AA on every step of the ramp. */}
+              <div className="border-b border-rule bg-white/75 px-5 py-3">
                 <div className="flex items-center gap-2">
-                  <span className="num flex shrink-0 items-center rounded-[2px] bg-ink px-1.5 py-0.5 font-mono text-3xs font-bold leading-none text-paper">
-                    {group.tolerance + 1}/5
-                  </span>
+                  <TierNumeral tolerance={group.tolerance} />
                   <span className="text-sm font-bold text-ink">{group.title}</span>
                   <span className="num ml-auto font-mono text-xs text-ink-muted">
                     {group.items.length} {group.items.length === 1 ? "label" : "labels"}
@@ -151,18 +164,27 @@ export default function ExportLabelsCard({
                 <p className="mt-0.5 text-xs text-ink-muted">{TIER_DESCRIPTIONS[group.tolerance]}</p>
               </div>
 
-              {/* Same channels as the app: ticks for the certainty, and the
-                  tier comes from the group heading above - a chip does not
-                  repeat what its container already says. A PNG cannot be
-                  hovered, so the chip spells out the certainty too. */}
+              {/* Same channels as the app: a border in the topic's hue with the
+                  topic named inside it, ticks for the certainty, and the tier
+                  from the group heading above - a chip does not repeat what its
+                  container already says. A PNG cannot be hovered, so the chip
+                  spells out the certainty too. The topic has to be written out
+                  here rather than only tinted: this report is the one surface a
+                  reader may print, photocopy or paste into a greyscale slide. */}
               <div className="flex flex-wrap gap-2 px-5 py-4">
                 {group.items.map((labelObj, idx) => {
                   const certainty = Math.max(0, Math.min(3, labelObj.certainty ?? 0));
+                  const tints = categoryTints(labelObj.category);
+                  const topic = QUIZ_CATEGORY_SHORT_LABELS[labelObj.category] || "General";
                   return (
                     <div
                       key={`${group.tolerance}-${idx}-${labelText(labelObj)}`}
-                      className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border border-rule bg-paper-raised py-1.5 pl-2.5 pr-2 text-sm text-ink"
+                      className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border-2 py-1 pl-2 pr-1.5 text-sm text-ink"
+                      style={{ borderColor: tints.hue, backgroundColor: tints.wash }}
                     >
+                      <span className="shrink-0 text-3xs font-semibold uppercase tracking-wider text-ink-soft">
+                        {topic}
+                      </span>
                       <span className="min-w-0 leading-tight">{labelText(labelObj)}</span>
                       <CertaintyMeter value={certainty} size="sm" />
                       <span className="text-3xs text-ink-muted">{CERTAINTY_TEXT[certainty]}</span>

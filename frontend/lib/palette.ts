@@ -155,8 +155,8 @@ export const FALLBACK_GROUP_BASE = "#556a7e";
 
 /**
  * Quiz-section / belief-label hues. Mirrors `--color-cat-*` in globals.css.
- * Mark colours: they are used for dots and for chip fills tinted toward white,
- * never for small type.
+ * Mark colours: they are used for dots, for chip borders, and for chip fills
+ * tinted toward white, never for small type.
  */
 export const HUE_BASE: Record<string, string> = {
   GOD: "#5b7fb5",
@@ -170,6 +170,42 @@ export const HUE_BASE: Record<string, string> = {
   MET: "#556a7e",
   GEN: "#556a7e",
 };
+
+/**
+ * How far a category hue is mixed toward paper for the wash behind a belief
+ * chip, and for the same wash on hover. The single number to turn if a tier of
+ * twenty chips reads too loud or too shy.
+ */
+const HUE_WASH = 0.93;
+const HUE_WASH_HOVER = 0.85;
+
+/**
+ * The three strengths one category hue needs to draw a belief chip: the border
+ * it is outlined with, the wash behind it, and the wash it lifts to on hover.
+ *
+ * Resolved hexes rather than `var(--color-cat-*)`, because the exported report
+ * is rasterised by html2canvas, which is happier with a computed colour than a
+ * variable inside an inline style (same reason as `_CertaintyMeter`).
+ *
+ * The border is the full `cat-*` mark hue. At 2px it is a boundary, not a tint,
+ * and it degrades honestly: a reader who cannot separate the hues loses the
+ * colours but keeps an outline, because every chip also prints its topic the way
+ * every chip prints its tick count. The wash is that hue mixed 93% toward paper:
+ * enough to bind a tier of chips into a panel without the nine-swatch rainbow
+ * this palette spends so long avoiding.
+ */
+export function categoryTints(category: string | undefined): {
+  hue: string;
+  wash: string;
+  hoverWash: string;
+} {
+  const hue = (category && HUE_BASE[category]) || HUE_BASE.GEN;
+  return {
+    hue,
+    wash: tintHex(hue, HUE_WASH),
+    hoverWash: tintHex(hue, HUE_WASH_HOVER),
+  };
+}
 
 /**
  * Certainty 0-3, as words. The magnitude is a count of filled ticks, not a
