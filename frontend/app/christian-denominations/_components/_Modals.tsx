@@ -48,13 +48,18 @@ interface ModalsProps {
   onConfirmMultiSelect: () => void;
   /**
    * Which leave dialog to show: "progress" mid-quiz, "results" once the quiz is
-   * finished. On results there is a choice, because those two exits do
-   * different things to localStorage.
+   * finished and there is a result to keep. On results there is a choice,
+   * because those two exits do different things to localStorage.
+   *
+   * A results screen whose calculation is still running, or which came back
+   * empty, keeps the mid-quiz voice: there is no result for "Save results" to
+   * write or "Don't save" to delete, and the answers themselves are what the
+   * message is about.
    */
   backContext?: "progress" | "results";
-  /** Results only: keep the result and go to the main page. */
+  /** Results only: keep the result and leave for the page the reader asked for. */
   onSaveAndLeave: () => void;
-  /** Results only: drop the result and go to the main page. */
+  /** Results only: drop the result and leave for the page the reader asked for. */
   onDiscardAndLeave: () => void;
   backModalMessage?: string;
 }

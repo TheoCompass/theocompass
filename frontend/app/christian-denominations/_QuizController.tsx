@@ -209,6 +209,16 @@ export default function QuizController() {
    */
   const skipResultsSaveRef = useRef(false);
   /**
+   * Where a confirmed exit from the results should land.
+   *
+   * The header asks for the home page, but the results screen's own links ask
+   * for their own destination (the footer's "Changelog", Share's "See what's
+   * planned", the feedback card's "see what changed"), and the dialog must not
+   * quietly drop the reader somewhere other than the link they clicked. Reset
+   * by `closeBackModal`, so a dismissed dialog leaves no stale destination.
+   */
+  const leaveTargetRef = useRef("/");
+  /**
    * Which path produced the results being shown. The moderator/dev "skip to a
    * result" tools call /api/calculate directly, so they mark themselves here and
    * are excluded from completion analytics and the public stats counter.
@@ -340,17 +350,21 @@ export default function QuizController() {
     if (savedResults) {
       try {
         const data = JSON.parse(savedResults);
-        setResults(data.matches);
-        setFamilyMatches(data.familyMatches || []);
-        setUserCoords(data.userDimCoords);
-        setUserTolerance(data.userTolerance);
-        setUserCertainty(data.userCertainty ?? 50);
-        setUserLabels(data.userLabels);
-        setSelectedMode(data.selectedMode || null);
-        setAnsweredQuestionCount(data.answeredCount || 0);
-        setCurrentView("results");
-        setIsLoaded(true);
-        return;
+        // A partial or older payload must fall through to the saved answers
+        // below instead of rendering a results view with no matches in it.
+        if (Array.isArray(data.matches) && data.matches.length > 0) {
+          setResults(data.matches);
+          setFamilyMatches(Array.isArray(data.familyMatches) ? data.familyMatches : []);
+          setUserCoords(data.userDimCoords ?? {});
+          setUserTolerance(data.userTolerance ?? 50);
+          setUserCertainty(data.userCertainty ?? 50);
+          setUserLabels(Array.isArray(data.userLabels) ? data.userLabels : []);
+          setSelectedMode(data.selectedMode || null);
+          setAnsweredQuestionCount(data.answeredCount || 0);
+          setCurrentView("results");
+          setIsLoaded(true);
+          return;
+        }
       } catch (e) {
         console.error("Failed to load saved results", e);
       }
@@ -407,13 +421,38 @@ export default function QuizController() {
   // HANDLERS
   // ==========================================
 
+  /** Open the leave dialog for the results, remembering the destination to honour. */
+  const requestLeaveResults = (target: string) => {
+    leaveTargetRef.current = target;
+    setShowBackModal(true);
+  };
+
+  /** Dialog dismissed: the next exit starts from the home page again. */
+  const closeBackModal = () => {
+    leaveTargetRef.current = "/";
+    setShowBackModal(false);
+  };
+
+  /** Read the remembered destination once, then reset it for the next dialog. */
+  const takeLeaveTarget = () => {
+    const target = leaveTargetRef.current;
+    leaveTargetRef.current = "/";
+    setShowBackModal(false);
+    return target;
+  };
+
   const handleConfirmBack = () => {
-    router.push('/');
+    // Every exit that opens this dialog remembers where it was going: the header
+    // asks for the home page, a link on the page asks for its own destination.
+    // Without the reader, a dialog opened by the footer's "Changelog" would
+    // still land on the home page, dropping a click the reader never withdrew.
+    router.push(takeLeaveTarget());
   };
 
   /**
-   * Results exit, option one: keep the finished result in this browser, then go
-   * to the main page. The start screen reads this key and opens on the results.
+   * Results exit, option one: keep the finished result in this browser, then
+   * continue to wherever the reader was heading. The start screen reads this
+   * key and opens on the results.
    */
   const handleSaveResultsAndLeave = () => {
     if (results.length > 0) {
@@ -427,10 +466,12 @@ export default function QuizController() {
         selectedMode,
         answeredCount: answeredQuestionCount || questions.length,
       });
+      // Only once a result actually exists: on a failed calculation "Save
+      // results" would otherwise delete the answers it failed to summarise,
+      // making the next visit empty.
+      localStorage.removeItem('theocompass_quiz_progress');
     }
-    localStorage.removeItem('theocompass_quiz_progress');
-    setShowBackModal(false);
-    router.push('/');
+    router.push(takeLeaveTarget());
   };
 
   /** Results exit, option two: forget the result so the next visit starts fresh. */
@@ -438,8 +479,69 @@ export default function QuizController() {
     skipResultsSaveRef.current = true;
     localStorage.removeItem('theocompass_final_results');
     localStorage.removeItem('theocompass_quiz_progress');
-    setShowBackModal(false);
-    router.push('/');
+    router.push(takeLeaveTarget());
+  };
+
+  /**
+   * One gate for every internal link on the results screen.
+   *
+   * The header buttons already asked before leaving; the links inside the page
+   * did not -- the footer's "Changelog", Share's "See what's planned" and the
+   * feedback card's "see what changed" took the reader away with no chance to
+   * keep the result. Rather than teach three components to ask (and the next
+   * link to remember), the results container intercepts the click in the
+   * capture phase, before Next's <Link> starts its own navigation, which
+   * bails on `defaultPrevented` (next/dist/client/link.js).
+   *
+   * Clicks that do not take the reader away from the result are left alone:
+   * modified clicks (new tab/window), links with a `target` or `download`,
+   * `mailto:` and hrefs that resolve to another origin, and in-page anchors
+   * such as the dashboard's `#feedback`. A link to this origin is gated however
+   * it is spelled -- reduced to a route first, so `/changelog` and a full
+   * `https://theocompass.com/changelog` cannot be treated differently.
+   *
+   * A results screen with nothing on it yet -- a calculation still in flight, or
+   * one that failed to return matches -- is gated too. It used to navigate
+   * freely on the grounds that there was no result to keep, which meant the one
+   * case where the answers are the *only* thing at stake (they live in state,
+   * and the progress key was already cleared or was never written) was the case
+   * that left without asking. It opens the mid-quiz dialog instead of the
+   * results one, because there is no result to save or delete; the message is
+   * about the answers, which is what that dialog says.
+   */
+  const guardResultsLink = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = (event.target as Element).closest?.('a[href]');
+    if (!anchor || anchor.getAttribute('target') || anchor.hasAttribute('download')) return;
+
+    // A path is the usual spelling, but our own pages are also written out in
+    // full in places. A link that resolves to this origin leaves the result
+    // whichever way it is spelled, so it is reduced to a path here and asked
+    // about like the rest. Anything resolving elsewhere keeps the browser's
+    // default -- a new tab is not an exit from the screen.
+    const href = anchor.getAttribute('href') ?? '';
+    let target = href;
+    if (href && !href.startsWith('/') && !href.startsWith('#')) {
+      let url: URL;
+      try {
+        url = new URL(href, window.location.href);
+      } catch {
+        return;
+      }
+      if (url.origin !== window.location.origin) return;
+      target = `${url.pathname}${url.search}${url.hash}`;
+    }
+    if (!target.startsWith('/') || target.startsWith('//')) return;
+    event.preventDefault();
+    if (process.env.NODE_ENV !== 'production') {
+      // A swallowed click looks exactly like a working one until the dialog
+      // appears, so leave a trail for whoever is asking why it did not. The
+      // match count is the interesting part: zero means the screen had no
+      // result to offer, and the leaving dialog is the mid-quiz one.
+      console.debug('[results-leave] intercepted link', { href, target, matches: results.length });
+    }
+    requestLeaveResults(target);
   };
 
   const handleConfirmDev = () => {
@@ -748,13 +850,51 @@ export default function QuizController() {
     }
   }, [currentQuestionIndex, currentView]);
 
+  /**
+   * The question set the developer tools guess answers from.
+   *
+   * "Skip to a result" is reachable straight after a restart, and a restart
+   * empties `questions` (it is what `startInstructions` fills). Guessing from an
+   * empty list posted no answers at all: the API refused the request, the
+   * results view came up with no matches and no explanation, and what looked
+   * like a finished screen was a page with nothing on it. Loading the set here
+   * also means the shortcut works from a restored result, where the questions
+   * are gone until the quiz is started again.
+   *
+   * Returns null when the set cannot be loaded, having already put the reason on
+   * the results screen -- the same screen and the same copy the quiz itself uses
+   * for a failed load.
+   */
+  const loadDevQuestionPool = async (): Promise<Question[] | null> => {
+    if (questions.length > 0) return questions;
+
+    try {
+      const pool = await fetchQuestions(selectedMode ?? "quick");
+      setQuestions(pool);
+      return pool;
+    } catch (err) {
+      console.error(err);
+      setCurrentView("results");
+      setCalcError({ heading: "Results are not ready", message: describeQuestionsError(err) });
+      return null;
+    }
+  };
+
   const handleDevAutoFill = async () => {
     // A shortcut for inspecting the results screen, not a real completion:
     // mark it so handleNext cannot report this result if it is still in flight.
     completionSourceRef.current = "dev";
     setCalcError(null);
+    setIsCalculating(true);
+
+    const pool = await loadDevQuestionPool();
+    if (!pool) {
+      setIsCalculating(false);
+      return;
+    }
+
     const dummyAnswers: Record<string, UserResponse> = {};
-    questions.forEach(q => {
+    pool.forEach(q => {
       const randomAnswerIndex = Math.floor(Math.random() * q.answers.length);
       const randomCertainty = Math.floor(Math.random() * 4);
       const randomTolerance = Math.floor(Math.random() * 5);
@@ -769,7 +909,8 @@ export default function QuizController() {
     });
 
     setUserAnswers(dummyAnswers);
-    setIsCalculating(true);
+    // Only now, with answers in hand: the view is the result's to fill, and it
+    // has an error card of its own for a calculation that cannot fill it.
     setCurrentView('results');
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787";
@@ -791,9 +932,11 @@ export default function QuizController() {
         setUserLabels(data.userLabels);
       } else {
         console.error("Calculation failed:", data.error);
+        setCalcError(describeCalculationError(data.error));
       }
     } catch (error) {
       console.error("Failed to calculate:", error);
+      setCalcError(describeCalculationError(error));
     } finally {
       setIsCalculating(false);
     }
@@ -810,22 +953,27 @@ export default function QuizController() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8787";
 
     try {
+      // The profile is keyed by question id, so the set has to exist before the
+      // answers can be matched against it -- and after a restart it does not.
+      const pool = await loadDevQuestionPool();
+      if (!pool) return;
+
       const profileRes = await fetch(`${apiUrl}/api/dev/profile?id=${denomId}`);
       const profileData = await profileRes.json();
 
-      if (!profileRes.ok) {
-        alert(`API Error: ${profileData.error || profileRes.statusText}`);
-        throw new Error(profileData.error || "Failed to fetch dev profile");
-      }
-
-      if (profileData.error) {
-         console.error("API Error:", profileData.error);
-         alert("Error finding Denomination: " + profileData.error);
-         return;
+      // A missing or unknown denomination used to surface as an alert followed by
+      // an empty results screen. It belongs on the page instead, in the same error
+      // card a failed calculation gets. The answers are cleared first so that
+      // "Try again" cannot quietly calculate whatever the last profile left.
+      if (!profileRes.ok || profileData.error) {
+        const reason = profileData.error || profileRes.statusText;
+        console.error("Dev profile failed:", reason);
+        setUserAnswers({});
+        throw new Error(reason || "The denomination profile could not be loaded");
       }
 
       const finalAnswers: Record<string, UserResponse> = {};
-      questions.forEach(q => {
+      pool.forEach(q => {
         if (profileData[q.id]) {
           finalAnswers[q.id] = profileData[q.id];
         }
@@ -849,9 +997,11 @@ export default function QuizController() {
         setUserLabels(data.userLabels);
       } else {
         console.error("Calculation failed:", data.error);
+        setCalcError(describeCalculationError(data.error));
       }
     } catch (error) {
       console.error("Failed to execute dev test:", error);
+      setCalcError(describeCalculationError(error));
     } finally {
       setIsCalculating(false);
     }
@@ -1112,7 +1262,7 @@ export default function QuizController() {
         setShowRestartModal(false);
         setShowDevModal(true);
       }}
-      onCloseBackModal={() => setShowBackModal(false)}
+      onCloseBackModal={closeBackModal}
       onCloseDevModal={() => setShowDevModal(false)}
       onCloseRestartModal={() => {
         setShowRestartModal(false);
@@ -1123,7 +1273,7 @@ export default function QuizController() {
       onConfirmRestart={handleConfirmRestart}
       onDevDenomFill={handleDevDenomFill}
       onSetDevCode={setDevCode}
-      backContext={currentView === "results" ? "results" : "progress"}
+      backContext={currentView === "results" && results.length > 0 ? "results" : "progress"}
       onSaveAndLeave={handleSaveResultsAndLeave}
       onDiscardAndLeave={handleDiscardResultsAndLeave}
     />
@@ -1146,9 +1296,9 @@ export default function QuizController() {
       <div className="min-h-screen bg-paper flex flex-col font-sans text-ink">
         <PageHeader
           showRestart={false}
-          onLogoClick={() => setShowBackModal(true)}
-          onTitleClick={() => setShowBackModal(true)}
-          onBackClick={() => setShowBackModal(true)}
+          onLogoClick={() => requestLeaveResults('/')}
+          onTitleClick={() => requestLeaveResults('/')}
+          onBackClick={() => requestLeaveResults('/')}
           onRestartClick={() => setShowRestartModal(true)}
         />
 
@@ -1431,9 +1581,9 @@ export default function QuizController() {
       <div className="min-h-screen bg-paper flex flex-col font-sans text-ink">
         <PageHeader
           showRestart={false}
-          onLogoClick={() => setShowBackModal(true)}
-          onTitleClick={() => setShowBackModal(true)}
-          onBackClick={() => setShowBackModal(true)}
+          onLogoClick={() => requestLeaveResults('/')}
+          onTitleClick={() => requestLeaveResults('/')}
+          onBackClick={() => requestLeaveResults('/')}
           onRestartClick={() => setShowRestartModal(true)}
         />
         {modals}
@@ -1588,7 +1738,10 @@ export default function QuizController() {
     const feedbackEnabled = results.length > 0 && !isCalculating && !calcError;
 
     return (
-      <div className="min-h-screen bg-paper flex flex-col font-sans text-ink relative overflow-x-hidden">
+      <div
+        className="min-h-screen bg-paper flex flex-col font-sans text-ink relative overflow-x-hidden"
+        onClickCapture={guardResultsLink}
+      >
         {/* HIDDEN EXPORT CARDS */}
         <ExportCard
           ref={exportRef}
@@ -1626,9 +1779,9 @@ export default function QuizController() {
 
         <PageHeader
           showRestart={true}
-          onLogoClick={() => setShowBackModal(true)}
-          onTitleClick={() => setShowBackModal(true)}
-          onBackClick={() => setShowBackModal(true)}
+          onLogoClick={() => requestLeaveResults('/')}
+          onTitleClick={() => requestLeaveResults('/')}
+          onBackClick={() => requestLeaveResults('/')}
           onRestartClick={() => setShowRestartModal(true)}
         />
         {modals}
@@ -1696,11 +1849,15 @@ export default function QuizController() {
               </span>
             </p>
             <div className="meta flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-              <a href="https://theocompass.com" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-ink">TheoCompass.com</a>
+              {/* The site's own root, so it is written as a route rather than an
+                  off-site URL: an absolute `https://theocompass.com` opened a new
+                  tab and walked out of the result without asking, which is the
+                  one thing this row is supposed to prevent. Kept in the same tab
+                  so the leave dialog owns the exit. */}
+              <Link href="/" className="transition-colors hover:text-ink">TheoCompass.com</Link>
               <a href="https://www.reddit.com/r/TheoCompass" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-ink">r/TheoCompass</a>
-              {/* The one internal link in this row, and the only one that answers
-                  "is this thing still being worked on?" while the reader is still
-                  in the quiz. */}
+              {/* The only link in this row that answers "is this thing still
+                  being worked on?" while the reader is still in the quiz. */}
               <Link href="/changelog" className="transition-colors hover:text-ink">Changelog</Link>
               <a href="https://ko-fi.com/oroq" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-accent">Support on Ko-fi</a>
               <a href="mailto:theocompass.project@gmail.com" className="transition-colors hover:text-ink">Contact</a>
@@ -1726,9 +1883,9 @@ export default function QuizController() {
     <div className="min-h-screen bg-paper flex flex-col font-sans text-ink">
       <PageHeader
         showRestart={true}
-        onLogoClick={() => setShowBackModal(true)}
-        onTitleClick={() => setShowBackModal(true)}
-        onBackClick={() => setShowBackModal(true)}
+        onLogoClick={() => requestLeaveResults('/')}
+        onTitleClick={() => requestLeaveResults('/')}
+        onBackClick={() => requestLeaveResults('/')}
         onRestartClick={() => setShowRestartModal(true)}
       />
       
