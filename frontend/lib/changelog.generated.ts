@@ -11,9 +11,35 @@
 import type { ChangelogEntry } from "./changelog";
 
 /** The newest commit's date: "the changelog is current up to here". */
-export const GENERATED_AT = "2026-11-21T23:20:05.000Z";
+export const GENERATED_AT = "2026-11-22T19:35:54.000Z";
 
 export const ENTRIES: ChangelogEntry[] = [
+  {
+    "sha": "d773eb4d9690b0e114a2984267569edc667f11f6",
+    "short": "d773eb4",
+    "date": "2026-11-22T19:35:54.000Z",
+    "type": "fix",
+    "scope": "quiz",
+    "subject": "ask before leaving the results from any link on the page",
+    "lead": "Only the header's buttons asked: the footer's Changelog, Share's \"See what's planned\" and the feedback card's \"see what changed\" were plain links, so one click could drop the report with no chance to keep it. The results container now intercepts the click in the capture phase -- before Next's Link starts a navigation of its own -- and opens the leave dialog, remembering the destination so \"Save results\" lands on the link that was clicked instead of on the home page, which is what the header asks for.",
+    "tasks": [],
+    "merge": false,
+    "housekeeping": false,
+    "url": "https://github.com/TheoCompass/theocompass/commit/d773eb4d9690b0e114a2984267569edc667f11f6"
+  },
+  {
+    "sha": "ae542fc22b28f616e37e507f3c20067d7bef16f3",
+    "short": "ae542fc",
+    "date": "2026-11-21T23:22:43.000Z",
+    "type": "fix",
+    "scope": "changelog",
+    "subject": "quote one bullet when a body opens with a list",
+    "lead": "Thirty commit bodies on main open with `- `, and the extractor quoted the opening paragraph verbatim, so twenty-one entries published a run-on of every bullet -- up to 993 characters, most of it after the first sentence. When the opening paragraph is a list, the lead is now its first item with the marker stripped; prose bodies are quoted exactly as before, and the nineteen empty leads all belong to commits that have no body at all. The digest reads the same field, so its bullets shorten with the page.",
+    "tasks": [],
+    "merge": false,
+    "housekeeping": false,
+    "url": "https://github.com/TheoCompass/theocompass/commit/ae542fc22b28f616e37e507f3c20067d7bef16f3"
+  },
   {
     "sha": "a85288141c4d2efd1b4eb3a0e1f557a60e14dbf2",
     "short": "a852881",
