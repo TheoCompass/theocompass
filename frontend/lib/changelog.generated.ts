@@ -11,9 +11,35 @@
 import type { ChangelogEntry } from "./changelog";
 
 /** The newest commit's date: "the changelog is current up to here". */
-export const GENERATED_AT = "2026-11-22T19:35:54.000Z";
+export const GENERATED_AT = "2026-11-23T10:23:35.000Z";
 
 export const ENTRIES: ChangelogEntry[] = [
+  {
+    "sha": "72b98ff458895d3f01058dd37968536faac0023c",
+    "short": "72b98ff",
+    "date": "2026-11-23T10:23:35.000Z",
+    "type": "feat",
+    "scope": "feedback",
+    "subject": "publish where their own church sat, and count only \"exactly right\"",
+    "lead": "The card now asks the reader to name their own family and their own church from the lists the results page prints, and `/api/stats` publishes where those two answers landed as a distribution instead of four buckets: the landing panel draws a cumulative curve from it, with the median, the interquartile range and the share past a round place. The top-1 figure stops dividing the pooled yes/no -- only `fit` (\"exactly right\") counts as a hit, `close` and `off` are the denominator, and the sentence that prints the percentage prints the near-miss share beside it.",
+    "tasks": [],
+    "merge": false,
+    "housekeeping": false,
+    "url": "https://github.com/TheoCompass/theocompass/commit/72b98ff458895d3f01058dd37968536faac0023c"
+  },
+  {
+    "sha": "87a73ee0dd109c5e0e332ee281f076f51467f7e3",
+    "short": "87a73ee",
+    "date": "2026-11-22T19:43:28.000Z",
+    "type": "chore",
+    "scope": "changelog",
+    "subject": "refresh the snapshot through the results-leave fix",
+    "lead": "/changelog renders `changelog.generated.ts`, not `git log`, because the deploy has no history to read -- so a commit sits outside the page until someone regenerates after the push, and yesterday's fix was missing for exactly that reason. Regenerated from the 103 commits on main: two entries appear (the results-leave guard and the bullet-quoting fix), and the landing facts row moves to 14 changes in seven days and 46 in thirty.",
+    "tasks": [],
+    "merge": false,
+    "housekeeping": true,
+    "url": "https://github.com/TheoCompass/theocompass/commit/87a73ee0dd109c5e0e332ee281f076f51467f7e3"
+  },
   {
     "sha": "d773eb4d9690b0e114a2984267569edc667f11f6",
     "short": "d773eb4",
