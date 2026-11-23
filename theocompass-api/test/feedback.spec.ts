@@ -571,8 +571,6 @@ describe('PATCH /api/feedback/:id', () => {
 
 		const before = await publishedStats();
 		expect(before).toMatchObject({ total: 2, averageRating: 3, accurateYes: 1, accurateNo: 1 });
-		expect(before.familyJudged).toBe(2);
-		expect(before.familyRanks).toMatchObject({ counts: { 1: 1 }, none: 1, ranked: 1 });
 		expect(before.matchJudged).toBe(2);
 		expect(before.matchRanks).toMatchObject({ counts: { 1: 1 }, none: 1, ranked: 1 });
 
@@ -583,9 +581,7 @@ describe('PATCH /api/feedback/:id', () => {
 		// dropped the cache. That is the point of `invalidateStatsCache()` there.
 		const after = await publishedStats();
 		expect(after).toMatchObject({ total: 1, averageRating: 5, accurateYes: 1, accurateNo: 0 });
-		// Hiding a row has to move every published figure, the curves included.
-		expect(after.familyJudged).toBe(1);
-		expect(after.familyRanks).toMatchObject({ counts: { 1: 1 }, none: 0, ranked: 1 });
+		// Hiding a row has to move every published figure, the curve included.
 		expect(after.matchJudged).toBe(1);
 		expect(after.matchRanks).toMatchObject({ counts: { 1: 1 }, none: 0, ranked: 1 });
 

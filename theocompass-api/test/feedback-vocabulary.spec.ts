@@ -180,17 +180,33 @@ describe('POST /api/feedback with the lists the card printed', () => {
 		]);
 	});
 
-	it('drops the church when it sits under a family other than the one named', async () => {
+	it('keeps a church that sits under a family other than the one named', async () => {
+		// The two answers are statements about two lists, so they are allowed to
+		// disagree: a reader who mis-picked their family still knows their own
+		// church. This used to be the case where the church was thrown away.
 		await postFeedback({
 			...feedback,
+			sessionId: 'names-cross-01',
 			familyName: 'Lutheran',
 			familyRank: 1,
 			matchName: 'Reformed Baptist',
 			matchRankPos: 2,
 		});
-		// The family's own place survives: it is a separate statement about a
-		// separate list, and nothing contradicts it.
-		expect(await storedPositions()).toEqual([[1, null, null]]);
+		// Same answer with the scope the card now sends -- the length of the full
+		// results list -- survives for the same reason.
+		await postFeedback({
+			...feedback,
+			sessionId: 'names-cross-02',
+			familyName: 'Lutheran',
+			familyRank: 1,
+			matchName: 'Reformed Baptist',
+			matchRankPos: 2,
+			matchRankScope: 4,
+		});
+		expect(await storedPositions()).toEqual([
+			[1, 2, 0],
+			[1, 2, 0],
+		]);
 	});
 
 	it('leaves a body with no names alone, names being optional context', async () => {
@@ -230,7 +246,6 @@ describe('vocabularyFrom', () => {
 		const vocabulary = vocabularyFrom(BUNDLE);
 		expect(vocabulary.families.get('lutheran')).toBe('Lutheran');
 		expect(vocabulary.denominations.get('legacy spelling')).toBe('Legacy spelling');
-		expect(vocabulary.denominationFamily.get('legacy spelling')).toBe('Reformed');
 	});
 
 	it('knows nothing about a document it cannot read', () => {
@@ -238,16 +253,18 @@ describe('vocabularyFrom', () => {
 			const vocabulary = vocabularyFrom(document);
 			expect(vocabulary.families.size).toBe(0);
 			expect(vocabulary.denominations.size).toBe(0);
-			expect(vocabulary.denominationFamily.size).toBe(0);
 		}
 	});
 
-	it('does not place a church in a family the data does not list', () => {
+	it('indexes a church without needing its family to be listed', () => {
+		// The two lists are read independently: a denomination whose family is not
+		// in `families` is still a church the card printed, and the handler has no
+		// reason to care which family it sits in.
 		const vocabulary = vocabularyFrom({
 			families: { Lutheran: {} },
 			denominations: { X: { denomination: { name: 'Somewhere', family: 'Missing family' } } },
 		});
 		expect(vocabulary.denominations.get('somewhere')).toBe('Somewhere');
-		expect(vocabulary.denominationFamily.has('somewhere')).toBe(false);
+		expect(vocabulary.families.get('missing family')).toBeUndefined();
 	});
 });

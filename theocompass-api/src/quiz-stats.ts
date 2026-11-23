@@ -108,7 +108,7 @@ type PostureRow = {
  *
  * The two rank questions are **not** summed here. A place is a number, and the
  * panel draws a cumulative curve over the places people actually picked, so
- * those two levels come from their own `GROUP BY rank` statements below and are
+ * those two tallies come from their own `GROUP BY rank` statements below and are
  * shaped by `rankTallyFrom()`.
  */
 type FeedbackRow = {
@@ -132,26 +132,26 @@ type FeedbackRow = {
 type RankRow = { rank: number | null; count: number | null };
 
 /**
- * One level's rank tally: every place that received an answer, the escape hatch,
- * and the quantiles the panel prints.
+ * The rank tally: every place that received an answer, the escape hatch, and the
+ * quantiles the panel prints.
  *
  * `counts` is sparse -- only places someone actually picked, so a distribution
  * that piles up at #1 and #140 is a handful of entries rather than 140 -- and it
  * is what the curve is drawn from. A place is a place, not a range: the card
- * offers every family and every church in the chosen one since the pickers were
- * reworked, so the only honest summary is the distribution itself.
+ * offers every denomination on the run's list, so the only honest summary is the
+ * distribution itself.
  *
- * `none` is the pickers' escape hatch (`0`, "none of these" / "not in this
- * list"), which says the list did not cover the reader rather than where they
- * sit. It is an answer, so it is counted -- and kept out of `counts`, because it
- * has no place on a rank axis. `ranked` is the sum of `counts`, so
- * `ranked + none` is the denominator behind every figure drawn from this tally.
+ * `none` is the picker's escape hatch (`0`, "none of these are close"), which says
+ * the list did not cover the reader rather than where they sit. It is an answer,
+ * so it is counted -- and kept out of `counts`, because it has no place on a rank
+ * axis. `ranked` is the sum of `counts`, so `ranked + none` is the denominator
+ * behind every figure drawn from this tally.
  *
  * The quantiles are places, never averages of places: `median` is the smallest
  * place whose cumulative share reaches 50%, so it always names a rank somebody
- * could have picked. "#33.5" would name nobody's church, and the panel prints
- * these as `#n`. The same rule gives `p25`, `p75` and `p90`; a tie at one place
- * collapses several of them onto that place, which is the truth about a
+ * could have picked. "#33.5" would name nobody's denomination, and the panel
+ * prints these as `#n`. The same rule gives `p25`, `p75` and `p90`; a tie at one
+ * place collapses several of them onto that place, which is the truth about a
  * distribution piled up at #1.
  */
 export type RankTally = {
@@ -295,10 +295,11 @@ function rankTallyFrom(rows: RankRow[] | undefined): RankTally {
  *                mutually exclusive buckets. The only denominator that
  *                includes `exploring`, and the only one that is not a subset
  *                of the accuracy split.
- *   familyRanks  where the reader's own family sat, 0 for "none of these";
- *                familyJudged = ranked + none, i.e. the rows that answered
- *   matchRanks   where their own denomination sat, 0 for "not one of these";
- *                matchJudged  = ranked + none
+ *   matchRanks   where the closest denomination sat, 0 for "none of these are
+ *                close"; matchJudged = ranked + none, i.e. the rows that
+ *                answered. There is no family tally beside it any more: the
+ *                family is read off the pick, so its distribution would be this
+ *                one regrouped rather than a second measurement.
  *   accurateYes/accurateNo
  *                every judged row, including the pre-0007 yes/no answers that
  *                never named a position. Legacy: the published top-1 figure is
@@ -309,20 +310,20 @@ function rankTallyFrom(rows: RankRow[] | undefined): RankTally {
  *                rows are absent from them on purpose: they are not a judgement
  *                about position 1.
  *
- * The two rank figures are separate statements (`GROUP BY rank`) because a place
- * is a number and the panel draws the distribution itself; `familyJudged` and
- * `matchJudged` are their sums rather than a second pair of CASE expressions, so
- * a denominator cannot disagree with the curve above it.
+ * The rank figure is a `GROUP BY rank` statement because a place is a number and
+ * the panel draws the distribution itself; `matchJudged` is the sum of the two
+ * sides rather than a second pair of CASE expressions, so a denominator cannot
+ * disagree with the curve above it.
  *
- * The escape hatch counts as an answer in both tallies: "none of these fitted"
- * is a judgement about the list, not a shrug. A skipped question is NULL and
- * sits in no tally and in no denominator.
+ * The escape hatch counts as an answer: "none of these are close" is a judgement
+ * about the list, not a shrug. A skipped question is NULL and sits in no tally
+ * and in no denominator.
  *
  * `accurateShare` is deliberately not computed here: the panel already owns
  * `share()` and divides yes by the readers who actually answered, so the two
  * numbers it prints come from the same place as every other percentage in it.
  */
-function feedbackFrom(row: FeedbackRow | undefined, family: RankTally, match: RankTally) {
+function feedbackFrom(row: FeedbackRow | undefined, match: RankTally) {
   const total = numeric(row?.total);
   const average = row?.average;
   return {
@@ -339,8 +340,6 @@ function feedbackFrom(row: FeedbackRow | undefined, family: RankTally, match: Ra
     ],
     // Always every key, zeros included: the client formats each place and a
     // missing key would render as "undefined%" instead of "0%".
-    familyJudged: family.ranked + family.none,
-    familyRanks: family,
     matchJudged: match.ranked + match.none,
     matchRanks: match,
     // The stance (0008): one population, four buckets, `exploring` included.
@@ -379,7 +378,6 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     median,
     posture,
     feedback,
-    familyRanks,
     matchRanks,
   ] = await env.DB.batch([
     env.DB.prepare("SELECT COUNT(*) AS count, MIN(created_at) AS since FROM quiz_events"),
@@ -464,18 +462,18 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     // accuracy terms keep their original scope -- every rated, non-hidden row --
     // so the percentage a reader sees is unaffected by that reset.
     //
-    // The two rank questions (0007) are separate statements below rather than
-    // sums here, because a place is a number and the panel draws the
-    // distribution: one `GROUP BY family_rank`, one `GROUP BY match_rank_pos`.
-    // They share this row's scope -- rated, non-hidden -- so hiding a row moves
-    // the headline and the curve together, and they are independent of
-    // `rating_metric`, because the position question is new and the rows that
-    // predate it are excluded by being NULL rather than by their metric.
+    // The rank question (0007) is its own statement below rather than a sum
+    // here, because a place is a number and the panel draws the distribution: one
+    // `GROUP BY match_rank_pos`. It shares this row's scope -- rated, non-hidden
+    // -- so hiding a row moves the headline and the curve together, and it is
+    // independent of `rating_metric`, because the position question is new and
+    // the rows that predate it are excluded by being NULL rather than by their
+    // metric.
     //
-    // `family_rank = 0` and `match_rank_pos = 0` are the two escape hatches:
-    // they are counted (`none`) rather than dropped, because "none of these
-    // fitted" is an answer about the list. The `judged` totals are `ranked +
-    // none`, and are what the curves divide by.
+    // `match_rank_pos = 0` is the escape hatch: it is counted (`none`) rather
+    // than dropped, because "none of these are close" is an answer about the
+    // list. The `judged` total is `ranked + none`, and is what the curve divides
+    // by.
     env.DB.prepare(
       `SELECT SUM(CASE WHEN rating_metric = 'experience' THEN 1 ELSE 0 END) AS total,
               AVG(CASE WHEN rating_metric = 'experience' THEN rating END) AS average,
@@ -499,17 +497,11 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
        FROM feedback
        WHERE rating IS NOT NULL AND status <> 'hidden'`
     ),
-    // The two rank tallies, one row per place someone actually picked. Sparse on
+    // The rank tally, one row per place someone actually picked. Sparse on
     // purpose: `{1: 9, 6: 1}` is the whole distribution for ten answers, and the
     // curve is drawn from those places rather than from a fixed set of buckets.
     // `ORDER BY` is for readability of the payload, not for the arithmetic --
     // `rankTallyFrom()` sorts anyway.
-    env.DB.prepare(
-      `SELECT family_rank AS rank, COUNT(*) AS count
-       FROM feedback
-       WHERE rating IS NOT NULL AND status <> 'hidden' AND family_rank IS NOT NULL
-       GROUP BY family_rank ORDER BY family_rank ASC`
-    ),
     env.DB.prepare(
       `SELECT match_rank_pos AS rank, COUNT(*) AS count
        FROM feedback
@@ -529,7 +521,6 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
   const medianRow = (median.results?.[0] ?? {}) as MedianRow;
   const postureRow = (posture.results?.[0] ?? {}) as PostureRow;
   const feedbackRow = (feedback.results?.[0] ?? {}) as FeedbackRow;
-  const familyTally = rankTallyFrom((familyRanks.results ?? []) as RankRow[]);
   const matchTally = rankTallyFrom((matchRanks.results ?? []) as RankRow[]);
 
   const payload = JSON.stringify({
@@ -555,7 +546,7 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
         certainty: typeof postureRow.certainty === "number" ? round1(postureRow.certainty) : null,
         sample: numeric(postureRow.sample),
       },
-      feedback: feedbackFrom(feedbackRow, familyTally, matchTally),
+      feedback: feedbackFrom(feedbackRow, matchTally),
     },
     updatedAt: new Date().toISOString(),
   });

@@ -28,21 +28,29 @@
  * names existed.
  */
 
-/** The two name indexes, and which family each church belongs to. */
+/**
+ * The two indexes, and deliberately nothing between them.
+ *
+ * Each name is checked on its own: the family name against the family list and
+ * the denomination name against the denomination list, because the two positions
+ * are checked independently even though the card now produces them together. A
+ * membership map lived here while the card printed one family's churches at a
+ * time, and the handler dropped a church named under another family; both are
+ * gone, because the card no longer offers one family's contents and a rule like
+ * that would turn a mis-picked family into an unanswerable church.
+ */
 export type FeedbackVocabulary = {
   /** Canonical family names, keyed by their lowercased spelling. */
   families: Map<string, string>;
   /** Canonical church names, keyed by their lowercased spelling. */
   denominations: Map<string, string>;
-  /** The family a church sits in, keyed by the lowercased church name. */
-  denominationFamily: Map<string, string>;
 };
 
 /** The KV key the data bundle lives under. */
 export const PROFILES_KEY = "denomination_profiles";
 
 function emptyVocabulary(): FeedbackVocabulary {
-  return { families: new Map(), denominations: new Map(), denominationFamily: new Map() };
+  return { families: new Map(), denominations: new Map() };
 }
 
 /**
@@ -69,7 +77,7 @@ export function vocabularyFrom(profiles: unknown): FeedbackVocabulary {
   if (source.denominations && typeof source.denominations === "object") {
     for (const entry of Object.values(source.denominations as Record<string, unknown>)) {
       const meta = (entry as { denomination?: unknown } | null)?.denomination as
-        | { name?: unknown; denominationname?: unknown; family?: unknown }
+        | { name?: unknown; denominationname?: unknown }
         | null
         | undefined;
       // The same two spellings the results page reads, in the same order.
@@ -79,11 +87,6 @@ export function vocabularyFrom(profiles: unknown): FeedbackVocabulary {
       if (!name) continue;
 
       vocabulary.denominations.set(name.toLowerCase(), name);
-      const family =
-        typeof meta?.family === "string"
-          ? vocabulary.families.get(meta.family.trim().toLowerCase())
-          : undefined;
-      if (family) vocabulary.denominationFamily.set(name.toLowerCase(), family);
     }
   }
 
@@ -108,14 +111,6 @@ export function lookupDenomination(
   value: unknown
 ): string | null {
   return vocabulary ? lookup(vocabulary.denominations, value) : null;
-}
-
-/** Which family a church sits in, or null when the data does not place it. */
-export function familyOfDenomination(
-  vocabulary: FeedbackVocabulary | null,
-  denomination: string
-): string | null {
-  return vocabulary ? vocabulary.denominationFamily.get(denomination.toLowerCase()) ?? null : null;
 }
 
 let cached: FeedbackVocabulary | null = null;

@@ -1,7 +1,6 @@
 import { hasValidAdminCode } from "./roadmap";
 import { invalidateStatsCache } from "./quiz-stats";
 import {
-  familyOfDenomination,
   loadVocabulary,
   lookupDenomination,
   lookupFamily,
@@ -15,29 +14,38 @@ import {
  *   GET   /api/feedback      the queue (moderator code)
  *   PATCH /api/feedback/:id  move a row between new / reviewed / hidden
  *
- * Four things and a sentence: how the quiz felt overall (1-5 stars), how close
- * the top match is to where the reader actually is, which family and which
- * denomination inside it came closest, and an optional note. The card lives at
- * the bottom of the results page, so it is answered right after the result it
- * describes, while the reader still remembers whether it rang true.
+ * Three things and a sentence: how the quiz felt overall (1-5 stars), which
+ * denomination on the list is closest to the reader's church, and an optional
+ * note. The card lives at the bottom of the results page, so it is answered right
+ * after the result it describes, while the reader still remembers whether it rang
+ * true.
  *
- * The match question is two levels of the list the reader is looking at, with
- * the names on the card: pick your own family from the full family list, then
- * your denomination inside it. `family_rank` is that family's place in the
- * family list (0 for "none of these") and `match_rank_pos` the chosen
- * denomination's place in the full results list (0 for "not one of these").
- * Both are positions, so neither asks the reader to translate their result into
- * a bucket; the published figure is the distribution of those places, which is
- * why the card can grow the lists without a migration, and "my denomination is
- * missing" has a control instead of a paragraph.
+ * The pick is one position and one reading of it: `match_rank_pos` is the chosen
+ * denomination's place in the full results list (0 for "none of these are
+ * close"), and `family_rank` is the family that denomination is filed under, and
+ * its place in the family list. The picker asks for the closest *denomination*,
+ * not for "your church": the list is the database's rows, and a reader with a
+ * local congregation did what the old label said, found nothing, and answered
+ * "not in this list" -- which made the escape hatch the modal answer and left the
+ * histogram saying more about how the list is spelled than about where readers
+ * are.
+ *
+ * The family is read off the pick and never asked. Every denomination in the
+ * bundle is filed under exactly one family, so one pick answers both, the two
+ * numbers cannot disagree, and a skipped pick carries neither. That is also why
+ * there is no marker saying which half of the card produced the family: there is
+ * only one half. The family travels as context for the queue and is not published
+ * as a curve of its own -- that would be this answer regrouped, the same readers
+ * counted twice, and a figure that moves whenever another one moves is not a
+ * second measurement.
  *
  * The stance question comes first because it is the only one every reader can
  * answer: "how close is the top match to where you actually are?" -- about
  * right, close but not quite, not close, or *exploring*. That last answer is a
  * first-class answer, not a skip: a curious reader, a seeker and a doubter have
- * no church to compare against, and asking them where "their church" sat turned
- * an unanswerable question into a recorded miss. `fit_stance` is what keeps
- * their answer out of the accuracy denominator instead of deflating it.
+ * no church to compare against, and asking them to place a denomination turned an
+ * unanswerable question into a recorded miss. `fit_stance` is what keeps their
+ * answer out of the accuracy denominator instead of deflating it.
  *
  * `accurate` is derived from the stance when there is one: `fit` is a 1, `close`
  * and `off` are a 0, and `exploring` is NULL (judged, but not against a church).
@@ -47,9 +55,9 @@ import {
  * the published figure: the top-1 percentage is computed on the client from
  * `stanceCounts` (`fit / (fit + close + off)`), because a legacy boolean "yes"
  * cannot be split into "exactly" and "close" and pooling it inflated the number
- * this site prints. A reader who names the #1 match as their church but says the
- * match is `off` is now a miss with a rank of 1: that disagreement -- "the top
- * match describes me better than the church I belong to" -- used to be
+ * this site prints. A reader who names the #1 match as the closest denomination
+ * but says the match is `off` is now a miss with a rank of 1: that disagreement --
+ * "the top match describes me better than the church I belong to" -- used to be
  * unrecordable, and it is exactly the signal worth reading.
  *
  * The stars changed question once. They used to ask how close the match felt,
@@ -79,18 +87,19 @@ export const FEEDBACK_STATUSES = ["new", "reviewed", "hidden"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
 /**
- * How long the two pickers can be *when the data cannot say*.
+ * How long the picker can be *when the data cannot say*.
  *
- * The card offers every family (30 on the current data) and, inside the chosen
- * one, every denomination in it -- both indexed from the top of the list the
- * results page is showing, so the ranks the card sends are the places the reader
- * sees. The handler does not enforce either length: a position is checked against
- * the length of the real list (`vocabulary.ts`), and these constants are only the
- * fallback for a worker whose KV bundle could not be read. `FAMILY_RANK_MAX` is a
- * sanity ceiling comfortably above the real thirty and `MATCH_RANK_POS_MAX`
- * covers the whole 230-denomination list; nothing in the schema depends on either
- * number, because what `/api/stats` publishes is the distribution of the places
- * themselves rather than a fixed set of buckets.
+ * The card offers every denomination on the run's list (230), indexed from the top
+ * of the list the results page is showing, so the ranks the card sends are the
+ * places the reader sees. The handler does not enforce that length: a position is
+ * checked against the length of the real list (`vocabulary.ts`), and these
+ * constants are only the fallback for a worker whose KV bundle could not be read.
+ * `FAMILY_RANK_MAX` is a sanity ceiling comfortably above the real thirty
+ * families -- the family is read off the pick, but it is still a stored position
+ * and is checked like any other -- and `MATCH_RANK_POS_MAX` covers the whole
+ * 230-denomination list; nothing in the schema depends on either number, because
+ * what `/api/stats` publishes is the distribution of the places themselves rather
+ * than a fixed set of buckets.
  */
 export const FAMILY_RANK_MAX = 64;
 export const MATCH_RANK_POS_MAX = 500;
@@ -107,13 +116,14 @@ export function parseRank(value: unknown, max: number): number | null {
 }
 
 /**
- * How many rows were in the church list when the position beside it was counted.
+ * How many rows were in the denomination list when the position beside it was
+ * counted.
  *
  * This is the length of a list, not a place in one, so it is never 0: the
- * escape hatch ("not in this list") says nothing about the list. Junk is dropped
- * rather than the submission, and dropping it leaves the position's own bounds
- * in charge -- a nonsense scope must not throw away a credible position. It is
- * also bounded by the data's own list length, because no card this worker served
+ * escape hatch ("none of these are close") says nothing about the list. Junk is
+ * dropped rather than the submission, and dropping it leaves the position's own
+ * bounds in charge -- a nonsense scope must not throw away a credible position. It
+ * is also bounded by the data's own list length, because no card this worker served
  * could have printed more rows than the bundle holds.
  */
 export function parseScope(value: unknown, max: number): number | null {
@@ -252,10 +262,13 @@ type ParseResult = { ok: true; value: FeedbackInput } | { ok: false; error: stri
  * client happens to know; a junk optional field is dropped rather than rejected,
  * the same bargain `parseIssueReport` makes.
  *
- * `vocabulary` is optional and is only ever used to *narrow*: with it, a position
- * is tied to a real row of a real list (see `vocabulary.ts`); without it, the
- * numeric bounds are the only check, which is what this handler did before the
- * names existed and what it still does when the KV bundle cannot be read.
+ * `vocabulary` is optional and is only ever used to *narrow*: with it, each
+ * position is tied to a real row of a real list (see `vocabulary.ts`); without
+ * it, the numeric bounds are the only check, which is what this handler did
+ * before the names existed and what it still does when the KV bundle cannot be
+ * read. The names are checked separately -- the family against the family list,
+ * the denomination against the denomination list -- so a family name that is not
+ * in the bundle drops the family position and leaves the denomination alone.
  */
 export function parseFeedback(
   body: unknown,
@@ -308,22 +321,13 @@ export function parseFeedback(
     matchRankPos = null;
   }
 
-  // The two levels have to agree. A church named under a family it does not sit
-  // in did not come from this card; the family's own place in the family list is
-  // a separate statement and survives, while the church's position does not.
-  const matchFamily = matchName === null ? null : familyOfDenomination(vocabulary, matchName);
-  if (familyName !== null && matchFamily !== null && matchFamily !== familyName) {
-    if (matchRankPos !== null && matchRankPos > 0) matchRankPos = null;
-  }
-
   // Derived, never asked twice, and in the order the questions were asked:
   // stance (0008) first, then the denomination's position (0007), then the
-  // boolean an old bundle still sends. The current card sends `fitStance` and
-  // the two positions; a tab running the bundle before 0007 sends only
-  // `accurate`; every one of them ends up in the same two columns.
-  // `exploring` is judged but not against a church, so it leaves `accurate`
-  // NULL -- which is also how a skip is stored, and that is fine: the stance
-  // column is what tells the two apart.
+  // boolean an old bundle still sends. The current card sends `fitStance` and the
+  // position; a tab running the bundle before 0007 sends only `accurate`; every
+  // one of them ends up in the same two columns. `exploring` is judged but not
+  // against a church, so it leaves `accurate` NULL -- which is also how a skip is
+  // stored, and that is fine: the stance column is what tells the two apart.
   const fitStance = parseStance(payload.fitStance);
 
   const accurate: 0 | 1 | null =
@@ -411,9 +415,9 @@ export async function handlePostFeedback(
 
   const result = await env.DB.prepare(
     `INSERT INTO feedback
-       (session_id, rating, accurate, fit_stance, family_rank, match_rank_pos, comment, mode,
-        top_match_id, top_match_name, answered_count, app_version, data_version, status,
-        rating_metric)
+       (session_id, rating, accurate, fit_stance, family_rank, match_rank_pos,
+        comment, mode, top_match_id, top_match_name, answered_count, app_version, data_version,
+        status, rating_metric)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'experience')
      ON CONFLICT(session_id) DO NOTHING`
   )
@@ -464,8 +468,8 @@ type FeedbackRow = {
   created_at: string | null;
 };
 
-const FEEDBACK_COLUMNS = `id, rating, accurate, fit_stance, family_rank, match_rank_pos, comment,
-                          mode, top_match_id, top_match_name, answered_count, app_version,
+const FEEDBACK_COLUMNS = `id, rating, accurate, fit_stance, family_rank, match_rank_pos,
+                          comment, mode, top_match_id, top_match_name, answered_count, app_version,
                           data_version, status, rating_metric, created_at`;
 
 function feedbackFrom(row: FeedbackRow) {
@@ -484,11 +488,10 @@ function feedbackFrom(row: FeedbackRow) {
     // rather than as a fifth answer the frontend has no label for. NULL is also
     // every row written before the question existed.
     fitStance: parseStance(row.fit_stance),
-    // The two positions behind `accurate`, kept for the queue: they say *where*
-    // the reader's church actually was, where the boolean only says that #1 was
-    // not it. Null means the question was skipped -- and, for `familyRank`,
-    // also every row written before the two-level card existed, because those
-    // never saw a family list at all.
+    // The position behind `accurate`, kept for the queue: it says *where* the
+    // closest denomination sat, where the boolean only says that #1 was not it.
+    // Null means the picker was skipped -- and, for `familyRank`, also every row
+    // written before the card asked for a position at all.
     familyRank: typeof row.family_rank === "number" ? row.family_rank : null,
     matchRankPos: typeof row.match_rank_pos === "number" ? row.match_rank_pos : null,
     comment: row.comment,

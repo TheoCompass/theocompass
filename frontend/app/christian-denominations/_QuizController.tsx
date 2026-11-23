@@ -1189,9 +1189,12 @@ export default function QuizController() {
   /**
    * The lists the feedback card picks positions from.
    *
-   * Filtered exactly as the dashboard's own list is, because the card's two
-   * pickers promise the numbers in them are the numbers on the page: with
-   * "active only" on, a hidden tradition must not keep a rank.
+   * Filtered exactly as the dashboard's own list is, because the card promises
+   * the numbers in them are the numbers on the page: with "active only" on, a
+   * hidden tradition must not keep a rank. Both numbers come off these two lists
+   * -- the church's index in `feedbackResults`, and its `family` looked up in
+   * `feedbackFamilies` -- so the derived family place moves with the dashboard
+   * rather than with a list the reader cannot see.
    */
   const feedbackFamilies = useMemo(
     () => (activeOnly ? filterFamiliesByActive(familyMatches, allCoordinates) : familyMatches),

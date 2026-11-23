@@ -8,7 +8,6 @@ import {
   BREAKDOWN_RUNS,
   collectiveFigures,
   comparedCount,
-  familyRankCurve,
   formatCount,
   formatScore,
   hasFeedbackFigures,
@@ -186,7 +185,7 @@ export function LiveStatsPanel({ stats }: { stats: QuizStats }) {
                 beside a short one, so the short card stretched to the tall
                 card's height and its footer sank to the bottom of a hollow
                 box. Feedback now closes the grid as a full-width band with its
-                two rank curves side by side; the four smaller tiles pair where
+                rank curve beside the rating; the four smaller tiles pair where
                 their content is closest in size -- runs with closeness, family
                 shares with posture -- so a row's leftover space is a line or
                 two rather than half a tile. Below the gate there are only three
@@ -421,19 +420,19 @@ function FamiliesTile({ stats }: { stats: QuizStats }) {
  * Three measurements with three different histories. The stars used to ask how
  * close the match felt and now ask about the experience, so `/api/stats` counts
  * only `rating_metric = 'experience'` rows in the average and the histogram.
- * The match question is two pickers since 0007 -- their own family, then their
- * church inside it -- and since the pickers cover the whole taxonomy it
- * publishes two curves rather than four ranges per level: with thirty families
- * and 230 denominations, "#4-#8" and "beyond #8" described almost everyone.
- * Each level's curve is drawn from the places people actually picked, and each
- * row that answered a level counts in that level.
+ * The match question is one picker since 0007: the denomination closest to the
+ * reader's church, numbered by its place in the full results list. Because the
+ * picker covers the whole taxonomy it publishes a curve rather than four ranges:
+ * with 230 denominations, "#4-#8" and "beyond #8" described almost everyone. The
+ * curve is drawn from the places people actually picked, and only the rows that
+ * answered count in it.
  * The top-1 line is the four-answer stance question, not the old yes/no. Only
  * `fit` -- "that's about where I am" -- counts as a hit, so a reader who said
  * "close, but not quite" is a printed near-miss rather than a hit: that is the
  * whole reason the figure used to overestimate itself. A row that said "not
- * close" is a miss even if its church was #1, a row that said "exploring" -- no
- * church to compare against -- is not in the figure at all, and a pre-0008 row's
- * boolean is not divided here either, because a legacy "yes" may have meant
+ * close" is a miss even if its denomination was #1, a row that said "exploring" --
+ * no church to compare against -- is not in the figure at all, and a pre-0008
+ * row's boolean is not divided here either, because a legacy "yes" may have meant
  * "close" and nothing can split it after the fact. The `exploring` exclusion is
  * printed rather than implied: the sentence under the histogram says how many of
  * the stance answers were `exploring`, so the denominator above it can be read as
@@ -447,11 +446,12 @@ function FamiliesTile({ stats }: { stats: QuizStats }) {
  * printing, and each one travels with its own denominator. An older cached
  * payload without the field renders nothing rather than a zero.
  *
- * The two curves carry denominators of their own, none of which is the top-1
- * one: a "no" written before 0007 never said how far off the match was, so those
- * rows sit under the headline and on no curve below it. Each level prints the
- * number of answers it is made of, and the second is usually smaller than the
- * first -- naming a family commits the reader to nothing further.
+ * The curve carries a denominator of its own, not the top-1 one: a "no" written
+ * before 0007 never said how far off the match was, so those rows sit under the
+ * headline and on no curve below it. It prints the number of answers it is made
+ * of, and the escape hatch -- "none of these are close" -- is reported beside the
+ * curve instead of being plotted, because it is a coverage gap rather than a
+ * far-off place.
  *
  * The comments never appear here. A count is a statistic; a sentence typed by
  * one reader, shown to all of them, is not.
@@ -480,7 +480,6 @@ function FeedbackTile({ stats, className }: { stats: QuizStats; className?: stri
   const histogram = feedback.ratingHistogram ?? [];
   const hasHistogram = hasRatings && histogram.length === 5;
   const max = Math.max(1, ...histogram);
-  const families = familyRankCurve(feedback);
   const matches = matchRankCurve(feedback);
   const exploring = stances?.buckets.find((bucket) => bucket.stance === "exploring")?.count ?? 0;
 
@@ -489,12 +488,12 @@ function FeedbackTile({ stats, className }: { stats: QuizStats; className?: stri
       <h4 className="meta">What readers said</h4>
       <p className="mt-1 text-2xs text-ink-muted">Quiz experience, 1 to 5</p>
 
-      {/* Rating on the left, the two curves on the right. The curves are what
-          make this tile taller than every other one, so as a full-width band they
-          sit beside the rating instead of under it. Below md the two stack in
+      {/* Rating on the left, the curve on the right. The curve is what makes
+          this tile taller than every other one, so as a full-width band it sits
+          beside the rating instead of under it. Below md the two stack in
           reading order, which is the order the card asked the questions. */}
       <div className="mt-3 grid gap-x-6 gap-y-4 md:grid-cols-2">
-        <div className={families || matches ? undefined : "md:col-span-2"}>
+        <div className={matches ? undefined : "md:col-span-2"}>
           {hasRatings ? (
             <>
               <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -551,24 +550,13 @@ function FeedbackTile({ stats, className }: { stats: QuizStats; className?: stri
           )}
         </div>
 
-        {(families || matches) && (
+        {matches && (
           <div>
-            {families && (
-              <RankCurve
-                title="Where their own family sat"
-                noneLabel="none of these families"
-                view={families}
-              />
-            )}
-
-            {matches && (
-              <RankCurve
-                title="Where their own church sat"
-                noneLabel="not in this list"
-                view={matches}
-                className={families ? "mt-4" : undefined}
-              />
-            )}
+            <RankCurve
+              title="Where the closest denomination sat"
+              noneLabel="none of these were close"
+              view={matches}
+            />
           </div>
         )}
       </div>
@@ -872,8 +860,8 @@ function MethodDetails({ stats }: { stats: QuizStats }) {
             it, matching the last seven bars.
           </li>
           <li>
-            &ldquo;Family&rdquo; is a tradition family (for example, Confessional Lutheranism), not a
-            single denomination.
+            &ldquo;Tradition family&rdquo; is a tradition (for example, Confessional Lutheranism),
+            not a single denomination.
           </li>
           <li>
             Closeness tiers are the same five used on the results page: 90+, 75&ndash;89,
@@ -885,10 +873,9 @@ function MethodDetails({ stats }: { stats: QuizStats }) {
             the top-1 match figure is unaffected, because it answers a different question.
           </li>
           <li>
-            The two rank curves count only answers that named a place, which is why their
-            denominators can be smaller than the top-1 one: a “no” written before that question
-            existed never said how far off the match was, and the escape hatches have no place to
-            plot.
+            The rank curve counts only answers that named a place, which is why its denominator
+            can be smaller than the top-1 one: a “no” written before that question existed never
+            said how far off the match was, and the escape hatch has no place to plot.
           </li>
           <li>
             Tolerance and certainty average only runs that answered both sliders, so the two figures

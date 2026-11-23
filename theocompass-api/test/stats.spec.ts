@@ -42,7 +42,7 @@ async function seedFeedback(seed: {
 	fitStance?: 'fit' | 'close' | 'off' | 'exploring' | null;
 	/** Their own family's place in the family list (0007). Omitted for a pre-0007 row. */
 	familyRank?: number | null;
-	/** The denomination's place in the full list; 0 for "not one of these". */
+	/** The closest denomination's place in the full list; 0 for "none of these are close". */
 	matchRankPos?: number | null;
 	comment?: string | null;
 	status?: string;
@@ -151,16 +151,6 @@ describe('GET /api/stats', () => {
 				accurateYes: 0,
 				accurateNo: 0,
 				ratingHistogram: [0, 0, 0, 0, 0],
-				familyJudged: 0,
-				familyRanks: {
-					counts: {},
-					none: 0,
-					ranked: 0,
-					median: null,
-					p25: null,
-					p75: null,
-					p90: null,
-				},
 				matchJudged: 0,
 				matchRanks: {
 					counts: {},
@@ -335,16 +325,6 @@ describe('feedback aggregates', () => {
 			ratingHistogram: [0, 1, 1, 1, 1],
 			// Rows seeded without a position are pre-0007 rows: they count in the
 			// boolean split and in no bar.
-			familyJudged: 0,
-			familyRanks: {
-				counts: {},
-				none: 0,
-				ranked: 0,
-				median: null,
-				p25: null,
-				p75: null,
-				p90: null,
-			},
 			matchJudged: 0,
 			matchRanks: {
 				counts: {},
@@ -393,9 +373,9 @@ describe('feedback aggregates', () => {
 			familyRank: 18,
 			matchRankPos: 140,
 		});
-		// Both escape hatches at once: no family fits, and no denomination in the
-		// one picked. It is an answer, so it is counted -- outside `counts`,
-		// because it names no place on the axis.
+		// The escape hatch: none of the listed denominations were close. It is an
+		// answer, so it is counted -- outside `counts`, because it names no place
+		// on the axis.
 		await seedFeedback({
 			sessionId: 'fb-rank-none-001',
 			rating: 3,
@@ -415,29 +395,15 @@ describe('feedback aggregates', () => {
 		// A pre-0007 "no": it is in accurateNo and in no tally, which is why the
 		// two kinds of denominator differ on a real database.
 		await seedFeedback({ sessionId: 'fb-rank-legacy-1', rating: 2, accurate: 0 });
-		// A family named but no denomination picked: judged for the family, and a
-		// skipped question for the church -- the two columns are independent.
+		// The picker skipped: in neither tally, though the rating still counts.
 		await seedFeedback({
-			sessionId: 'fb-rank-family-1',
+			sessionId: 'fb-rank-skip-001',
 			rating: 4,
 			accurate: null,
-			familyRank: 2,
 			matchRankPos: null,
 		});
 
 		const data = await getStats();
-		// Sorted places 1, 1, 2, 4, 18: the median is the third answer (#2), and
-		// p25/p75/p90 are the places the cumulative share first reaches 25/75/90%.
-		expect(data.feedback.familyRanks).toEqual({
-			counts: { 1: 2, 2: 1, 4: 1, 18: 1 },
-			none: 1,
-			ranked: 5,
-			median: 2,
-			p25: 1,
-			p75: 4,
-			p90: 18,
-		});
-		expect(data.feedback.familyJudged).toBe(6); // ranked + none
 		// Sorted places 1, 3, 47, 140: an even count takes the lower middle place
 		// rather than averaging two places into one nobody could pick, and p90
 		// has to travel all the way out to the one reader who picked #140.
@@ -571,16 +537,6 @@ describe('feedback aggregates', () => {
 			accurateYes: 1,
 			accurateNo: 1,
 			ratingHistogram: [0, 0, 0, 0, 1],
-			familyJudged: 2,
-			familyRanks: {
-				counts: { 1: 2 },
-				none: 0,
-				ranked: 2,
-				median: 1,
-				p25: 1,
-				p75: 1,
-				p90: 1,
-			},
 			matchJudged: 2,
 			matchRanks: {
 				counts: { 1: 1, 3: 1 },

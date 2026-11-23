@@ -190,20 +190,19 @@ export async function updateRoadmapTask(
 // ---------------------------------------------------------------------------
 
 /**
- * One level of the match answer as a distribution (0007, reworked).
+ * The match answer as a distribution (0007, reworked).
  *
- * The card offers every family and every denomination in the chosen one, so the
- * published figure is the list of places themselves rather than a handful of
- * ranges: `counts` is sparse (`{ 1: 6, 4: 2, 47: 1 }`), and the panel draws a
- * cumulative curve from it. JSON turns the numeric keys into strings, so read
- * them through `Object.entries()` with `Number(key)`.
+ * The card offers every denomination on the run's list, so the published figure
+ * is the list of places themselves rather than a handful of ranges: `counts` is
+ * sparse (`{ 1: 6, 4: 2, 47: 1 }`), and the panel draws a cumulative curve from
+ * it. JSON turns the numeric keys into strings, so read them through
+ * `Object.entries()` with `Number(key)`.
  *
- * `none` is the pickers' escape hatch (`0`, "none of these" / "not in this
- * list") -- an answer about coverage, with no place on the axis. `ranked` is the
- * sum of `counts`, so `ranked + none` is the denominator. The quantiles are
- * places, not averages of places: `median` is the smallest place whose
- * cumulative share reaches 50%, which is why it always names a rank somebody
- * could have picked.
+ * `none` is the picker's escape hatch (`0`, "none of these are close") -- an
+ * answer about coverage, with no place on the axis. `ranked` is the sum of
+ * `counts`, so `ranked + none` is the denominator. The quantiles are places, not
+ * averages of places: `median` is the smallest place whose cumulative share
+ * reaches 50%, which is why it always names a rank somebody could have picked.
  */
 export interface RankTally {
   counts: Record<number, number>;
@@ -269,19 +268,19 @@ export interface QuizStats {
     accurateNo: number;
     ratingHistogram: number[];
     /**
-     * The two-level match answer (0007) as two independent distributions. Each
-     * counts only the rows that answered *that* level, so `familyJudged` and
-     * `matchJudged` differ on any database where a reader named a family and
-     * then skipped the second picker -- and both are smaller than
-     * `accurateYes + accurateNo`, because a "no" written before the pickers
-     * existed named no position at all. Optional for the same reason as
-     * `feedback` itself: an older cached payload has no such keys.
+     * Where readers' own denomination sat in the full results list (0007), as a
+     * distribution. It counts only the rows that answered the picker, so
+     * `matchJudged` is smaller than `accurateYes + accurateNo`: a "no" written
+     * before the pickers existed named no position at all. Optional for the same
+     * reason as `feedback` itself -- an older cached payload has no such keys.
      *
-     * `familyRanks` is where *their own family* sat in the family list,
-     * `matchRanks` where *their own denomination* sat in the full results list.
+     * `0` is the escape hatch, and because the card asks for the closest
+     * *denomination* rather than for "your church" it now means what it says: none
+     * of the listed denominations were close. That is a coverage signal -- a reader
+     * who is unaffiliated, of another faith, or in a tradition the database does
+     * not hold -- and it is counted in `matchJudged`, because it is an answer and
+     * not a skip.
      */
-    familyJudged?: number;
-    familyRanks?: RankTally;
     matchJudged?: number;
     matchRanks?: RankTally;
     /**
@@ -372,9 +371,8 @@ export async function recordQuizCompletion(completion: QuizCompletion): Promise<
 
 /**
  * The card at the bottom of the results page: how the quiz felt overall (1-5
- * stars), how close the top match is to where the reader actually is, where
- * their church sat if they want to be precise, and an optional sentence in their
- * own words.
+ * stars), which denomination is closest to the reader's church, and an optional
+ * sentence in their own words.
  *
  * `fitStance` is the one question every reader can answer, and it is what the
  * published accuracy figure follows: `fit` is a hit, `close` and `off` are
@@ -382,17 +380,20 @@ export async function recordQuizCompletion(completion: QuizCompletion): Promise<
  * against, and the API stores it as an answer while leaving it out of the
  * accuracy denominator.
  *
- * The match question is two positions, both tri-state through `null` (the
- * reader skipped that picker) because the API stores a skip as NULL rather than
- * as a miss. `familyRank` is the place of the reader's *own* family in the
- * family list the card printed, `matchRankPos` their denomination's place in the
- * full results list; `0` is the escape hatch at each level ("none of these
- * families", "not in this list") and is a real answer, not a skip -- JSON keeps
- * it, so it is never dropped.
+ * The pick is a position and a reading of it, both tri-state through `null` (the
+ * reader skipped the picker) because the API stores a skip as NULL rather than as
+ * a miss. `matchRankPos` is the picked denomination's place in the full results
+ * list; `0` is the escape hatch -- "none of these are close" -- and it is a real
+ * answer, not a skip, so JSON keeps it and it is never dropped.
+ *
+ * `familyRank` and `familyName` come with the pick: the family that denomination
+ * is filed under, and its place among the traditions on screen. They are context
+ * for the moderator queue and are never asked for, so they are null exactly when
+ * `matchRankPos` is.
  *
  * `accurate` is the pre-0007 spelling of the same answer and is still accepted
  * by the worker, so an old tab can submit after a deploy; new code sends the
- * stance (and optionally the two positions) and the worker derives the boolean:
+ * stance (and optionally the position) and the worker derives the boolean:
  * stance first, then `matchRankPos`, then nothing.
  */
 export interface QuizFeedback {
@@ -402,22 +403,26 @@ export interface QuizFeedback {
   rating: number;
   /** How close the top match is to where they are; null for a skip. */
   fitStance?: FeedbackStance | null;
-  /** The place of their own family, 1-based; 0 for "none of these families"; null for a skip. */
+  /**
+   * The family of the denomination they picked, and its place among the
+   * traditions on this run's list, 1-based. Both null when the pick is a skip or a
+   * coverage answer: the card reads the family off the pick and never asks for it.
+   */
   familyRank?: number | null;
-  /** Their denomination's place in the full results list; 0 for "not in this list"; null for a skip. */
+  familyName?: string | null;
+  /** Their closest denomination's place in the full results list; 0 for "none of these are close"; null for a skip. */
   matchRankPos?: number | null;
   /**
-   * The two names the pickers printed, and how many rows the church list had.
+   * The name the picker printed, and how long the list was.
    *
-   * Context, not answers: the API stores the two numbers above and never the
-   * labels. They travel so a position can be tied to a list this data can
-   * actually print -- a tab left open across a re-seed, or a body that was never
-   * a card, names a family or a church the bundle does not have, and the
-   * position beside it is dropped instead of published as somebody's answer.
-   * A skip sends neither name, and `matchRankScope` is the length of the list
-   * on screen, which is what makes the number a place in it.
+   * Context, not an answer: the API stores the number above and never the label.
+   * It travels so a position can be tied to a list this data can actually print --
+   * a tab left open across a re-seed, or a body that was never a card, names a
+   * denomination the bundle does not have, and the position beside it is dropped
+   * instead of published as somebody's answer. A skip sends no name, and
+   * `matchRankScope` is the length of the list on screen, which is what makes the
+   * number a place in it.
    */
-  familyName?: string | null;
   matchName?: string | null;
   matchRankScope?: number | null;
   /** Legacy yes/no about the #1 match. Ignored when a stance or a position is sent. */
@@ -500,9 +505,11 @@ export interface FeedbackRow {
    */
   fitStance?: FeedbackStance | null;
   /**
-   * Where the closest *family* sat in the family list, 1-based; `0` for "none
-   * came close"; `null` for a skip. Optional for the same reason as
-   * `ratingMetric`: a worker deployed before 0007 does not send it.
+   * The family that row's denomination is filed under, and its place among the
+   * traditions of that run, 1-based. `null` when the row named no denomination.
+   * Optional for the same reason as `ratingMetric`: a worker deployed before 0007
+   * does not send it. Context only -- the run's answer is `matchRankPos`, and the
+   * family is that answer regrouped.
    */
   familyRank?: number | null;
   /**

@@ -5,9 +5,9 @@ import { formatCount, type RankCurvePoint, type RankCurveView } from "../../lib/
 /**
  * One level of the match answer as a cumulative curve.
  *
- * The pickers on the feedback card now span the whole taxonomy -- every family,
- * and every church in the chosen one -- so the old four bars (`#1`, `#2-#3`,
- * `#4-#8`, `none / #9+`) described almost nothing: with thirty families and 230
+ * The picker on the feedback card now spans the whole taxonomy -- every
+ * denomination, numbered by its place in the full results list -- so the old four
+ * bars (`#1`, `#2-#3`, `#4-#8`, `none / #9+`) described almost nothing: with 230
  * denominations, "beyond #8" was where nearly every reader landed. A cumulative
  * curve answers the question the bars were trying to: *where does the list stop
  * describing people?* The x-axis is the place, the y-axis is the share of
@@ -84,7 +84,7 @@ export function RankCurve({
   className = "",
 }: {
   title: string;
-  /** What the escape hatch says at this level: "none of these families" / "not in this list". */
+  /** What the escape hatch says, in the reader's words: "none of these were close". */
   noneLabel: string;
   view: RankCurveView;
   className?: string;

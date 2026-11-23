@@ -68,35 +68,37 @@ function stancePart(stance: FeedbackRow["fitStance"]): string | null {
 }
 
 /**
- * Where the reader's church sat, in the moderator's words.
+ * Where the closest denomination sat, in the moderator's words.
  *
- * Both positions are printed, in the order the card asked them, because they
- * answer different questions: the family rank says where the reader's *own*
- * family sat in the family list, the church rank where their own denomination sat
- * in the full results list. A row can carry one and not the other -- naming a
- * family commits the reader to nothing further -- so each part is optional.
+ * The position is the answer; the family beside it is context, read off that row
+ * rather than asked for, so it is printed as a gloss: a denomination at #77 whose
+ * family is #4 says "the nearest one is in a tradition near the top, but the
+ * denomination itself is deep in the list". Both come from the same pick, so a row
+ * has both or neither.
  *
- * `0` is the card's escape hatch at each level ("none of these families", "not
- * in this list") and is an answer about coverage, not a gap: it is printed as
- * one. A row with neither position is either a skip or a submission from before
- * the pickers existed, and the `accurate` boolean is all that can be said about
- * it; a legacy "no" gets its own wording rather than a guessed position, because
- * the queue must not invent how far off the match was.
+ * `0` is the card's escape hatch ("none of these are close") and is an answer
+ * about coverage, not a gap: it is printed as one, and it carries no family. A `0`
+ * family rank can only come from a row written by the old fallback box, where it
+ * meant none of the listed families fit; it is printed as that rather than
+ * dropped. A row with no position is either a skip or a submission from before the
+ * picker existed, and the `accurate` boolean is all that can be said about it; a
+ * legacy "no" gets its own wording rather than a guessed position, because the
+ * queue must not invent how far off the match was.
  */
 function familyPart(rank: FeedbackRow["familyRank"]): string | null {
-  if (rank === 0) return "none of the families listed";
-  if (typeof rank === "number") return `their family was #${rank}`;
+  if (rank === 0) return "no tradition fit";
+  if (typeof rank === "number") return `tradition #${rank}`;
   return null;
 }
 
 function churchPart(pos: FeedbackRow["matchRankPos"]): string | null {
-  if (pos === 0) return "their church was not in the list";
-  if (typeof pos === "number") return `their church was #${pos} in the list`;
+  if (pos === 0) return "none of the listed denominations were close";
+  if (typeof pos === "number") return `nearest denomination #${pos} in the list`;
   return null;
 }
 
 /**
- * The match answer as one line. The stance comes first and the positions follow
+ * The match answer as one line. The stance comes first and the position follows
  * it as the detail, because the stance is the question every reader could
  * answer: a row that says "not close" and names #1 is the disagreement worth
  * reading, and it used to be indistinguishable from a plain hit.
@@ -105,7 +107,7 @@ function matchLabel(row: FeedbackRow): string {
   const stance = stancePart(row.fitStance);
   const family = familyPart(row.familyRank);
   const church = churchPart(row.matchRankPos);
-  const position = family && church ? `${family}, ${church}` : family ?? church;
+  const position = church && family ? `${church} (${family})` : church ?? family;
   if (stance && position) return `${stance}; ${position}`;
   if (stance) return stance;
   if (position) return position;

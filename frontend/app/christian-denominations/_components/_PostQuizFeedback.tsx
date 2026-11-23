@@ -10,60 +10,101 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { Check, Star } from "lucide-react";
+import { Check, Search, Star } from "lucide-react";
 import Link from "next/link";
 import { createClientId, submitQuizFeedback, type FeedbackStance } from "../../../lib/api";
 import { trackEvent } from "../../../lib/gtag";
 import { APP_VERSION } from "../../../lib/site";
-import { FAMILY_TO_GROUP } from "../../../lib/taxonomy";
 import { SHELL_GUTTERS, WIDTHS } from "./_Shell";
 
 /**
  * The card at the bottom of the results page (task 0.9).
  *
- * Four questions, in the order a reader can answer them: how the quiz felt
- * overall (1-5 stars, the question an app store asks), how close the top match
- * is to *where they actually are* (one tap, four answers), where they sit if
- * they want to be precise (two pickers: their own family, then their
- * denomination inside it), and an optional sentence. It submits with one tap, so
- * a rating alone is a complete answer -- asking for the comment first would cost
- * most of the responses.
+ * Two questions, in the order a reader can answer them: how the quiz felt
+ * overall (1-5 stars, the question an app store asks), and which denomination on
+ * the list is closest to their church (one picker), plus an optional sentence. It
+ * submits with one tap, so a rating alone is a complete answer -- asking for the
+ * comment first would cost most of the responses.
  *
- * The stance question is first among the match ones because it is the only one
- * every reader can answer. The pickers ask the reader to place *their church*,
- * which is a question a curious reader, a seeker and a doubter cannot answer:
- * their only exits used to be "none came close" (stored as a miss, which pulled
- * the published accuracy down) or nothing (stored as a skip, which was
- * invisible). "I'm exploring" is a real answer, and the API stores it as one
- * while leaving it out of the accuracy denominator -- so the figure measures the
- * match instead of measuring how many readers happen to have a church.
+ * The stance question comes first because it is the only one every reader can
+ * answer. The picker asks which denomination is closest to *their* church, which
+ * is a question a curious reader, a seeker and a doubter cannot answer: their
+ * only exits used to be "none came close" (stored as a miss, which pulled the
+ * published accuracy down) or nothing (stored as a skip, which was invisible).
+ * "I'm exploring" is a real answer, and the API stores it as one while leaving it
+ * out of the accuracy denominator -- so the figure measures the match instead of
+ * measuring how many readers happen to have a church.
  *
- * The pickers are unchanged in what they ask, and deliberately still offered to
- * everyone: if they only appeared to people who said "not close", the published
- * distribution would become a list of misses and stop describing where readers'
- * churches actually sit. Their escape hatches now mean coverage alone -- "none
- * of these families" / "not in this list" -- because "not close" has its own
- * answer above.
+ * The picker asks for the closest **denomination**, not for "your church",
+ * because the list is the database's rows and a row is never a congregation.
+ * Under the old wording a reader with First Baptist Church of Scottsbluff did
+ * what the label said, found nothing, and answered "not in this list" -- which
+ * made the coverage answer the modal one and left the histogram saying more about
+ * how the list is spelled than about where readers are. Asking for the nearest
+ * denomination puts the ordinary answer back on the list: Baptist, whichever
+ * Baptist row is nearest. The escape hatch is then rare and means what it says --
+ * none of the 230 are close, because the reader is unaffiliated, of another
+ * faith, or in a tradition the database does not hold -- and its bucket is the
+ * clearest signal we have about what to add.
  *
- * Both pickers list the **whole** taxonomy: all thirty families, then every
- * denomination in the chosen one. They used to print the first eight and five,
- * which turned the answer into a bucket -- with 230 churches on the list, "not
- * in this list" was where most readers landed, so the panel could not say
- * whether a reader's church was ninth or two-hundredth. A `<select>` per level
- * is also the honest control for a list that long: thirty buttons with a rank
- * above each name is a wall of text on a phone, and grouping them by tradition
- * (`FAMILY_TO_GROUP`) is what a reader scanning for their own family expects.
- * Both carry the rank they send ("#9 of 30 families this run") underneath, so
- * the number that reaches the API is never a mystery.
+ * The family is read off that pick, and never asked. Every denomination in the
+ * bundle is filed under exactly one family, that family is a row of the list the
+ * dashboard prints, and its place is printed beside the pick the moment it is
+ * made. The card has asked for it twice over its life -- first as a second
+ * `<select>`, then as a fallback box behind "not in this list" -- and both are
+ * gone: the fallback only fired for readers whose church was missing, and the
+ * denomination question now answers itself for them ("the nearest Baptist row"),
+ * so the box was collecting a fact the card already held from the people least
+ * able to spare a tap. A skipped pick sends no family at all, because there is
+ * nothing to read it from.
+ *
+ * The family place still travels and is still stored: it is context in the
+ * moderator queue, and the row is the record of the answer. It is not published
+ * as a curve of its own any more, because it would be the denomination answer
+ * regrouped -- the same readers counted again by the family their row belongs to
+ * -- and a figure that moves whenever another one moves is not a second
+ * measurement.
+ *
+ * The list is printed in full -- 230 denominations, in the order the quiz ranked
+ * them -- against an old shortlist of five churches and eight families. With the
+ * whole database behind the question, a reader can always answer with the nearest
+ * row, which is what makes "none are close" mean something.
+ *
+ * The picker is `PickerBox`: a field, the list it opens, and the answer it holds,
+ * all inside one border, narrowing as the reader types. The family control was a
+ * native `<select>` once, and a select cannot be typed into on most platforms and
+ * cannot report which row is highlighted. 230 options need a way in -- the
+ * browser's type-ahead only jumps by prefix, on some keyboards, and says nothing
+ * about what it matched -- so the field is the way in, and it filters names with
+ * case and accents folded away.
+ *
+ * The field still only narrows what is *offered*: the value on the wire is a
+ * position read off the list, so a name typed here can never become an answer,
+ * and a list that matches nothing still ends with the coverage answer. The status
+ * line carries the rank it sends ("#9 of 230 denominations this run") underneath,
+ * so the number that reaches the API is never a mystery.
+ *
+ * The keys are the combobox pattern: arrows walk the list, Home and End go to its
+ * ends, Escape closes it, and Enter takes the highlighted row. Enter is prevented
+ * in every case, because the field is inside a `<form>` -- otherwise a reader who
+ * typed a name and pressed Enter would send the card with nothing but a rating on
+ * it. Nothing is highlighted until the reader types or arrows, so a stray Enter
+ * cannot record whoever happens to be first as their answer.
+ *
+ * The answer is kept as the option's **id**, not its number. "Active only"
+ * renumbers the list under a card that was already answered, and the same
+ * denomination should keep its new place rather than the answer sliding onto
+ * whatever inherited the old number. A denomination that drops off the list is
+ * named in the status line and counted as a skip, which is also what the API does
+ * with a position it cannot place.
  *
  * The match question used to be a yes/no about "the top match", then six rank
  * buckets. A bucket was one number for two different things -- how close the
  * *family* list came, and where the reader's own *church* sat in it -- and a
  * "no" could not tell a near miss from a denomination that is not in the
- * database. The pickers ask the two things in the order they happen, and both
- * number what is on screen: "#2, Anglican" is the second family shown, and the
- * church's number is its place in the full results list, not its place inside
- * the family.
+ * database. The picker asks where the closest denomination sits, numbered by what
+ * is on screen: its number is its place in the full results list, not its place
+ * inside its family.
  *
  * The stars are about the experience, not about the result. The match has its
  * own question directly below them and its own figure on the landing page;
@@ -83,8 +124,8 @@ import { SHELL_GUTTERS, WIDTHS } from "./_Shell";
  * and a histogram -- no quotes -- which is why there is no consent step here.
  *
  * Where it does not go: analytics. Only the shape travels (rating, its metric,
- * the stance, the two positions or skipped, whether a comment existed), never
- * the words themselves.
+ * the stance, the position or skipped, whether a comment existed), never the
+ * words themselves.
  */
 
 /** Offered only when the POST did not land. */
@@ -93,13 +134,14 @@ const CONTACT_EMAIL = "theocompass.project@gmail.com";
 const NOTE_MAX = 500;
 
 /**
- * The two level pickers share one control: a native `<select>`, because a list of
- * thirty families with a rank above each name is a wall of text on a phone, and
- * a native select is the one list control that already works with a keyboard, a
- * screen reader and a thumb.
+ * The pickers' box: the one control the card cannot get from a native element.
+ * The field, the list it opens and the answer it holds share a border, so typing
+ * to find and picking from the list are the same block rather than a search box
+ * above a separate list. The focus ring sits on the box because the field inside
+ * it has no border of its own.
  */
-const SELECT_CLASS =
-  "mt-1.5 w-full max-w-[28rem] border border-rule bg-paper px-2.5 py-2 text-sm text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cerulean-600 disabled:cursor-not-allowed disabled:bg-cerulean-50 disabled:text-ink-muted";
+const PICKER_BOX_CLASS =
+  "mt-1.5 max-w-[28rem] border border-rule bg-paper focus-within:outline focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-cerulean-600";
 
 /**
  * Local memory of which run has been answered, so reloading the same results
@@ -113,7 +155,7 @@ type Phase = "idle" | "sending" | "failed";
 /**
  * The rating in words, so the choice reads as an opinion about the quiz and not
  * as a score for the result. Deliberately about the experience throughout: the
- * match is judged by the two pickers underneath.
+ * match is judged by the questions underneath.
  */
 const RATING_LABELS = ["Not for me", "Needs work", "It was fine", "Really good", "Loved it"];
 
@@ -130,7 +172,11 @@ const RATING_LABELS = ["Not for me", "Needs work", "It was fine", "Really good",
  */
 const STANCE_OPTIONS: Array<{ value: FeedbackStance; label: string; hint: string }> = [
   { value: "fit", label: "That's about where I am", hint: "The top match describes me" },
-  { value: "close", label: "Close, but not quite", hint: "Right family, wrong church" },
+  {
+    value: "close",
+    label: "Close, but not quite",
+    hint: "Right tradition, wrong denomination",
+  },
   { value: "off", label: "Not close", hint: "Missed where I actually am" },
   { value: "exploring", label: "I'm exploring", hint: "No church to compare with" },
 ];
@@ -144,29 +190,63 @@ const STANCE_TEXT: Record<FeedbackStance, string> = {
 };
 
 /**
- * The family list the card prints, as the controller passes it: what the
- * dashboard is showing, so "active only" moves the list and the card together.
- * `allDenominations` is that family's churches in match order, which is the
- * order the second picker lists them in.
+ * One tradition on this run's list, as the controller passes it: what the
+ * dashboard is showing, so "active only" moves the denominator and the card
+ * together. The card uses it only for the place it prints beside the pick -- the
+ * picker itself is the full results list, not a family's contents.
  */
 export type FeedbackFamily = {
   family: string;
-  allDenominations?: Array<{ id: string; name: string }> | null;
-};
-
-/** A family as one `<optgroup>` entry, and the churches it contains. */
-type FamilyOption = {
-  family: string;
-  rank: number;
-  churches: Array<{ id: string; name: string; pos: number }>;
 };
 
 /**
- * The optgroup for a family the cluster map does not know -- the four families
- * that are in the data but not assigned to a tradition in `lib/taxonomy.ts`.
- * They still get a place in the list, in rank order, rather than being dropped.
+ * One row in the picker.
+ *
+ * `id` is what the answer remembers, and it has to survive the list moving under
+ * it: "active only" renumbers the results list under a card that was already
+ * answered, and a remembered `22` would then point at whatever denomination had
+ * become twenty-second -- the id does not move. `pos` is its place on the list as
+ * printed, read off the list when the card renders and when it submits. `family`
+ * is the family the row is filed under, which is where the tradition line beneath
+ * the pick comes from.
  */
-const OTHER_GROUP = "Other traditions";
+type PickerOption = {
+  id: string;
+  name: string;
+  pos: number;
+  family?: string;
+};
+
+/**
+ * The coverage answer, carried as an option like any other so one list can hold
+ * it: a position would invent a denomination and a free-typed name would be
+ * checked against the bundle and dropped. It sits at the end of the list whatever
+ * is typed, because a query that matches nothing still has to leave an answer.
+ */
+const COVERAGE_ID = "__coverage__";
+
+/**
+ * What "none of the listed denominations are close" is called. Deliberately not
+ * "not in this list": the list is the database's rows, not the reader's church,
+ * so the answer is about distance, not about a list they failed to find.
+ */
+const CHURCH_COVERAGE = "None of these are close";
+
+/**
+ * What a picker holds.
+ *
+ * A position alone would not survive the list moving under it, so the answer is
+ * the option's **id**, and its place is read off the list when the card renders
+ * and when it submits. The coverage answer has no row behind it and is kept as
+ * itself.
+ */
+type PickerAnswer = { kind: "pick"; id: string; name: string } | { kind: "none" };
+
+/**
+ * Where a family sits on this run's list: its place among the traditions the
+ * dashboard is showing, so "active only" moves the card's denominator with it.
+ */
+type FamilyPlace = { name: string; pos: number };
 
 /**
  * The answers in words, for the mailto fallback. Spelled out rather than "#1",
@@ -180,14 +260,358 @@ function stanceText(fitStance: FeedbackStance | null): string {
 
 function familyText(familyRank: number | null, familyCount: number): string {
   if (familyRank === null) return "skipped";
-  if (familyRank === 0) return "not one of the families on the list";
-  return `#${familyRank} of the ${familyCount} families on the list`;
+  if (familyRank === 0) return "not one of the traditions on the list";
+  return `#${familyRank} of the ${familyCount} traditions on the list, read from the denomination I picked`;
+}
+
+/**
+ * The family answer the card sends: the family of the denomination the reader
+ * picked, and nothing else.
+ *
+ * There is no second question behind it. The denomination list carries each row's
+ * family, the family list carries each family's place, so naming a denomination
+ * answers both at once and the two numbers cannot disagree. A skipped pick sends
+ * no family -- there is nothing to read it from -- and a denomination whose
+ * family is hidden by "active only" leaves it null too: the card says nothing
+ * rather than guessing a place.
+ */
+function familyFor(
+  churchAnswer: PickerAnswer | null,
+  church: PickerOption | null,
+  familyPlaces: FamilyPlace[]
+): { rank: number | null; name: string | null } {
+  if (churchAnswer?.kind !== "pick") return { rank: null, name: null };
+  const family = church?.family
+    ? familyPlaces.find((place) => place.name === church.family) ?? null
+    : null;
+  return family === null
+    ? { rank: null, name: null }
+    : { rank: family.pos, name: family.name };
 }
 
 function churchText(matchRankPos: number | null): string {
   if (matchRankPos === null) return "skipped";
-  if (matchRankPos === 0) return "not in the list";
+  if (matchRankPos === 0) return "none of the listed denominations were close";
   return `#${matchRankPos} in the full results list`;
+}
+
+/**
+ * Case- and accent-insensitive, so "zwingli" finds "Zwinglian" and "presb"
+ * finds "Presbyterian". Punctuation is left alone: a name's "&" is still an "&".
+ */
+function foldName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * What the picker says underneath itself: the answer when there is one,
+ * otherwise how many denominations the field is offering. A filter that matches
+ * nothing still leaves "None of these are close" as the truthful answer, so the
+ * message says so rather than looking like a dead end -- and an answer that fell
+ * off the list (a family hidden by "active only") says it is a skip now instead
+ * of disappearing quietly.
+ */
+function churchStatus(
+  matchRankPos: number | null,
+  resultCount: number,
+  shown: number,
+  query: string,
+  dropped: string | null
+): string {
+  if (resultCount === 0) return "No denominations on this run's list.";
+  if (dropped !== null) {
+    return `"${dropped}" is not on this run's list any more, so the answer counts as a skip.`;
+  }
+  if (matchRankPos === 0) return "Recorded as a gap in our database, not as a miss.";
+  if (matchRankPos !== null) return `#${matchRankPos} of ${resultCount} on the full results list.`;
+  const needle = query.trim();
+  if (needle === "") {
+    return `${resultCount} denominations this run, in the order the quiz ranked them.`;
+  }
+  if (shown === 0) {
+    return `No denomination matches "${needle}". "None of these are close" is still the answer if none fit.`;
+  }
+  return `${shown} of ${resultCount} denominations match "${needle}".`;
+}
+
+/**
+ * The picker: the field, the list it opens, the answer it holds and the line that
+ * says what will be sent, all inside one border.
+ *
+ * The card used to carry two controls for two questions -- a native `<select>` for
+ * the family and a combobox beside it for the church. A select cannot be typed
+ * into on most platforms, cannot report which row is highlighted, and made the two
+ * answers look like different kinds of data. With one question left there is one
+ * control: one way in, one set of keys, and one place where the line underneath is
+ * computed.
+ *
+ * The field only narrows what is *offered*: the value on the wire is a position
+ * read off the list, so a name typed here can never become an answer, and a list
+ * that matches nothing still ends with the coverage answer.
+ *
+ * The keys are the combobox pattern: arrows walk the list, Home and End go to its
+ * ends, Escape closes it, and Enter takes the highlighted row. Enter is prevented
+ * in every case, because the field is inside a `<form>` -- otherwise a reader who
+ * typed a name and pressed Enter would send the card with nothing but a rating on
+ * it. Nothing is highlighted until the reader types or arrows, so a stray Enter
+ * cannot record whoever happens to be first as their answer.
+ */
+function PickerBox({
+  label,
+  placeholder,
+  coverageName,
+  options,
+  answer,
+  onChange,
+  status,
+  helpId,
+}: {
+  label: string;
+  placeholder: string;
+  /** What this list calls "the list did not cover me". Always its last row. */
+  coverageName: string;
+  /** The rows, in the order the list prints them, without the coverage row. */
+  options: PickerOption[];
+  answer: PickerAnswer | null;
+  onChange: (next: PickerAnswer | null) => void;
+  /** The line underneath, told how many rows match and what is typed. */
+  status: (shown: number, query: string) => string;
+  helpId: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [activeTouched, setActiveTouched] = useState(false);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const fieldRef = useRef<HTMLInputElement | null>(null);
+  const fieldId = useId();
+  const labelId = useId();
+  const listId = useId();
+  const statusId = useId();
+
+  /** The rows on offer: what the query matches, then the coverage answer. */
+  const choices = useMemo<PickerOption[]>(() => {
+    const needle = foldName(query.trim());
+    const matches =
+      needle === "" ? options : options.filter((option) => foldName(option.name).includes(needle));
+    return [...matches, { id: COVERAGE_ID, name: coverageName, pos: 0 }];
+  }, [coverageName, options, query]);
+
+  /**
+   * The list is only there while there is something to list: an empty list
+   * disables the field, and a list of nothing but the coverage answer is a
+   * question with no options rather than a picker.
+   */
+  const listOpen = open && options.length > 0;
+
+  /*
+   * The highlight, and the row Enter takes. It stays empty until the reader arrows
+   * into the list or types, so an Enter in an untouched field cannot record
+   * whoever happens to be first as their answer.
+   */
+  const activeIndex =
+    listOpen && (activeTouched || query.trim() !== "") && choices.length > 0
+      ? Math.min(Math.max(active, 0), choices.length - 1)
+      : -1;
+
+  /** Follow the highlight: arrowing past the fold would otherwise leave it off-screen. */
+  useEffect(() => {
+    if (activeIndex < 0) return;
+    const item = document.getElementById(`${listId}-o${activeIndex}`);
+    item?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex, listId]);
+
+  function commit(choice: PickerOption): void {
+    onChange(
+      choice.pos === 0
+        ? { kind: "none" }
+        : { kind: "pick", id: choice.id, name: choice.name }
+    );
+    setQuery("");
+    setOpen(false);
+    setActive(-1);
+    setActiveTouched(false);
+  }
+
+  function clear(): void {
+    onChange(null);
+    setQuery("");
+    setOpen(false);
+    setActive(-1);
+    setActiveTouched(false);
+  }
+
+  function changeQuery(value: string): void {
+    setQuery(value);
+    setOpen(true);
+    setActive(value.trim() === "" ? -1 : 0);
+    setActiveTouched(false);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (options.length === 0) return;
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      setOpen(true);
+      setActiveTouched(true);
+      setActive((current) => {
+        const next = current < 0 ? (step === 1 ? 0 : choices.length - 1) : current + step;
+        return Math.min(Math.max(next, 0), choices.length - 1);
+      });
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      if (options.length === 0) return;
+      setOpen(true);
+      setActiveTouched(true);
+      setActive(event.key === "Home" ? 0 : choices.length - 1);
+    } else if (event.key === "Enter") {
+      // The field is inside a `<form>`: an Enter that is not about this list would
+      // send the card with only a rating on it.
+      event.preventDefault();
+      if (!listOpen) {
+        setOpen(true);
+        return;
+      }
+      const choice = choices[activeIndex];
+      if (choice) commit(choice);
+    } else if (event.key === "Escape") {
+      if (open) {
+        event.preventDefault();
+        setOpen(false);
+        setActive(-1);
+      } else if (query !== "") {
+        event.preventDefault();
+        setQuery("");
+      }
+    }
+  }
+
+  return (
+    <div>
+      <label htmlFor={fieldId} id={labelId} className="block text-2xs font-semibold text-ink-soft">
+        {label}
+      </label>
+      <div className={PICKER_BOX_CLASS}>
+        <div
+          className="flex items-center gap-1.5 px-2.5"
+          // The icon and the padding read as part of the field, so a click there
+          // should put the caret in it -- but a click that already landed on the
+          // field is left alone, or it would stop the reader placing the caret by
+          // hand. Either way the press asks for the list: after a pick the field is
+          // empty and still focused, so a plain focus event would not come.
+          onMouseDown={(event) => {
+            if (event.target === fieldRef.current) return;
+            event.preventDefault();
+            fieldRef.current?.focus();
+            setOpen(true);
+          }}
+        >
+          <Search aria-hidden="true" strokeWidth={2} className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+          <input
+            id={fieldId}
+            ref={fieldRef}
+            type="text"
+            role="combobox"
+            aria-expanded={listOpen}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeIndex < 0 ? undefined : `${listId}-o${activeIndex}`}
+            aria-describedby={`${helpId} ${statusId}`}
+            value={query}
+            onChange={(event) => changeQuery(event.target.value)}
+            onKeyDown={onKeyDown}
+            onFocus={() => setOpen(true)}
+            // A press inside the field asks for the list too: after a pick it is
+            // empty and still focused, so no focus event arrives and the reader
+            // would have to type to see it.
+            onClick={() => setOpen(true)}
+            onBlur={() => setOpen(false)}
+            disabled={options.length === 0}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={placeholder}
+            className="w-full bg-transparent py-1.5 text-sm text-ink placeholder:text-ink-muted focus-visible:outline-none disabled:cursor-not-allowed"
+          />
+        </div>
+
+        {/* The answer, inside the same box: the field finds, this line says what
+            was found, and Clear puts it back to a skip. */}
+        {answer !== null && (
+          <div className="flex items-center gap-2 border-t border-rule bg-cerulean-50 px-2.5 py-1.5">
+            <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-cerulean-800" />
+            <span className="min-w-0 flex-1 truncate text-2xs font-semibold text-ink-soft">
+              {answer.kind === "none" ? coverageName : answer.name}
+            </span>
+            <button
+              type="button"
+              onClick={clear}
+              aria-label={`Clear ${label.toLowerCase()}`}
+              className="shrink-0 text-3xs font-semibold text-ink-muted underline decoration-rule-strong underline-offset-2 hover:text-ink"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* The list, in that same border: it is on screen while the field has
+            focus, so what is offered and what is typed are never two different
+            places on the page. */}
+        {listOpen && (
+          <div
+            id={listId}
+            ref={listRef}
+            role="listbox"
+            aria-labelledby={labelId}
+            className="max-h-56 overflow-y-auto border-t border-rule"
+          >
+            {choices.map((option, index) => {
+              const isActive = index === activeIndex;
+              const selected =
+                answer !== null &&
+                (option.pos === 0
+                  ? answer.kind === "none"
+                  : answer.kind === "pick" && answer.id === option.id);
+              return (
+                <div
+                  key={option.id}
+                  id={`${listId}-o${index}`}
+                  role="option"
+                  aria-selected={selected}
+                  // A `mousedown` would blur the field, and blur closes the
+                  // list: the pick would land on a list that had already gone.
+                  // The click still commits.
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => commit(option)}
+                  onMouseEnter={() => {
+                    setActive(index);
+                    setActiveTouched(true);
+                  }}
+                  className={`flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5 text-xs ${
+                    isActive ? "bg-cerulean-100 text-cerulean-900" : "text-ink-soft"
+                  }`}
+                >
+                  <span className="num w-8 shrink-0 text-right font-mono text-3xs text-ink-muted">
+                    {option.pos === 0 ? "—" : `#${option.pos}`}
+                  </span>
+                  <span className="min-w-0 flex-1">{option.name}</span>
+                  {selected && (
+                    <Check aria-hidden="true" className="h-3 w-3 shrink-0 text-cerulean-800" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <p id={statusId} role="status" className="mt-1 text-3xs text-ink-muted">
+        {status(choices.length - 1, query)}
+      </p>
+    </div>
+  );
 }
 
 /** The pressed/unpressed look the stance answers share with the old bucket row. */
@@ -257,9 +681,11 @@ function rememberSubmitted(run: string): void {
 }
 
 /**
- * The mailto fallback carries the stance and the two positions, never the
- * reader's sentence. Every question is labelled, because the reply may arrive
- * after the card has changed again and one bare number would be ambiguous.
+ * The mailto fallback carries the stance and both positions, never the reader's
+ * sentence. Every question is labelled, because the reply may arrive after the
+ * card has changed again and one bare number would be ambiguous. The family line
+ * says where it came from (the denomination the reader picked), so a reply cannot
+ * be read as a family the reader chose by hand.
  */
 function fallbackHref(
   rating: number | null,
@@ -273,8 +699,8 @@ function fallbackHref(
     "",
     `Quiz experience: ${rating === null ? "not given" : `${rating}/5`}`,
     `Where the match sits for me: ${stanceText(fitStance)}`,
-    `My family on the list: ${familyText(familyRank, familyCount)}`,
-    `My church on the list: ${churchText(matchRankPos)}`,
+    `Closest denomination's tradition: ${familyText(familyRank, familyCount)}`,
+    `Closest denomination on the list: ${churchText(matchRankPos)}`,
     "",
     "(The feedback form could not reach the server, so this is the fallback.)",
   ];
@@ -294,14 +720,20 @@ export function PostQuizFeedback({
 }: {
   mode: "quick" | "standard" | "deep";
   /**
-   * The family list on screen, from the top, and the full results list: both
-   * pickers index into exactly these, so the positions they send are the places
-   * the reader sees. "Active only" filters both, so a hidden tradition keeps no
-   * rank.
+   * The family list on screen, from the top. The card indexes it only to read the
+   * place of the family that the picked denomination belongs to; "active only"
+   * filters it, so a hidden tradition leaves the family rank null rather than an
+   * old number.
    */
   familyMatches: FeedbackFamily[];
-  /** The full list on screen, in order: a church's position is its index here. */
-  results: Array<{ id: string }>;
+  /**
+   * The full list on screen, in order: a denomination's position is its index
+   * here, and the name travels beside it because that is what the worker checks
+   * the position against (`matchName`). `family` is the family the denomination is
+   * filed under -- context the card reads the family place from, never a second
+   * question.
+   */
+  results: Array<{ id: string; name: string; family?: string }>;
   topMatchId: string | null;
   topMatchName: string | null;
   answeredCount: number;
@@ -319,8 +751,8 @@ export function PostQuizFeedback({
   const [sentHere, setSentHere] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
   const [fitStance, setFitStance] = useState<FeedbackStance | null>(null);
-  const [familyRank, setFamilyRank] = useState<number | null>(null);
-  const [matchRankPos, setMatchRankPos] = useState<number | null>(null);
+  /** The pick: a denomination by id, the coverage answer, or nothing (skip). */
+  const [answer, setAnswer] = useState<PickerAnswer | null>(null);
   const [comment, setComment] = useState("");
   /** One id per card: a retry after a dropped response is the same submission. */
   const [sessionId] = useState(() => createClientId());
@@ -334,8 +766,6 @@ export function PostQuizFeedback({
   const helpId = useId();
   const stanceHelpId = useId();
   const matchHelpId = useId();
-  const familyId = useId();
-  const churchId = useId();
 
   // The server and hydration snapshots are both `null`, so the first paint is
   // the form and the stored answer then flips it to the thank-you. Reading
@@ -344,56 +774,56 @@ export function PostQuizFeedback({
   const alreadySent = runKey !== null && submittedRun === runKey;
 
   /*
-   * The two pickers, built from the lists the dashboard is showing.
+   * The two lists the card indexes into, built from what the dashboard is
+   * showing.
    *
-   * `posOf` is what turns the full list into the numbers the card sends: a
-   * church's position on the page, not its position inside the family. A
-   * denomination that is on screen nowhere (a family kept by the active filter
-   * whose runner-up was not) is left out rather than given an invented rank --
-   * "not in this list" is still there, and it is the truthful answer.
+   * Denominations are numbered by their place in `results` -- every row on screen,
+   * whichever family it belongs to -- and each carries the family it is filed
+   * under, which is what makes the family answer a reading of the list rather than
+   * a second question. `familyPlaces` is the same list one level up: each family's
+   * place among the traditions on screen, which is what the line under the pick
+   * prints.
    *
-   * Nothing is truncated any more: the whole family list, and every church in the
-   * chosen one. The count is what the card prints underneath each control, so the
-   * rank is never a number without a denominator.
+   * Nothing is truncated. The count is what the card prints underneath the control,
+   * so the rank is never a number without a denominator.
    */
-  const families = useMemo<FamilyOption[]>(() => {
-    const posOf = new Map(results.map((denom, index) => [denom.id, index + 1]));
-    return familyMatches.map((family, index) => ({
-      family: family.family,
-      rank: index + 1,
-      churches: (family.allDenominations ?? [])
-        .map((denom) => ({ id: denom.id, name: denom.name, pos: posOf.get(denom.id) }))
-        .filter(
-          (denom): denom is { id: string; name: string; pos: number } =>
-            typeof denom.pos === "number"
-        ),
-    }));
-  }, [familyMatches, results]);
+  const familyPlaces = useMemo<FamilyPlace[]>(
+    () => familyMatches.map((family, index) => ({ name: family.family, pos: index + 1 })),
+    [familyMatches]
+  );
+
+  const churches = useMemo<PickerOption[]>(
+    () =>
+      results.map((denom, index) => ({
+        id: denom.id,
+        name: denom.name,
+        pos: index + 1,
+        family: denom.family,
+      })),
+    [results]
+  );
 
   /*
-   * The families folded into the seven traditions the dashboard already colours
-   * by, in rank order inside each one. A `<select>` with thirty flat options is a
-   * scroll; grouped, a reader looking for their own family has a heading to aim
-   * at. Four families in the data belong to no cluster and land in `OTHER_GROUP`
-   * rather than disappearing.
+   * The answer, read back off the list it was picked from. Keeping the id rather
+   * than the number is what makes "active only" harmless: the same denomination
+   * keeps whichever place it now has, and one that fell off the list is named in the
+   * status line instead of quietly becoming something else.
    */
-  const familyGroups = useMemo(() => {
-    const order: string[] = [];
-    const grouped = new Map<string, FamilyOption[]>();
-    for (const option of families) {
-      const group = FAMILY_TO_GROUP[option.family] ?? OTHER_GROUP;
-      const bucket = grouped.get(group);
-      if (bucket) bucket.push(option);
-      else {
-        grouped.set(group, [option]);
-        order.push(group);
-      }
-    }
-    return order.map((group) => ({ group, options: grouped.get(group) ?? [] }));
-  }, [families]);
+  const chosenChurch =
+    answer?.kind === "pick" ? churches.find((church) => church.id === answer.id) ?? null : null;
 
-  const chosenFamily =
-    familyRank === null ? null : families.find((family) => family.rank === familyRank) ?? null;
+  const churchPos =
+    answer === null ? null : answer.kind === "none" ? 0 : chosenChurch?.pos ?? null;
+
+  /** Set only when the answer is a denomination this run's list no longer holds. */
+  const droppedChurch = answer?.kind === "pick" && chosenChurch === null ? answer.name : null;
+
+  /**
+   * The family of the pick, and its place on this run's family list -- read, never
+   * asked. A skipped pick, or one whose family the list has hidden, sends nothing:
+   * the card does not guess a place.
+   */
+  const familySent = familyFor(answer, chosenChurch, familyPlaces);
 
   // A submit removes the button that had focus, so focus moves to the answer.
   // Only for a submit made here: on a reload the card is already a thank-you,
@@ -407,30 +837,13 @@ export function PostQuizFeedback({
   }
 
   /**
-   * One tap, same toggle rule as the stars and the pickers: pressing the chosen
+   * One tap, same toggle rule as the stars and the picker: pressing the chosen
    * answer again clears it, and a blank stance is a skip rather than a miss.
-   * Nothing below is reset -- the stance and the pickers answer different
-   * questions, and a reader who says "not close" may still name where their
-   * church sits.
+   * Nothing below is reset -- the stance and the pick answer different questions,
+   * and a reader who says "not close" may still name the nearest denomination.
    */
   function selectStance(value: FeedbackStance): void {
     setFitStance(fitStance === value ? null : value);
-  }
-
-  /**
-   * A different family is a different list, so a position inside the old one
-   * means nothing afterwards: choosing a family clears the church. An empty
-   * value is the control's own placeholder, i.e. the question is back to "no
-   * answer", which is a skip and not a miss.
-   */
-  function chooseFamily(value: string): void {
-    setFamilyRank(value === "" ? null : Number(value));
-    setMatchRankPos(null);
-  }
-
-  /** The second level belongs to the chosen family, so it only changes itself. */
-  function chooseChurch(value: string): void {
-    setMatchRankPos(value === "" ? null : Number(value));
   }
 
   function onStarsKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
@@ -454,29 +867,25 @@ export function PostQuizFeedback({
 
     const trimmed = comment.trim();
     /*
-     * The two names travel with the positions they label.
+     * The names travel with the positions they label.
      *
      * The API stores the numbers, never the labels, so these are context: a
      * position is a place in a list, and the name is what says *which* list. The
-     * worker checks the pair against the bundle it serves, which is the same
+     * worker checks each name against the bundle it serves, which is the same
      * document that built the dashboard above -- so a tab left open across a
      * re-seed cannot have its old list counted as if it were the current one.
-     *
-     * `chosenFamily` is the family whose churches are on screen (the second
-     * picker lists that family's churches and nothing else), and `results.length`
-     * is the length of the list a church's position was counted in: a position
-     * can never be past it.
+     * What is checked is that each name is in the bundle, that `matchName` sits at
+     * `matchRankPos` in this run's list, and that `results.length` -- the length of
+     * the list that position was counted in -- is not smaller than the position
+     * itself.
      */
-    const chosenChurch =
-      chosenFamily?.churches.find((church) => church.pos === matchRankPos) ?? null;
-
     const outcome = await submitQuizFeedback({
       sessionId,
       rating,
       fitStance,
-      familyRank,
-      familyName: chosenFamily?.family ?? null,
-      matchRankPos,
+      familyRank: familySent.rank,
+      familyName: familySent.name,
+      matchRankPos: churchPos,
       matchName: chosenChurch?.name ?? null,
       matchRankScope: results.length,
       comment: trimmed === "" ? null : trimmed,
@@ -504,13 +913,16 @@ export function PostQuizFeedback({
       // own value, so an export can tell "the match was wrong" from "there is no
       // church to compare it with" without joining the table.
       fit_stance: fitStance ?? "skipped",
-      family_rank: familyRank ?? "skipped",
-      match_rank_pos: matchRankPos ?? "skipped",
+      // The tradition the pick landed in, and its place on this run's list. It is
+      // context for the export: the row's real answer is `match_rank_pos`, and the
+      // family is that answer regrouped.
+      family_rank: familySent.rank ?? "skipped",
+      match_rank_pos: churchPos ?? "skipped",
       // Derived, under the name the event used before the pickers, so a GA4
       // exploration built on `accurate` keeps working across the change: the
-      // stance decides it when present, the church's position otherwise, and
-      // `exploring` is neither a yes nor a no.
-      accurate: accurateLabel(fitStance, matchRankPos),
+      // stance decides it when present, the position otherwise, and `exploring` is
+      // neither a yes nor a no.
+      accurate: accurateLabel(fitStance, churchPos),
       has_comment: trimmed !== "",
       outcome,
     });
@@ -589,7 +1001,13 @@ export function PostQuizFeedback({
             <p className="mt-1.5 text-2xs leading-relaxed text-ink-soft">
               Your result is untouched and nothing was lost by trying. Send it again, or write to{" "}
               <a
-                href={fallbackHref(rating, fitStance, familyRank, matchRankPos, families.length)}
+                href={fallbackHref(
+                  rating,
+                  fitStance,
+                  familySent.rank,
+                  churchPos,
+                  familyPlaces.length
+                )}
                 className="underline hover:text-ink"
               >
                 {CONTACT_EMAIL}
@@ -650,9 +1068,8 @@ export function PostQuizFeedback({
               </div>
               <span id={helpId} className="sr-only">
                 Five stars is the best experience. The match itself is judged by the two questions
-                below: first how close it is to where you actually are, then the two pickers, which
-                ask for your own family and where your own church sat. Arrow keys move between
-                the stars.
+                below: first how close it is to where you actually are, then which denomination is
+                closest to your church. Arrow keys move between the stars.
               </span>
             </div>
 
@@ -700,107 +1117,55 @@ export function PostQuizFeedback({
             )}
 
             <fieldset>
-              <legend className="meta">If you want to be precise: where do you sit?</legend>
+              <legend className="meta">Which denomination is closest to your church?</legend>
               <p className="mt-1 text-2xs leading-relaxed text-ink-muted">
                 {topMatchName ? (
                   <>
-                    Two optional pickers, for readers who do belong to a church: your own family,
-                    then your church inside it — #1 in both means the top match was right. Every
-                    family on the run&rsquo;s list is offered, and every church in the one you pick.
+                    Optional. Pick the nearest denomination, not a congregation; #1 means the top match
+                    was right.
                   </>
                 ) : (
                   "This run had no match to judge."
                 )}
               </p>
               <span id={matchHelpId} className="sr-only">
-                Two steps. First your own family, from the whole family list: none of these families
-                means no family on the list fits your church. Then your own denomination inside that
-                family: not in this list means it is not among the churches listed for that family,
-                or is not in the database at all. Both are about coverage, not about how close the
-                match felt — that question is answered above.
+                One optional answer about the denomination closest to your church, numbered the way
+                the dashboard above numbers it. Typing narrows the list but is never submitted; arrow
+                keys walk it, Enter takes the highlighted denomination, and Escape closes it.
+                &ldquo;None of these are close&rdquo; means none of the listed denominations are —
+                unaffiliated, another faith, or a tradition the database does not hold — which is a
+                gap in the data and not a miss. How close the match felt is the question above.
               </span>
 
-              {families.length === 0 ? (
+              {churches.length === 0 ? (
                 <p className="mt-2 text-2xs leading-relaxed text-ink-muted">
                   This run has no ranked list to judge.
                 </p>
               ) : (
-                <>
-                  <div className="mt-3">
-                    <label
-                      htmlFor={familyId}
-                      className="block text-2xs font-semibold text-ink-soft"
-                    >
-                      Your family
-                    </label>
-                    <select
-                      id={familyId}
-                      value={familyRank === null ? "" : String(familyRank)}
-                      onChange={(event) => chooseFamily(event.target.value)}
-                      aria-describedby={matchHelpId}
-                      className={SELECT_CLASS}
-                    >
-                      <option value="">Choose your family…</option>
-                      {familyGroups.map((group) => (
-                        <optgroup key={group.group} label={group.group}>
-                          {group.options.map((option) => (
-                            <option key={option.rank} value={option.rank}>
-                              #{option.rank} — {option.family}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                      <option value="0">None of these families</option>
-                    </select>
-                    <p className="mt-1 text-3xs text-ink-muted">
-                      {familyRank === null
-                        ? `${families.length} families on this run's list, in the order the quiz ranked them.`
-                        : familyRank === 0
-                          ? "Recorded as a coverage gap, not as a miss."
-                          : `#${familyRank} of ${families.length} families this run.`}
+                <div className="mt-3">
+                  <PickerBox
+                    label="Closest denomination"
+                    placeholder="Type a few letters, e.g. bapt"
+                    coverageName={CHURCH_COVERAGE}
+                    options={churches}
+                    answer={answer}
+                    onChange={setAnswer}
+                    status={(shown, query) =>
+                      churchStatus(churchPos, results.length, shown, query, droppedChurch)
+                    }
+                    helpId={matchHelpId}
+                  />
+                  {/* What the pick answers without being asked: the tradition it is
+                      filed under, read off the two lists. */}
+                  {familySent.name !== null && familySent.rank !== null && (
+                    <p className="mt-2 text-3xs leading-relaxed text-ink-muted">
+                      Filed under{" "}
+                      <strong className="font-semibold text-ink-soft">{familySent.name}</strong> —{" "}
+                      <span className="num font-mono">#{familySent.rank}</span> of {familyPlaces.length}{" "}
+                      traditions this run.
                     </p>
-                  </div>
-
-                  <div className="mt-4">
-                    <label
-                      htmlFor={churchId}
-                      className="block text-2xs font-semibold text-ink-soft"
-                    >
-                      Your church{chosenFamily ? ` in ${chosenFamily.family}` : ""}
-                    </label>
-                    <select
-                      id={churchId}
-                      value={matchRankPos === null ? "" : String(matchRankPos)}
-                      onChange={(event) => chooseChurch(event.target.value)}
-                      disabled={!chosenFamily || chosenFamily.churches.length === 0}
-                      aria-describedby={matchHelpId}
-                      className={SELECT_CLASS}
-                    >
-                      <option value="">Choose your church…</option>
-                      {(chosenFamily?.churches ?? []).map((church) => (
-                        <option key={church.id} value={church.pos}>
-                          #{church.pos} — {church.name}
-                        </option>
-                      ))}
-                      <option value="0">Not in this list</option>
-                    </select>
-                    <p className="mt-1 text-3xs text-ink-muted">
-                      {!chosenFamily
-                        ? "Pick a family first: the list holds that family's churches only."
-                        : chosenFamily.churches.length === 0
-                          ? "No churches from this family are on this run's list."
-                          : matchRankPos === null
-                            ? `${chosenFamily.churches.length} churches from this family, numbered by their place on the full results list.`
-                            : matchRankPos === 0
-                              ? "Recorded as a coverage gap, not as a miss."
-                              : `#${matchRankPos} of ${results.length} on the full results list.`}
-                    </p>
-                  </div>
-                  <p className="mt-2 text-3xs text-ink-muted">
-                    Optional precision. &ldquo;None of these families&rdquo; and &ldquo;not in this
-                    list&rdquo; only say the list did not cover you.
-                  </p>
-                </>
+                  )}
+                </div>
               )}
             </fieldset>
 

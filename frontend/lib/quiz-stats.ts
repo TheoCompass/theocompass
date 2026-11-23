@@ -140,7 +140,7 @@ export type TopOneMatch = {
  * Returns null rather than a number when the sample is too small to publish, so
  * both surfaces hide the figure instead of showing a placeholder that implies
  * one. On a database where the stance has only just shipped that is every
- * surface, which is the same rule the two rank curves follow.
+ * surface, which is the same rule the rank curve follows.
  */
 export function topOneMatch(feedback: QuizStats["feedback"]): TopOneMatch | null {
   if (!feedback?.stanceCounts) return null;
@@ -200,16 +200,16 @@ export type RankCurveView = {
 };
 
 /**
- * Shape one of the two levels into a curve.
+ * Shape the rank tally into a curve.
  *
- * The denominator is the count of rows that answered *that* level, which the
+ * The denominator is the count of rows that answered the question, which the
  * server sends beside the tally; it is what the curve is a share of. It is not
  * `accurateYes + accurateNo`: legacy "no" rows answered the question without
- * naming a position, so they sit in that pair and on no curve here, and each
- * level printing its own denominator is what keeps both honest.
+ * naming a position, so they sit in that pair and on no curve here, which each
+ * tally printing its own denominator keeps honest.
  *
  * A tally with only escape-hatch answers is not null: it is a real result
- * ("everyone who answered said None of these") and the component says so.
+ * ("everyone who answered said none were close") and the component says so.
  */
 function curveFrom(counts: RankTally | undefined, judged: number | undefined): RankCurveView | null {
   if (!counts?.counts) return null;
@@ -242,24 +242,14 @@ function curveFrom(counts: RankTally | undefined, judged: number | undefined): R
 }
 
 /**
- * Where their own *family* sat, out of the thirty the card now offers.
- *
- * The first of the two levels: a median of `#1` means half the readers who
- * answered saw their own family at the top, and the tail past the median is
- * readers whose family was in the second half of the list.
- */
-export function familyRankCurve(feedback: QuizStats["feedback"]): RankCurveView | null {
-  return curveFrom(feedback?.familyRanks, feedback?.familyJudged);
-}
-
-/**
- * Where their own *denomination* sat in the full results list.
+ * Where the closest denomination the reader picked sat in the full results list.
  *
  * This is the level the top-1 figure lives on: a row at place 1 here is a row
  * `matchRankPos = 1` -- the same row, not merely a similar one. Since 0008 the
  * stance outranks it, so place 1 here includes rows that said the match was not
- * close. Fewer rows answer it than answer the family picker, because the second
- * picker is optional and a family with no matched church never offers one.
+ * close. The tail is the reader's denomination being ranked low; the escape
+ * hatch is the reader saying none of the listed denominations were close, which
+ * is a coverage gap rather than a far-off place.
  */
 export function matchRankCurve(feedback: QuizStats["feedback"]): RankCurveView | null {
   return curveFrom(feedback?.matchRanks, feedback?.matchJudged);
@@ -375,16 +365,16 @@ export function collectiveFigures(stats: QuizStats): CollectiveFigure[] {
 /**
  * Whether the feedback tile has anything to print.
  *
- * The star average, the stance share and the two rank curves are gated
+ * The star average, the stance share and the rank curve are gated
  * separately -- the star question was reworded once, so a reset rating count must
  * not hide answers that are still about the same match. That makes "the tile is
- * empty" a question about five thresholds, and the panel's grid pays for getting
+ * empty" a question about four thresholds, and the panel's grid pays for getting
  * it wrong: a band that exists with nothing in it is a blank row, and one that is
  * missing while its data exists hides published answers. It sits beside
  * `collectiveFigures()` so both gates on this payload are read in one place.
  *
  * The `accurateYes + accurateNo` branch is the legacy one, kept so a database
- * that holds only pre-0008 answers still gets its stars and its curves. It is not
+ * that holds only pre-0008 answers still gets its stars and its curve. It is not
  * the figure the tile prints: `topOneMatch()` reads the stance and nothing else.
  */
 export function hasFeedbackFigures(feedback: QuizStats["feedback"]): boolean {
@@ -394,7 +384,6 @@ export function hasFeedbackFigures(feedback: QuizStats["feedback"]): boolean {
     feedback.total >= MIN_FEEDBACK ||
     legacyJudged >= MIN_FEEDBACK ||
     stanceBreakdown(feedback) !== null ||
-    familyRankCurve(feedback) !== null ||
     matchRankCurve(feedback) !== null
   );
 }
