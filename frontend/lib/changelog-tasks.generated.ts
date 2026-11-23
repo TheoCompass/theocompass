@@ -8,9 +8,9 @@
 import type { LatestCommit } from "./changelog";
 
 export const CHANGELOG_SUMMARY = {
-  "last7d": 15,
-  "last30d": 47,
-  "latest": "2026-11-23T10:23:35.000Z"
+  "last7d": 16,
+  "last30d": 48,
+  "latest": "2026-11-23T15:48:15.000Z"
 };
 
 export const LATEST_BY_TASK: Partial<Record<string, LatestCommit>> = {};

@@ -11,9 +11,35 @@
 import type { ChangelogEntry } from "./changelog";
 
 /** The newest commit's date: "the changelog is current up to here". */
-export const GENERATED_AT = "2026-11-23T10:23:35.000Z";
+export const GENERATED_AT = "2026-11-23T15:48:15.000Z";
 
 export const ENTRIES: ChangelogEntry[] = [
+  {
+    "sha": "cdee554d60906e1b5984639604a3a76a7830fa88",
+    "short": "cdee554",
+    "date": "2026-11-23T15:48:15.000Z",
+    "type": "refactor",
+    "scope": "feedback",
+    "subject": "ask only for the closest denomination, and read its tradition",
+    "lead": "The card asked two questions about the same match -- which family, then which church inside it -- and coupled them: a family that did not contain the chosen church dropped the church, so a mis-picked family turned an answerable question into an unanswerable one. The second box also only fired for readers whose church was missing, and the denomination question now answers itself for them, so it was collecting a fact the card already held from the people least able to spare a tap.",
+    "tasks": [],
+    "merge": false,
+    "housekeeping": false,
+    "url": "https://github.com/TheoCompass/theocompass/commit/cdee554d60906e1b5984639604a3a76a7830fa88"
+  },
+  {
+    "sha": "d660b51eae07ae185ecb2513565355685cacdc17",
+    "short": "d660b51",
+    "date": "2026-11-23T10:24:18.000Z",
+    "type": "chore",
+    "scope": "changelog",
+    "subject": "refresh the snapshot through the rank curve and the exact-fit figure",
+    "lead": "/changelog renders `changelog.generated.ts`, not `git log`, so a product commit stays off the page until someone regenerates -- and the release above changes what the landing page claims, so it should not spend a deploy missing from it. Regenerated from the 105 commits on main: the new entry appears with its opening paragraph as the lead, and the landing facts row moves to 15 changes in seven days and 47 in thirty. This commit is the one that has to wait for the next refresh, since a commit cannot quote its own SHA.",
+    "tasks": [],
+    "merge": false,
+    "housekeeping": true,
+    "url": "https://github.com/TheoCompass/theocompass/commit/d660b51eae07ae185ecb2513565355685cacdc17"
+  },
   {
     "sha": "72b98ff458895d3f01058dd37968536faac0023c",
     "short": "72b98ff",
