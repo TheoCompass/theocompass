@@ -71,10 +71,10 @@ function stancePart(stance: FeedbackRow["fitStance"]): string | null {
  * Where the reader's church sat, in the moderator's words.
  *
  * Both positions are printed, in the order the card asked them, because they
- * answer different questions: the family rank says how close the *quiz's* list of
- * families came, the church rank says where the reader's own denomination sat in
- * the full list. A row can carry one and not the other -- naming a family
- * commits the reader to nothing further -- so each part is optional.
+ * answer different questions: the family rank says where the reader's *own*
+ * family sat in the family list, the church rank where their own denomination sat
+ * in the full results list. A row can carry one and not the other -- naming a
+ * family commits the reader to nothing further -- so each part is optional.
  *
  * `0` is the card's escape hatch at each level ("none of these families", "not
  * in this list") and is an answer about coverage, not a gap: it is printed as
@@ -85,7 +85,7 @@ function stancePart(stance: FeedbackRow["fitStance"]): string | null {
  */
 function familyPart(rank: FeedbackRow["familyRank"]): string | null {
   if (rank === 0) return "none of the families listed";
-  if (typeof rank === "number") return `closest family was #${rank}`;
+  if (typeof rank === "number") return `their family was #${rank}`;
   return null;
 }
 

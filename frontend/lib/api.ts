@@ -190,16 +190,30 @@ export async function updateRoadmapTask(
 // ---------------------------------------------------------------------------
 
 /**
- * The published positions of the match answer, as ranges rather than places.
+ * One level of the match answer as a distribution (0007, reworked).
  *
- * `top1` is #1, `top3` is #2-#3, `top8` is #4-#8 and `beyond` is everything
- * lower -- including the pickers' escape hatch (`0`, "none of these"), which is
- * an answer and not a skip. Ranges are why the lists the card prints can change
- * length without a migration on either side of the wire.
+ * The card offers every family and every denomination in the chosen one, so the
+ * published figure is the list of places themselves rather than a handful of
+ * ranges: `counts` is sparse (`{ 1: 6, 4: 2, 47: 1 }`), and the panel draws a
+ * cumulative curve from it. JSON turns the numeric keys into strings, so read
+ * them through `Object.entries()` with `Number(key)`.
+ *
+ * `none` is the pickers' escape hatch (`0`, "none of these" / "not in this
+ * list") -- an answer about coverage, with no place on the axis. `ranked` is the
+ * sum of `counts`, so `ranked + none` is the denominator. The quantiles are
+ * places, not averages of places: `median` is the smallest place whose
+ * cumulative share reaches 50%, which is why it always names a rank somebody
+ * could have picked.
  */
-export const RANK_BUCKETS = ["top1", "top3", "top8", "beyond"] as const;
-export type RankBucket = (typeof RANK_BUCKETS)[number];
-export type RankBreakdown = Record<RankBucket, number>;
+export interface RankTally {
+  counts: Record<number, number>;
+  none: number;
+  ranked: number;
+  median: number | null;
+  p25: number | null;
+  p75: number | null;
+  p90: number | null;
+}
 
 /**
  * How close the top match is to where the reader actually is (0008) -- the four
@@ -239,17 +253,23 @@ export interface QuizStats {
   //
   // `total`, `averageRating` and `ratingHistogram` are the *experience* ratings
   // only -- the stars changed question once (see `rating_metric` in the API), and
-  // mixing the two meanings in one average would measure neither. `accurateYes`
-  // and `accurateNo` span every judged row, old ones included: that question
-  // never changed.
+  // mixing the two meanings in one average would measure neither.
+  //
+  // `accurateYes` and `accurateNo` are the *legacy* pair: every judged row,
+  // including the pre-0008 rows whose boolean answer cannot be split into
+  // "exactly right" and "close". The published figure does not divide them any
+  // more -- `topOneMatch()` in `lib/quiz-stats.ts` reads the stance -- and they
+  // stay on the payload because the moderator queue and an older frontend bundle
+  // still expect them; deleting the sums would make a stale bundle print NaN.
   feedback?: {
     total: number;
     averageRating: number | null;
+    /** Legacy pooled counts, kept for older clients. Not the published figure. */
     accurateYes: number;
     accurateNo: number;
     ratingHistogram: number[];
     /**
-     * The two-level match answer (0007), as two independent tallies. Each
+     * The two-level match answer (0007) as two independent distributions. Each
      * counts only the rows that answered *that* level, so `familyJudged` and
      * `matchJudged` differ on any database where a reader named a family and
      * then skipped the second picker -- and both are smaller than
@@ -257,25 +277,23 @@ export interface QuizStats {
      * existed named no position at all. Optional for the same reason as
      * `feedback` itself: an older cached payload has no such keys.
      *
-     * `familyRanks` is where the *family* sat in the family list, `matchRanks`
-     * where the *denomination* sat in the full list. Both are ranges (`=1`,
-     * `2-3`, `4-8`, the rest), so the length of either list can change without
-     * a migration; `beyond` also holds the escape hatch (`0`), which is an
-     * answer rather than a skip.
+     * `familyRanks` is where *their own family* sat in the family list,
+     * `matchRanks` where *their own denomination* sat in the full results list.
      */
     familyJudged?: number;
-    familyRanks?: RankBreakdown;
+    familyRanks?: RankTally;
     matchJudged?: number;
-    matchRanks?: RankBreakdown;
+    matchRanks?: RankTally;
     /**
      * The stance question (0008), one population in four mutually exclusive
-     * buckets. `exploring` -- a reader with no church to compare against -- is
-     * an answer, so it sits here while being absent from
-     * `accurateYes + accurateNo`: that pair only judges position 1.
+     * buckets. `fit` is the numerator of the published top-1 figure and `close` /
+     * `off` are its denominator (`topOneMatch()`); `exploring` -- a reader with no
+     * church to compare against -- is an answer, in `stanceJudged` and in none of
+     * those three.
      *
-     * The only figure on this payload whose denominator is not a subset of the
-     * accuracy split, which is why `stanceJudged` travels beside the counts
-     * instead of being inferred from them.
+     * This block is the only one on the payload whose denominator is not a subset
+     * of `accurateYes + accurateNo`, which is why `stanceJudged` travels beside
+     * the counts instead of being inferred from them.
      */
     stanceJudged?: number;
     stanceCounts?: Record<FeedbackStance, number>;
@@ -366,11 +384,11 @@ export async function recordQuizCompletion(completion: QuizCompletion): Promise<
  *
  * The match question is two positions, both tri-state through `null` (the
  * reader skipped that picker) because the API stores a skip as NULL rather than
- * as a miss. `familyRank` is the closest family's place in the family list the
- * card printed, `matchRankPos` their denomination's place in the full list;
- * `0` is the escape hatch at each level ("none of these families", "not in this
- * list") and is a real answer, not a skip -- JSON keeps it, so it is never
- * dropped.
+ * as a miss. `familyRank` is the place of the reader's *own* family in the
+ * family list the card printed, `matchRankPos` their denomination's place in the
+ * full results list; `0` is the escape hatch at each level ("none of these
+ * families", "not in this list") and is a real answer, not a skip -- JSON keeps
+ * it, so it is never dropped.
  *
  * `accurate` is the pre-0007 spelling of the same answer and is still accepted
  * by the worker, so an old tab can submit after a deploy; new code sends the
@@ -384,10 +402,24 @@ export interface QuizFeedback {
   rating: number;
   /** How close the top match is to where they are; null for a skip. */
   fitStance?: FeedbackStance | null;
-  /** Closest family's place, 1-based; 0 for "none of these families"; null for a skip. */
+  /** The place of their own family, 1-based; 0 for "none of these families"; null for a skip. */
   familyRank?: number | null;
-  /** Their denomination's place in the full list; 0 for "not in this list"; null for a skip. */
+  /** Their denomination's place in the full results list; 0 for "not in this list"; null for a skip. */
   matchRankPos?: number | null;
+  /**
+   * The two names the pickers printed, and how many rows the church list had.
+   *
+   * Context, not answers: the API stores the two numbers above and never the
+   * labels. They travel so a position can be tied to a list this data can
+   * actually print -- a tab left open across a re-seed, or a body that was never
+   * a card, names a family or a church the bundle does not have, and the
+   * position beside it is dropped instead of published as somebody's answer.
+   * A skip sends neither name, and `matchRankScope` is the length of the list
+   * on screen, which is what makes the number a place in it.
+   */
+  familyName?: string | null;
+  matchName?: string | null;
+  matchRankScope?: number | null;
   /** Legacy yes/no about the #1 match. Ignored when a stance or a position is sent. */
   accurate?: boolean | null;
   comment?: string | null;

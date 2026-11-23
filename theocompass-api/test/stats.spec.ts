@@ -40,7 +40,7 @@ async function seedFeedback(seed: {
 	accurate?: number | null;
 	/** How close the top match is to where the reader is (0008). Omitted for pre-0008 rows. */
 	fitStance?: 'fit' | 'close' | 'off' | 'exploring' | null;
-	/** The family's place in the list the reader saw (0007). Omitted for a pre-0007 row. */
+	/** Their own family's place in the family list (0007). Omitted for a pre-0007 row. */
 	familyRank?: number | null;
 	/** The denomination's place in the full list; 0 for "not one of these". */
 	matchRankPos?: number | null;
@@ -153,17 +153,23 @@ describe('GET /api/stats', () => {
 				ratingHistogram: [0, 0, 0, 0, 0],
 				familyJudged: 0,
 				familyRanks: {
-					top1: 0,
-					top3: 0,
-					top8: 0,
-					beyond: 0,
+					counts: {},
+					none: 0,
+					ranked: 0,
+					median: null,
+					p25: null,
+					p75: null,
+					p90: null,
 				},
 				matchJudged: 0,
 				matchRanks: {
-					top1: 0,
-					top3: 0,
-					top8: 0,
-					beyond: 0,
+					counts: {},
+					none: 0,
+					ranked: 0,
+					median: null,
+					p25: null,
+					p75: null,
+					p90: null,
 				},
 				stanceJudged: 0,
 				stanceCounts: { fit: 0, close: 0, off: 0, exploring: 0 },
@@ -330,9 +336,25 @@ describe('feedback aggregates', () => {
 			// Rows seeded without a position are pre-0007 rows: they count in the
 			// boolean split and in no bar.
 			familyJudged: 0,
-			familyRanks: { top1: 0, top3: 0, top8: 0, beyond: 0 },
+			familyRanks: {
+				counts: {},
+				none: 0,
+				ranked: 0,
+				median: null,
+				p25: null,
+				p75: null,
+				p90: null,
+			},
 			matchJudged: 0,
-			matchRanks: { top1: 0, top3: 0, top8: 0, beyond: 0 },
+			matchRanks: {
+				counts: {},
+				none: 0,
+				ranked: 0,
+				median: null,
+				p25: null,
+				p75: null,
+				p90: null,
+			},
 			// None of these four rows saw the stance question, so it has no
 			// answers and no denominator.
 			stanceJudged: 0,
@@ -340,38 +362,48 @@ describe('feedback aggregates', () => {
 		});
 	});
 
-	it('counts every position bucket, hidden rows and legacy rows excluded', async () => {
+	it('tallies the places people picked, and keeps hidden and legacy rows out', async () => {
 		await seedFeedback({
-			sessionId: 'fb-rank-top1-01',
+			sessionId: 'fb-rank-first-01',
 			rating: 5,
 			accurate: 1,
 			familyRank: 1,
 			matchRankPos: 1,
 		});
 		await seedFeedback({
-			sessionId: 'fb-rank-top3-01',
+			sessionId: 'fb-rank-second-1',
 			rating: 4,
 			accurate: 0,
 			familyRank: 1,
 			matchRankPos: 3,
 		});
+		// The pickers cover the whole list now, so a deep place is a normal
+		// answer rather than a bucket: #4 and #47 are both just places.
 		await seedFeedback({
-			sessionId: 'fb-rank-top8-01',
+			sessionId: 'fb-rank-deep-001',
 			rating: 3,
 			accurate: 0,
 			familyRank: 4,
-			matchRankPos: 8,
+			matchRankPos: 47,
 		});
-		// Both escape hatches at once: no family came close, and no denomination
-		// in the one that came closest. It is an answer, so it lands in `beyond`.
 		await seedFeedback({
-			sessionId: 'fb-rank-beyond-1',
+			sessionId: 'fb-rank-deepest-1',
+			rating: 3,
+			accurate: 0,
+			familyRank: 18,
+			matchRankPos: 140,
+		});
+		// Both escape hatches at once: no family fits, and no denomination in the
+		// one picked. It is an answer, so it is counted -- outside `counts`,
+		// because it names no place on the axis.
+		await seedFeedback({
+			sessionId: 'fb-rank-none-001',
 			rating: 3,
 			accurate: 0,
 			familyRank: 0,
 			matchRankPos: 0,
 		});
-		// Hidden: out of the bars as well as out of the average.
+		// Hidden: out of the tallies as well as out of the average.
 		await seedFeedback({
 			sessionId: 'fb-rank-hidden-1',
 			rating: 1,
@@ -380,7 +412,7 @@ describe('feedback aggregates', () => {
 			matchRankPos: 1,
 			status: 'hidden',
 		});
-		// A pre-0007 "no": it is in accurateNo and in no bucket, which is why the
+		// A pre-0007 "no": it is in accurateNo and in no tally, which is why the
 		// two kinds of denominator differ on a real database.
 		await seedFeedback({ sessionId: 'fb-rank-legacy-1', rating: 2, accurate: 0 });
 		// A family named but no denomination picked: judged for the family, and a
@@ -394,14 +426,35 @@ describe('feedback aggregates', () => {
 		});
 
 		const data = await getStats();
-		expect(data.feedback.familyRanks).toEqual({ top1: 2, top3: 1, top8: 1, beyond: 1 });
-		expect(data.feedback.familyJudged).toBe(5);
-		expect(data.feedback.matchRanks).toEqual({ top1: 1, top3: 1, top8: 1, beyond: 1 });
-		expect(data.feedback.matchJudged).toBe(4);
+		// Sorted places 1, 1, 2, 4, 18: the median is the third answer (#2), and
+		// p25/p75/p90 are the places the cumulative share first reaches 25/75/90%.
+		expect(data.feedback.familyRanks).toEqual({
+			counts: { 1: 2, 2: 1, 4: 1, 18: 1 },
+			none: 1,
+			ranked: 5,
+			median: 2,
+			p25: 1,
+			p75: 4,
+			p90: 18,
+		});
+		expect(data.feedback.familyJudged).toBe(6); // ranked + none
+		// Sorted places 1, 3, 47, 140: an even count takes the lower middle place
+		// rather than averaging two places into one nobody could pick, and p90
+		// has to travel all the way out to the one reader who picked #140.
+		expect(data.feedback.matchRanks).toEqual({
+			counts: { 1: 1, 3: 1, 47: 1, 140: 1 },
+			none: 1,
+			ranked: 4,
+			median: 3,
+			p25: 1,
+			p75: 47,
+			p90: 140,
+		});
+		expect(data.feedback.matchJudged).toBe(5);
 		expect(data.feedback.accurateYes).toBe(1);
-		expect(data.feedback.accurateNo).toBe(4);
-		// Six experience ratings in the average; the hidden 1* row is not one.
-		expect(data.feedback.total).toBe(6);
+		expect(data.feedback.accurateNo).toBe(5);
+		// Seven experience ratings in the average; the hidden 1* row is not one.
+		expect(data.feedback.total).toBe(7);
 	});
 
 	it('counts the stance, and keeps "exploring" out of the accuracy split', async () => {
@@ -519,9 +572,25 @@ describe('feedback aggregates', () => {
 			accurateNo: 1,
 			ratingHistogram: [0, 0, 0, 0, 1],
 			familyJudged: 2,
-			familyRanks: { top1: 2, top3: 0, top8: 0, beyond: 0 },
+			familyRanks: {
+				counts: { 1: 2 },
+				none: 0,
+				ranked: 2,
+				median: 1,
+				p25: 1,
+				p75: 1,
+				p90: 1,
+			},
 			matchJudged: 2,
-			matchRanks: { top1: 1, top3: 1, top8: 0, beyond: 0 },
+			matchRanks: {
+				counts: { 1: 1, 3: 1 },
+				none: 0,
+				ranked: 2,
+				median: 1,
+				p25: 1,
+				p75: 3,
+				p90: 3,
+			},
 			// Neither row answered the stance question either (0008).
 			stanceJudged: 0,
 			stanceCounts: { fit: 0, close: 0, off: 0, exploring: 0 },

@@ -260,7 +260,7 @@ The full breakdown has three states:
 * **200+ runs** — all five tiles, label gone.
 
 The tiles are: runs (total, 14 UTC days, last 7 days, today), feedback (star
-average and histogram, rank breakdowns, and the top-1 line — see below),
+average and histogram, the two rank curves, and the top-1 line — see below),
 closeness (median/mean closest match and the five-tier distribution), family
 shares (top five families plus an explicit "Other families" remainder), and
 posture (tolerance/certainty averages, taken only over runs that answered both
@@ -418,7 +418,7 @@ sends (a `Message-ID` that is present and unique per send).
 `POST /api/feedback` records how a run felt — a 1–5 rating of the overall quiz
 experience, how close the top match is to where the reader actually is (one tap,
 four answers, 0008), where their own church sat if they want to be precise (two
-pickers: the closest family, then the denomination inside it, each answerable or
+pickers: their own family, then the denomination inside it, each answerable or
 skippable) and an optional comment — from the card that sits under the results
 dashboard. `GET /api/feedback` is the moderator queue behind it, behind the same
 `X-Admin-Code` as the roadmap editor and the report queue.
@@ -429,8 +429,9 @@ rows carry `feedback.rating_metric` (`'experience'` for everything the handler
 writes, `'fit'` for the rows that predate the change — labelled by
 `migrations/0006_feedback_rating_metric.sql`). Only `'experience'` rows feed the
 published `total`, `averageRating` and `ratingHistogram`; the match question
-never changed its meaning, so `accurateYes` / `accurateNo` still span every
-judged row, reset or no reset. Nothing is deleted and nothing is hidden: the
+never changed its meaning, so `accurateYes` / `accurateNo` still span every judged
+row, reset or no reset — though the published top-1 figure no longer divides them
+(the stance section below says why). Nothing is deleted and nothing is hidden: the
 queue keeps reading the old rows, tagged `match fit`, and a row can still be
 retired with `hidden`. The metric is a discriminator, not a reset button: the
 file is applied once (the UPDATE has no `WHERE`, so running it by hand a second
@@ -445,36 +446,49 @@ these fitted" were two different answers, and `#4–#10` said nothing about whic
 *level* was wrong.
 
 It is now the two things a reader can answer without translating anything, in the
-order the page asks them: **which family came closest** (`family_rank`, the place
-of the family in the family list the reader was just looking at) and then **your
-church in that family** (`match_rank_pos`, the place of the denomination in the
-full list). Each level has its own escape hatch — `0`, "none came close" and "not
-one of these" — and that is a judgement about the list, not a skip.
+order the page asks them: **which family is theirs** (`family_rank`, the place of
+their own family in the family list) and then **their church inside it**
+(`match_rank_pos`, the place of the denomination in the full results list). Each
+level has its own escape hatch — `0`, "none of these families" and "not in this
+list" — and that is a judgement about the list, not a skip.
 `migrations/0007_feedback_match_rank.sql` adds both integer columns and indexes
-them. Integers rather than a text enum on purpose: the shortlist lengths are a UI
-decision (`FAMILY_OPTIONS` / `CHURCH_OPTIONS` in `_PostQuizFeedback.tsx`), so
-changing eight to six must not need a migration or a rewrite of rows written
-under the old list, and anything past the list is still a miss — which is why the
-published buckets are ranges (`=1`, `2-3`, `4-8`, the rest) rather than named
-places.
+them. Integers rather than a text enum on purpose: a place is a number, so
+nothing in the schema depends on how long either list is, and a longer card needs
+no migration at all.
+
+Both pickers list the **whole taxonomy**: all thirty families, then every
+denomination in the chosen one (up to eighteen today). That is the rework that
+retired the old `FAMILY_OPTIONS` / `CHURCH_OPTIONS` shortlists of eight and five.
+With 230 churches in the database, "not in this list" — a coverage answer, not a
+miss — was where most readers landed, and `#4–#8` said nothing about whether
+their church was ninth or two-hundredth. A native `<select>` per level is the
+right control for a list that long: grouped by tradition (`FAMILY_TO_GROUP`), it
+is a heading plus a scroll instead of thirty buttons with a rank above each name.
+Each control prints the place it will send underneath ("#9 of 30 families this
+run"), so the number on the wire is never a mystery.
 
 The ranks are positions in the lists *on screen*: `_QuizController` hands the card
 the filtered lists (`filterFamiliesByActive` / `filterDenomsByActive`), so "active
-only" moves the page's numbering and the picker together and a hidden tradition
-never keeps a place in the count. The family options are the first
-`FAMILY_OPTIONS` = 8 rows of `familyMatches`; the church options are that
-family's first `CHURCH_OPTIONS` = 5 rows, but each is numbered by its index in
-the *full* `results` list — so a button can read `#7`, and the number on it is
+only" moves the page's numbering and the pickers together and a hidden tradition
+never keeps a place in the count. The family list is `familyMatches` in full; the
+church list is that family's `allDenominations`, numbered by each church's index in
+the *full* `results` list — so an option can read `#22`, and the number on it is
 still the number on the page. A denomination absent from the visible list is
-simply not offered: the row sends the escape hatch instead of an invented
+simply not offered, and the reader sends the escape hatch instead of an invented
 position.
 
 `accurate` is *derived*, never asked twice: the stance when the row has one
 (0008), otherwise `match_rank_pos` (`1` → 1, anything else → 0), otherwise the
-boolean an old bundle sends, and `NULL` when nothing was answered — so the
-columns can never disagree and the published "Top 1 match accuracy" figure keeps
-one denominator across every wording the card has ever used. A tab still running
-the old card keeps working for the same reason. The backfill is deliberately
+boolean an old bundle sends, and `NULL` when nothing was answered. The column is
+now a per-row record — the queue prints it, and `accurateYes` / `accurateNo` still
+ship on `/api/stats` for clients built before this change — but it is **not** what
+the published top-1 figure divides. That figure is `topOneMatch()` in
+`frontend/lib/quiz-stats.ts`, and it reads `stanceCounts`: `fit` over
+`fit + close + off`. The reason is the reason the stance exists — a legacy "yes"
+may have meant "close", and a boolean has no room to say so, so dividing the
+pooled pair published a number that overestimated itself and that no arithmetic
+can undo after the fact. A tab still running the old card keeps working; its
+answer simply lands in the legacy pair. The backfill is deliberately
 one-directional: `accurate = 1` becomes `match_rank_pos = 1`; a legacy "no" leaves
 both columns `NULL`, because it never said how far off it was and writing a guess
 would invent an answer the panel would then publish. `family_rank` is never
@@ -508,21 +522,38 @@ The derivation, in full, because it decides a published number:
 | `close`      | 0          | yes               | denominator         |
 | `off`        | 0          | yes               | denominator         |
 | `exploring`  | NULL       | yes               | neither             |
-| `NULL`       | from rank / legacy boolean | no    | as before 0007      |
+| `NULL`       | from rank / legacy boolean | no    | neither             |
+
+The last row is the change this section is about: a pre-0008 answer is still
+stored, still printed in the queue and still counted in `accurateYes` /
+`accurateNo`, but it is outside the published percentage, because "yes" does not
+say whether the reader meant *exactly* or *close*. Guessing on their behalf would
+be worse than a smaller sample.
 
 That makes one answer recordable that never was: *#1 as their church, yet the
 match is `off`* — the reader who says "the top match describes me better than the
 church I belong to". Under the old wording that row was a hit (their church was
 #1) and the disagreement was invisible. It is now a miss with a rank of 1.
 
-Two consequences to expect, both by design. The published accuracy moves when
-this ships — the denominator changes from "readers who answered" to "readers with
-a church to compare" — so treat the deploy as a discontinuity, the way the 0006
-metric reset was documented; the panel prints the exclusion as a sentence
-(`N of M said they were exploring`) rather than leaving it implied.
-`familyJudged` / `matchJudged` will also shrink relative to the accuracy count as
-the stance absorbs the coarse question, because an `exploring` reader skips the
-pickers entirely.
+Two consequences to expect, both by design, and both worth a line in the deploy
+notes. First, the population changes: every pre-0008 row leaves the fraction,
+because its boolean cannot be split into "exactly" and "close" — those rows stay
+in the table, in the queue and in `accurateYes` / `accurateNo`, and they simply
+stop being divided. Second, the numerator changes with it: **only `fit` counts as
+a hit**, so a legacy "yes" that may have meant "close" no longer inflates it. The
+figure now measures one thing — "the #1 match is exactly where they are" — over
+one population: readers who compared the match with their own church. Both
+exclusions are printed rather than implied: the panel says `N of M said they were
+exploring`, and the sentence holding the percentage prints the `close` share
+beside it (`; another 31% called it close`).
+
+Do not compare the new number with the old one, and do not promise a direction:
+removing an ambiguous "yes" from the numerator and legacy "no"s from the
+denominator can move it either way. Expect the row and the sentence to disappear
+for a while — the figure hides below ten comparisons, exactly like the two
+curves, which on a database full of pre-0008 answers means "until ten people
+answer the four-answer question". `familyJudged` / `matchJudged` shrink too, but
+for their own reason: an `exploring` reader skips the pickers entirely.
 
 The column is not backfilled: a stance reconstructed from an old rank would be a
 guess written on the reader's behalf, and `/api/stats` would publish it as an
@@ -581,75 +612,139 @@ to the old boolean, which is also the path an old client takes.
 of control characters and truncated to 500 characters server-side (the textarea
 counts to the same 500 client-side). `fitStance` is one of `FEEDBACK_STANCES`
 (`fit`, `close`, `off`, `exploring`) and anything else — including a non-string —
-is dropped to `NULL`. `familyRank` (0–`FAMILY_RANK_MAX` = 8) and `matchRankPos`
-(0–`MATCH_RANK_POS_MAX` = 500) are the two positions; `mode`, `topMatchId`,
-`topMatchName`, `answeredCount` and `appVersion` are context: optional, and
-dropped rather than rejecting the submission if they fail their range.
+is dropped to `NULL`. `familyRank` and `matchRankPos` are the two positions: `0` is
+the escape hatch at either level, and the upper bound is the length of the list
+they name once the bundle is readable, or `FAMILY_RANK_MAX` (8) /
+`MATCH_RANK_POS_MAX` (500) when it is not. `familyName`, `matchName` and
+`matchRankScope` are the context that makes that check possible (see below);
+`mode`, `topMatchId`, `topMatchName`, `answeredCount` and `appVersion` are context
+too: optional, and dropped rather than rejecting the submission if they fail
+their range.
 `HOURLY_CAP = 120` rows an hour across the whole table is the only rate limit —
 enough headroom that it never fires on real traffic, and it stops a script rather
 than a retry (the session id already covers retries).
 
+**The labels are context, not answers.** The card sends three more fields beside
+the two positions: `familyName`, `matchName` and `matchRankScope` (the length of
+the church list it printed). None of them is stored and no migration adds a
+column — they exist so a position can be checked against the list it claims to be
+a place in. `theocompass-api/src/vocabulary.ts` reads the same KV entry
+`/api/calculate` serves (`denomination_profiles`): the families are its `families`
+keys, the churches its `denominations[*].denomination.name`, with the same
+`name || denominationname` fallback the results page uses. It caches the index per
+isolate in its own module, separately from `index.ts`'s profile cache — importing
+that one here would make the two circular, and a stale index only ever makes this
+check stricter.
+
+What that buys is the check a numbers-only body cannot pass: a tab left open
+across a re-seed, or a body that was never a card, names a family or a church this
+data does not have, so the position beside it is dropped to `NULL` and the rating
+and the note are kept. Three narrower rules come from the same index: a position
+is bounded by the length of the list it names (the constants above are now only
+the fallback), `matchRankScope` drops a church position past the end of the list
+it was counted in, and a church filed under a family other than the one named
+loses the *church's* position while the family's own place survives — the two
+levels are separate statements and only one of them is contradicted. A missing or
+unreadable bundle degrades to the numeric bounds, exactly as the handler behaved
+before the names existed, and a failed read is not cached, so a namespace seeded
+later is picked up by the next submission. Junk in any of the three is dropped
+rather than answered with a `400`, like every other optional field.
+
 **What is published.** `GET /api/stats` gains a `feedback` object —
 `total`, `averageRating`, `ratingHistogram[5]` (index 0 is one star),
-`accurateYes`, `accurateNo`, two breakdowns each with the count of rows that
-answered it (`familyJudged` + `familyRanks`, `matchJudged` + `matchRanks`, with
-`top1`, `top3`, `top8`, `beyond` — always all four keys, zeros included), and the
-stance as `stanceJudged` + `stanceCounts` (`fit`, `close`, `off`, `exploring`).
+`accurateYes`, `accurateNo`, two rank tallies each with the count of rows that
+answered it (`familyJudged` + `familyRanks`, `matchJudged` + `matchRanks`; each
+tally is `counts`, `none`, `ranked`, `median`, `p25`, `p75`, `p90` — always every
+key, so the client never reads `undefined`), and the stance as `stanceJudged` +
+`stanceCounts` (`fit`, `close`, `off`, `exploring`).
 The rating figures count `rating_metric = 'experience'` rows only, and `total` is
 their denominator, so the printed "4.2 out of 5, from 37 ratings" and the
-histogram always agree. The top-1 pair and both breakdowns are unchanged in
-scope — every non-hidden judged row — which is the point: the star reset does not
-move them.
+histogram always agree. Both rank tallies keep their scope — every non-hidden
+judged row — which is the point: the star reset does not move them.
 
-`stanceJudged` is the only denominator on the payload that is **not** a subset of
-`accurateYes + accurateNo`: it is larger, by exactly the `exploring` rows, because
-those rows answered this question and were left out of the accuracy split. That is
-why it travels beside the counts instead of being inferred from them, and why
-`topOneAccuracy()` in `frontend/lib/quiz-stats.ts` still divides
-`accurateYes / (accurateYes + accurateNo)` — the exclusion already happened
-server-side. `stanceBreakdown()` shapes the four counts into bars and hides below
+`accurateYes` / `accurateNo` are the legacy pair: they span every judged row, old
+ones included, so they pool the pre-0008 booleans with the rows that replaced
+them. Nothing public divides them any more. The published figure is
+`topOneMatch()`, which reads `stanceCounts` — `fit` over `fit + close + off` — so
+"close, but not quite" is a printed near-miss rather than a hit, `exploring` is in
+no part of the figure, and a legacy yes/no cannot inflate it. The two fields stay
+on the payload because the queue and older frontend bundles still read them.
+
+That makes `stanceJudged` the widest denominator on the payload: it is
+`accurateYes + accurateNo` grown by exactly the `exploring` rows, because those
+rows answered this question and were left out of the accuracy split.
+`stanceBreakdown()` shapes the four counts into a tally and hides below
 `MIN_JUDGED` like every other figure, which matters on the deploy day when the
-column is empty.
+column is empty; `comparedCount()` is the same three-bucket sum without the gate,
+because the panel prints "2 so far" while the figure is still withheld.
 
-`familyRanks` is where the *family* sat; `matchRanks` is where the reader's own
-*denomination* sat. The buckets are ranges — `=1`, `2-3`, `4-8`, and `beyond`,
-which holds `0` (the coverage escape hatch) together with every position past the
-eighth — so neither shortlist length is baked into the schema and the escape hatch
-is counted as the answer it is rather than as a missing one.
+`familyRanks` is where *their own family* sat; `matchRanks` is where the reader's
+own *denomination* sat. Each is a `RankTally`: `counts` (sparse, place → answers),
+`none` (the escape hatch, `0`), `ranked`, and four quantiles. No buckets. A bucket
+like `4-8` stopped being a description the moment the card offered all thirty
+families and every church in the chosen one — nearly every answer was "9 or
+deeper" — so `/api/stats` publishes the distribution itself and the panel draws it.
 
-Each breakdown is a *separate* measurement with its own denominator: only the
-rows that answered that level. A reader who named a family and skipped the church
-is in `familyJudged` and not in `matchJudged`, so the church denominator is
-usually the smaller of the two. On any database holding pre-0007 answers both are
-also smaller than `accurateYes + accurateNo`, because a legacy "no" answered the
-yes/no without naming a position. Neither figure is wrong; the panel prints each
-list with its own count and its own percentage instead of implying one total. No
-comment, no row, no id ever leaves the table through the public endpoint:
-`/api/stats` returns counts, an average and histograms. The landing panel
-(`frontend/app/_components/_LiveStats.tsx`) prints the tile under **What readers
-said** when *either* figure has ten answers: `total >= MIN_FEEDBACK` (10) for the
-average and histogram, else `accurateYes + accurateNo >= 10` for the top-1 line
-alone, else `stanceJudged >= 10` once the stance exists, with "Experience ratings
-are still building" in place of the mean. The two sets of bars appear under the
-histogram — "Where the closest family sat" first, then "Where their own church
-sat" — once `familyRankBreakdown()` / `matchRankBreakdown()` in
-`frontend/lib/quiz-stats.ts` have ten answers each to divide, and carry a `title`
-explaining that skipped answers, and legacy "no" rows, are in neither list, and
-that the church list is the shorter one because the second picker is optional. The
-bars read `#1`, `#2–#3`, `#4–#8` and `none / #9+`: the last one is labelled for
-both kinds of answer it holds, because on the family list the coverage escape
-hatch is the only thing that can land there (the card offers eight families) while
-on the church list a real ninth place does too. Between the histogram and those
-bars, `stanceBreakdown()` adds one sentence — "N of M readers who answered said
-they were exploring" — which is the only place the excluded readers are visible;
-without it the top-1 denominator would silently be a different population from the
-one above it. A payload without `feedback` still renders nothing, and a new rating
-invalidates the 60s stats cache.
+The two tallies come from their own `GROUP BY family_rank` / `GROUP BY
+match_rank_pos` statements with the same scope as the headline (rated, non-hidden),
+and `familyJudged` / `matchJudged` are `ranked + none` rather than a second pair of
+`SUM(CASE ...)` expressions, so a denominator cannot disagree with the curve above
+it. The escape hatch is counted and kept *out* of `counts`: "none of these" is a
+statement about coverage, and a fake `#0` on the axis would be a place nobody
+picked. The quantiles are computed server-side (`quantileRank()` in
+`src/quiz-stats.ts`) and are places, never averages of places: the median is the
+smallest place whose cumulative share reaches 50%, so a two-answer tie between #1
+and #4 has a median of #1 rather than a `#2.5` nobody could pick. That convention
+is pinned by a test.
+
+Each tally is a *separate* measurement with its own denominator: only the rows that
+answered that level. A reader who named a family and skipped the church is in
+`familyJudged` and not in `matchJudged`, so the church denominator is usually the
+smaller of the two. On any database holding pre-0007 answers both are also smaller
+than `accurateYes + accurateNo`, because a legacy "no" answered the yes/no without
+naming a position. Neither figure is wrong; the panel prints each level with its
+own count instead of implying one total. No comment, no row, no id ever leaves the
+table through the public endpoint: `/api/stats` returns counts, an average and
+histograms. The landing panel (`frontend/app/_components/_LiveStats.tsx`) prints the
+tile under **What readers said** when *either* figure has ten answers:
+`total >= MIN_FEEDBACK` (10) for the average and histogram, else the legacy
+`accurateYes + accurateNo` pair (kept so a pre-0008 database still gets its tile,
+stars and curves), else `stanceJudged >= 10` once the stance exists, with
+"Experience ratings are still building" in place of the mean. The sentence under
+the tile that quotes the #1 share is `topOneMatch()` itself rather than a second
+division of the same counts, so the panel cannot print a percentage the accuracy
+row above it refused; below ten comparisons it prints how many are in so far
+(`comparedCount()`), and it prints the `close` share beside the percentage — `50%
+of 16 readers who compared said the #1 match is exactly where they are; another
+31% called it close` — so the strict numerator cannot read as a worse quiz than
+the four answers describe.
+
+The two curves appear beside the histogram — "Where their own family sat" first,
+then "Where their own church sat" — once `familyRankCurve()` / `matchRankCurve()`
+in `frontend/lib/quiz-stats.ts` have ten answers each, and are drawn by
+`frontend/app/_components/_RankCurve.tsx`. That component is hand-drawn SVG (no
+`recharts`, which is already in the bundle for the results page but not worth
+shipping here): a step ECDF over the places people actually picked, a rule at 50%
+labelled with the median, and a shaded band from the deepest round place before the
+deepest pick — `#50` on an axis that ends at `#140` — labelled `% past #n`. The axis
+ends at the deepest pick rather than at the length of the list, because the payload
+does not know that length and a place nobody reached is not data; the caption
+carries the median, the interquartile range, the tail share and the `none` count.
+Screen readers get the same numbers as a sentence in the `aria-label`. The old bars
+read `#1`, `#2–#3`, `#4–#8` and `none / #9+`, and the last one was where nearly
+every real answer landed — which is exactly what the curve replaced.
+Between the histogram and those curves, `stanceBreakdown()` adds one sentence —
+"N of M readers who answered said they were exploring" — which is the only place
+the excluded readers are visible; without it the top-1 denominator would silently
+be a different population from the one above it. A payload without `feedback`
+still renders nothing, and a new rating invalidates the 60s stats cache.
 
 **Privacy line.** The `feedback` table stores no email, IP, user agent or cookie
 — the rating, its metric, the stance, the two positions, the comment and the run's
-context are the whole row. The landing panel says so, and says that comments are
-read by a moderator and never published. The GA4 event is
+context are the whole row. The family and church names that checked those
+positions never reach the row either: they are used inside the request and
+dropped. The landing panel says so, and says that comments are read by a
+moderator and never published. The GA4 event is
 `quiz_feedback_submitted` with `{ quiz_mode, rating, rating_metric, fit_stance,
 family_rank, match_rank_pos, accurate, has_comment, outcome }` — shapes only; the
 comment never leaves the request body. `rating_metric` is there for the same
@@ -689,16 +784,16 @@ from the stance when there is one (`fit` → `true`, `close` / `off` → `false`
 `exploring` → `null`) and from the second position otherwise (`true` for `1`,
 `false` for every other position, `null` for a skip). Each level is independent: a
 row can name a family and no church, so the
-queue prints them in the order the card asked — "closest family was #3, their
+queue prints them in the order the card asked — "their family was #3, their
 church was #5 in the list" — and shows whichever parts exist. The stance comes
-before both when present ("not close to where they are; closest family was #1"),
+before both when present ("not close to where they are; their family was #1"),
 because it is the sentence the published figure follows; `exploring` prints as
 "exploring, no church to compare against" and is the one stance answer that is
 absent from the accuracy split. `0` is the coverage escape hatch at either level
 ("none of the families listed" / "their church was not in the list") and is
 printed as the answer it is. `null` in both positions is either a skip or a
 submission from before the pickers existed: it is in neither `accurateYes` nor
-`accurateNo` and in no bar of either breakdown. A legacy "no" has
+`accurateNo` and on neither curve. A legacy "no" has
 `accurate = false` with both positions `null` — the row predates the question, so
 the queue shows "no match fitted (stance and position not given)" instead of
 guessing how far off it was — and a legacy "yes" has `accurate = true` with both
@@ -718,7 +813,7 @@ public consequence: `/api/stats` filters it out, so the published figures move o
 the next request (the write invalidates the 60s stats cache). Which one moves
 follows the metric: an `experience` row leaves the average, the histogram and
 the rating count; a legacy `fit` row leaves only the top-1 pair. Either way the
-row leaves both breakdowns, because neither rank column is scoped by
+row leaves both rank tallies, because neither rank column is scoped by
 `rating_metric`. The row stays in the table as evidence — nothing is ever
 deleted.
 
@@ -739,40 +834,49 @@ unlocked. Filtering is server-side (`?commented=1`, `?status=`) rather than a
 `.filter()` over one page, which would hide notes past the limit.
 
 **The landing figure.** `_QuizAccuracy.tsx` adds one row to the quiz card's
-`<dl>`: `topOneAccuracy()` — `accurateYes / (accurateYes + accurateNo)`, which is
-how often the *#1* match was the right one — with the denominator printed inline
-and the number opening the `#collective-results` disclosure below. Since 0008 the
-two counts behind it come from the stance question first (`fit` yes, `close` /
-`off` no) with the church's position as the fallback, so a row whose church was
-#1 but whose stance was `off` is now a miss, and an `exploring` row sits on
-neither side of the fraction. Skips still do too. The old export name
-`quizAccuracy` is kept as an alias so an unchanged import cannot silently stop
-meaning the same figure. Both the row and the panel below it read the payload
+`<dl>`: `Top 1 match exactly right` — `topOneMatch()` in
+`frontend/lib/quiz-stats.ts`, which is `fit` over `fit + close + off` — with the
+denominator printed inline (`of 16 who compared`) and the number opening the
+`#collective-results` disclosure below. Only `fit` is a hit. The four answers are
+the reason: "close, but not quite" says the right family and the wrong church,
+which is not the #1 match being right, and the old boolean had nowhere to put it
+except "yes". `exploring` (nothing to compare) and pre-0008 rows (a "yes" that
+cannot be split) are outside both halves of the fraction; the panel below prints
+the `close` share and the `exploring` count so the exclusions are visible rather
+than implied. A row whose church was #1 but whose stance was `off` is a miss —
+still on the rank-1 point of the church curve, off the numerator — which is the
+disagreement 0008 exists to record. Both this row and the panel read the payload
 through `frontend/lib/quiz-stats.ts`, so a page view makes one `/api/stats`
-request, not two; the row hides until `MIN_JUDGED` (10) answers are judged *and*
-the panel's own `MIN_QUIZZES` gate is met, so it never links to a panel that is
-not there. The panel it links to prints both breakdowns under the star histogram
-— family first, then church — each with its own
-denominator. Since 0008 the top-1 row is *not* the church `#1` bar restated: the
-stance decides the row first, so a `#1 church, not close` answer is in the bar and
-not in the numerator, and an `exploring` answer is in neither.
+request, not two; the row hides until `comparedCount()` reaches `MIN_JUDGED` (10)
+*and* the panel's own `MIN_QUIZZES` gate is met, so it never links to a panel that
+is not there. The panel it links to draws both curves under the star histogram —
+family first, then church — each with its own denominator.
 
 **Local demo data.** The landing tile only appears once `total >= 10`, which a
-fresh local database never reaches, so `feedback_seed.sql` holds twelve fake
-ratings (`session_id` `demo-0001`…`demo-0012`) that clear the gate. They clear the
+fresh local database never reaches, so `feedback_seed.sql` holds eighteen fake
+ratings (`session_id` `demo-0001`…`demo-0018`) that clear the gate. They clear the
 other three gates as well, and deliberately not by the same margin: the stance is
-7 `fit` / 2 `close` / 1 `off` / 2 `exploring`, so the top-1 figure is 7 of 10 =
-70%; nine of the twelve named the right *family* first (90%, buckets 9 / 1 / 0 / 0)
-while seven had their own *church* first (70% of 10 answers, buckets 7 / 1 / 1 / 1).
-The family figure is therefore never the church figure restated — a reader whose
-family came closest at #1 can still sit further down that family's shortlist,
+8 `fit` / 5 `close` / 3 `off` / 2 `exploring`, so the top-1 figure is 8 of 16 =
+50% — `fit` only — with the panel's own sentence printing "another 31% called it
+close" from the five `close` rows beside it; nine of the sixteen who answered
+named their *family* first (median #1) while seven named their own *church* first
+(median #2). The family figure is therefore never the church figure restated — a
+reader whose family was #1 can still have their own church further down the list,
 which is exactly the distinction the two-level card was built to measure. The two
 `exploring` rows carry no positions at all, because that is what the card lets a
-reader with no church do:
+reader with no church do, and one row carries the escape hatch (`0`/`0`), so the
+curve's "not listed" clause has a number behind it.
+
+The six deep rows (`demo-0013`…`demo-0018`) exist for the curve: family places
+6, 11, 18 and 25, church places 22, 47, 96 and 140. Without them every answer piles
+up at #1 and the ECDF is a vertical line against the left edge — the median rule
+never moves and the shaded tail is empty. With them the panel reads "Median #1 ·
+half between #1 and #6 · 7% past #20" for families and "Median #2 · half between
+#1 and #22 · 7% past #100" for churches, which is what the chart is meant to say:
 
 ```bash
 cd theocompass-api
-npm run db:seed-feedback-local    # 12 rows: avg 3.8, histogram [1,1,2,4,4], stance 7/2/1/2, family 9/1/0/0, church 7/1/1/1
+npm run db:seed-feedback-local    # 18 rows: avg 3.5, histogram [1,2,6,5,4], stance 8/5/3/2, family median #1, church median #2
 npm run db:clear-feedback-local   # DELETE FROM feedback WHERE session_id LIKE 'demo-%'
 ```
 
@@ -787,13 +891,13 @@ The demo rows take the column default (`rating_metric = 'experience'`), so they
 still drive the tile. Three wrinkles for an existing local database: migration
 `0006` relabels every row it finds, demo rows included, to `'fit'`, `0007` only
 backfills `accurate = 1` → `match_rank_pos = 1` (never `family_rank`), so a row
-seeded before the pickers has no position in either list and appears in neither
-set of bars, and `0008` adds `fit_stance` *empty* on purpose — a stance guessed
+seeded before the pickers has no position in either list and appears on neither
+curve, and `0008` adds `fit_stance` *empty* on purpose — a stance guessed
 from an old rank would be an invented answer. The seed cannot replace any of them,
 because the session ids already exist. Run `db:clear-feedback-local` and then
-`db:seed-feedback-local` once after migrating and the twelve rows come back as
-experience ratings with all three breakdowns filled. (Remote has no demo rows to
-worry about, and no `--remote` seed to run.)
+`db:seed-feedback-local` once after migrating and the eighteen rows come back as
+experience ratings with both curves and the stance filled. (Remote has no demo rows
+to worry about, and no `--remote` seed to run.)
 
 The one local database the migration cannot repair is one that ran the *draft*
 `0007`: wrangler records a migration by name, so the rewritten file never runs
@@ -825,10 +929,13 @@ stored, dropping a position that is not one, dropping a stance that is not one,
 the legacy yes/no path, the two-level tri-state, the idempotent replay, the four
 `400`s, truncation, the hourly `429` and the queue (with and without the code);
 `test/stats.spec.ts` pins the aggregate, the `hidden` exclusion, the `fit`
-exclusion, both sets of bucket counts with their own denominator, and the stance
-counts with the one denominator that is larger than `accurateYes + accurateNo` —
-a legacy row moves neither `total`, `averageRating` nor the histogram, while its
-yes/no still moves `accurateNo` and it appears in no bar of any breakdown.
+exclusion, both rank tallies with their own denominator and their quantiles (a
+two-answer tie takes the lower middle *place* rather than a fraction), and the
+stance counts — `fit` / `close` / `off` / `exploring` with `stanceJudged` their
+sum, the three buckets `topOneMatch()` divides and the `exploring` answer that is
+in no part of it. A legacy row moves neither `total`, `averageRating` nor the
+histogram, while its yes/no still moves `accurateNo` and it appears on neither
+curve.
 
 **Shipping it.** Three deploys, and `git push` is only the first: Pages rebuilds
 the frontend from the push on its own (the card and `/mod/feedback` are live as
@@ -856,9 +963,9 @@ INSERT does not name `family_rank` or `match_rank_pos` (the row stores NULL,
 which is exactly what a card that never asked the question should leave), while
 the new worker's INSERT does — so a deploy without the migration fails every
 submission. Its backfill only rewrites `accurate = 1` rows, so the published
-top-1 figure is identical before and after it runs; both breakdowns start at
-zero and fill as new answers arrive, and on a database that has only ever seen
-the old card they stay empty rather than showing a fabricated split.
+top-1 figure is identical before and after it runs; both curves start empty and
+fill as new answers arrive, and on a database that has only ever seen the old card
+they stay hidden rather than showing a fabricated split.
 
 `0008` is the one that moves a published number. Same ordering rule (the new
 INSERT names `fit_stance`, so migrate first), and the discontinuity is the point
@@ -868,6 +975,19 @@ first stance-answering day and read it from then on. Until answers arrive
 `stanceJudged` is zero, the panel's exploring sentence does not render, and every
 row keeps the `accurate` value it already had — which is also why the migration
 needs no backfill and why a rolled-back deploy is harmless.
+
+The release that replaced the four buckets with a `RankTally` adds no migration
+and no column, but it does move the payload, so the worker and the Pages build go
+out in the same window with the worker first. A bundle from before the deploy
+then reads bucket fields the payload no longer carries and draws four empty bars
+against a real denominator until the tab reloads; a bundle from after it against
+the old worker hides both curves instead, because `curveFrom()` needs `counts`.
+The top-1 figure is not part of that pair — `topOneMatch()` divides
+`stanceCounts` in the browser — so it ships with the Pages build, and the
+discontinuity above is a frontend event. `POST /api/feedback` also reads
+`denomination_profiles` from KV to check the two list names against it; there is
+nothing to seed, because a missing or unreadable document degrades to the numeric
+bounds `parseRank()` applied before the names existed.
 
 A stale worker is loud once you know the tell: every unknown `/api/*` path
 answers `200` with `{"status":"TheoCompass API Active","version":"2.0"}`, so

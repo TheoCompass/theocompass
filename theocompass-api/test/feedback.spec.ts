@@ -127,7 +127,8 @@ describe('POST /api/feedback', () => {
 	it('derives the top-1 answer from the chosen position', async () => {
 		await postFeedback({ ...feedback, sessionId: 'pos-top1-000001', matchRankPos: 1 });
 		await postFeedback({ ...feedback, sessionId: 'pos-top3-000001', matchRankPos: 3 });
-		// Past the printed list, which is still a miss rather than a category.
+		// Deep in the list, which is still a miss: the card offers every church in
+		// the chosen family, so a place is a place and only #1 is a hit.
 		await postFeedback({ ...feedback, sessionId: 'pos-beyond-0001', matchRankPos: 9 });
 		// Both escape hatches: no family came close and nothing in it fitted.
 		await postFeedback({
@@ -211,6 +212,23 @@ describe('POST /api/feedback', () => {
 		]);
 	});
 
+	it('accepts a place from anywhere in the full lists', async () => {
+		// The card offers all thirty families and every church in the chosen one,
+		// so a deep pick is an ordinary answer. Both are inside the handler's own
+		// ceilings for a worker that cannot read the vocabulary bundle.
+		await postFeedback({
+			...feedback,
+			sessionId: 'pos-deep-000001',
+			familyRank: 12,
+			matchRankPos: 100,
+		});
+
+		const rows = await storedRows();
+		expect(rows.map((row) => [row.family_rank, row.match_rank_pos, row.accurate])).toEqual([
+			[12, 100, 0],
+		]);
+	});
+
 	it('drops a position that is not one, instead of refusing the rating', async () => {
 		const junk: Array<[unknown, unknown]> = [
 			['1', 1], // strings are not positions
@@ -218,8 +236,10 @@ describe('POST /api/feedback', () => {
 			[-1, 1], // nor negative places
 			[1, 2.5],
 			[1, -1],
-			// Past the eight families the card can show, and past any list it prints.
-			[9, 1],
+			// Past the family ceiling the handler falls back to, and past any list
+			// it prints. The card's own maximum is thirty, so a sixty-fifth family
+			// is a body that was never on it.
+			[65, 1],
 			[1, 501],
 		];
 
@@ -552,9 +572,9 @@ describe('PATCH /api/feedback/:id', () => {
 		const before = await publishedStats();
 		expect(before).toMatchObject({ total: 2, averageRating: 3, accurateYes: 1, accurateNo: 1 });
 		expect(before.familyJudged).toBe(2);
-		expect(before.familyRanks).toEqual({ top1: 1, top3: 0, top8: 0, beyond: 1 });
+		expect(before.familyRanks).toMatchObject({ counts: { 1: 1 }, none: 1, ranked: 1 });
 		expect(before.matchJudged).toBe(2);
-		expect(before.matchRanks).toEqual({ top1: 1, top3: 0, top8: 0, beyond: 1 });
+		expect(before.matchRanks).toMatchObject({ counts: { 1: 1 }, none: 1, ranked: 1 });
 
 		const hiddenId = await idFor('hide-low-0001');
 		expect((await patchFeedback(hiddenId, { status: 'hidden' }, 'mod')).status).toBe(200);
@@ -563,11 +583,11 @@ describe('PATCH /api/feedback/:id', () => {
 		// dropped the cache. That is the point of `invalidateStatsCache()` there.
 		const after = await publishedStats();
 		expect(after).toMatchObject({ total: 1, averageRating: 5, accurateYes: 1, accurateNo: 0 });
-		// Hiding a row has to move every published figure, the bars included.
+		// Hiding a row has to move every published figure, the curves included.
 		expect(after.familyJudged).toBe(1);
-		expect(after.familyRanks).toMatchObject({ top1: 1, beyond: 0 });
+		expect(after.familyRanks).toMatchObject({ counts: { 1: 1 }, none: 0, ranked: 1 });
 		expect(after.matchJudged).toBe(1);
-		expect(after.matchRanks).toMatchObject({ top1: 1, beyond: 0 });
+		expect(after.matchRanks).toMatchObject({ counts: { 1: 1 }, none: 0, ranked: 1 });
 
 		const counts = ((await (await getQueue('mod')).json()) as any).data.counts;
 		expect(counts).toEqual({ new: 1, reviewed: 0, hidden: 1, commented: 2 });

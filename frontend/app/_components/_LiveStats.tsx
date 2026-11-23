@@ -2,25 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import type { QuizStats, RankBucket } from "../../lib/api";
+import type { QuizStats } from "../../lib/api";
 import { FALLBACK_GROUP_BASE, TIER_STEPS } from "../../lib/palette";
 import {
   BREAKDOWN_RUNS,
   collectiveFigures,
-  familyRankBreakdown,
+  comparedCount,
+  familyRankCurve,
   formatCount,
   formatScore,
   hasFeedbackFigures,
   loadQuizStats,
-  matchRankBreakdown,
+  matchRankCurve,
   MIN_FEEDBACK,
+  MIN_JUDGED,
   MIN_QUIZZES,
   OPEN_COLLECTIVE_RESULTS,
   stanceBreakdown,
-  type RankBreakdownView,
+  topOneMatch,
 } from "../../lib/quiz-stats";
 import { formatDay } from "../../lib/roadmap";
 import { FAMILY_COLORS } from "../../lib/taxonomy";
+import { RankCurve } from "./_RankCurve";
 
 /** Until this many runs, the panel says so rather than implying a trend. */
 const EARLY_RUNS = 200;
@@ -183,7 +186,7 @@ export function LiveStatsPanel({ stats }: { stats: QuizStats }) {
                 beside a short one, so the short card stretched to the tall
                 card's height and its footer sank to the bottom of a hollow
                 box. Feedback now closes the grid as a full-width band with its
-                two rank lists side by side; the four smaller tiles pair where
+                two rank curves side by side; the four smaller tiles pair where
                 their content is closest in size -- runs with closeness, family
                 shares with posture -- so a row's leftover space is a line or
                 two rather than half a tile. Below the gate there are only three
@@ -413,92 +416,28 @@ function FamiliesTile({ stats }: { stats: QuizStats }) {
 }
 
 /**
- * The published ranges as a reader thinks of them, not as the enum spells them.
- *
- * `beyond` is the one bucket that holds two kinds of answer: the pickers' coverage
- * escape hatch (`0`, "none of these families" / "not in this list") and every
- * position past the eighth. It is labelled for both, because on the family list
- * `0` is the *only* thing that bucket can hold -- the card offers eight families
- * -- so a bar labelled "#9+" alone would name a rank nobody could have picked,
- * while on the church list the same bucket really does hold #9 and beyond.
- */
-const RANK_LABELS: Record<RankBucket, string> = {
-  top1: "#1",
-  top3: "#2–#3",
-  top8: "#4–#8",
-  beyond: "none / #9+",
-};
-
-/**
- * One level of the match answer as bars: the four published ranges, and each
- * one's share of the answers that named a position at that level.
- *
- * Both levels print through this, in the order the card asks them, because they
- * are two measurements of the same reader: the family picker's denominator is
- * everyone who named a family, the church picker's is everyone who then named a
- * denomination. Those two numbers are rarely equal -- the second picker is
- * optional -- so each list says how many answers it is made of.
- */
-function RankBars({
-  title,
-  note,
-  ariaLabel,
-  view,
-  className = "",
-}: {
-  title: string;
-  note: string;
-  ariaLabel: string;
-  view: RankBreakdownView;
-  className?: string;
-}) {
-  const max = Math.max(1, ...view.buckets.map((bucket) => bucket.count));
-  return (
-    <div className={className}>
-      <p className="text-2xs text-ink-muted" title={note}>
-        {title}, from <span className="num font-mono">{formatCount(view.judged)}</span> answer
-        {view.judged === 1 ? "" : "s"}
-      </p>
-      <ul className="mt-2 space-y-1" aria-label={ariaLabel}>
-        {view.buckets.map(({ bucket, count }) => (
-          <li key={bucket} className="flex items-center gap-2">
-            <span className="w-20 shrink-0 text-right text-3xs text-ink-muted">
-              {RANK_LABELS[bucket]}
-            </span>
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cerulean-100">
-              <div
-                aria-hidden="true"
-                className="h-full rounded-full bg-cerulean-600"
-                style={{
-                  width: `${Math.max(count === 0 ? 0 : 2, Math.round((count / max) * 100))}%`,
-                }}
-              />
-            </div>
-            <span className="num w-8 shrink-0 text-right font-mono text-3xs text-ink-muted">
-              {share(count, view.judged)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/**
  * How the quiz felt overall, where the best match sat, and how often it was #1.
  *
  * Three measurements with three different histories. The stars used to ask how
  * close the match felt and now ask about the experience, so `/api/stats` counts
  * only `rating_metric = 'experience'` rows in the average and the histogram.
- * The match question is two pickers since 0007 -- closest family, then their
- * church inside it -- so it publishes two breakdowns and each row that answered
- * a level counts in that level.
- * The top-1 line is the old yes/no renamed, and since 0008 the stance answers it
- * first: a row that said "not close" is a miss even if its church was #1, and a
- * row that said "exploring" -- no church to compare against -- is not in the
- * figure at all. That exclusion is printed rather than implied: the sentence
- * under the histogram says how many of the stance answers were `exploring`, so
- * the denominator above it can be read as "readers with a church to compare".
+ * The match question is two pickers since 0007 -- their own family, then their
+ * church inside it -- and since the pickers cover the whole taxonomy it
+ * publishes two curves rather than four ranges per level: with thirty families
+ * and 230 denominations, "#4-#8" and "beyond #8" described almost everyone.
+ * Each level's curve is drawn from the places people actually picked, and each
+ * row that answered a level counts in that level.
+ * The top-1 line is the four-answer stance question, not the old yes/no. Only
+ * `fit` -- "that's about where I am" -- counts as a hit, so a reader who said
+ * "close, but not quite" is a printed near-miss rather than a hit: that is the
+ * whole reason the figure used to overestimate itself. A row that said "not
+ * close" is a miss even if its church was #1, a row that said "exploring" -- no
+ * church to compare against -- is not in the figure at all, and a pre-0008 row's
+ * boolean is not divided here either, because a legacy "yes" may have meant
+ * "close" and nothing can split it after the fact. The `exploring` exclusion is
+ * printed rather than implied: the sentence under the histogram says how many of
+ * the stance answers were `exploring`, so the denominator above it can be read as
+ * "readers with a church to compare".
  *
  * That split is why the gate is a union rather than a single count. Until ten
  * experience ratings exist the tile says so instead of printing a mean, but it
@@ -508,14 +447,19 @@ function RankBars({
  * printing, and each one travels with its own denominator. An older cached
  * payload without the field renders nothing rather than a zero.
  *
- * The two breakdowns carry denominators of their own, neither of them the top-1
+ * The two curves carry denominators of their own, none of which is the top-1
  * one: a "no" written before 0007 never said how far off the match was, so those
- * rows sit under the headline and in no bar below it. Each level is listed with
- * the number of answers it is made of, and the second is usually smaller than
- * the first -- naming a family commits the reader to nothing further.
+ * rows sit under the headline and on no curve below it. Each level prints the
+ * number of answers it is made of, and the second is usually smaller than the
+ * first -- naming a family commits the reader to nothing further.
  *
  * The comments never appear here. A count is a statistic; a sentence typed by
  * one reader, shown to all of them, is not.
+ *
+ * The #1 sentence in the footer is `topOneMatch()` itself rather than a second
+ * division of the same counts, so the panel always quotes the figure the accuracy
+ * row links here for -- and below ten comparisons it says how many are in so far
+ * instead of printing a share of three, which is the same gate the row applies.
  */
 function FeedbackTile({ stats, className }: { stats: QuizStats; className?: string }) {
   const feedback = stats.feedback;
@@ -524,15 +468,20 @@ function FeedbackTile({ stats, className }: { stats: QuizStats; className?: stri
   if (!feedback || !hasFeedbackFigures(feedback)) return null;
 
   const total = feedback.total;
-  const judged = feedback.accurateYes + feedback.accurateNo;
   const hasRatings = total >= MIN_FEEDBACK;
   const stances = stanceBreakdown(feedback);
+  // The same figure the accuracy row in the quiz card prints, so the panel that
+  // row links down to cannot quote a different percentage -- or, below ten
+  // comparisons, a percentage the row refused to print at all.
+  const topOne = topOneMatch(feedback);
+  // The count the row is built on, printed while it is still short of the gate.
+  const compared = comparedCount(feedback);
 
   const histogram = feedback.ratingHistogram ?? [];
   const hasHistogram = hasRatings && histogram.length === 5;
   const max = Math.max(1, ...histogram);
-  const families = familyRankBreakdown(feedback);
-  const matches = matchRankBreakdown(feedback);
+  const families = familyRankCurve(feedback);
+  const matches = matchRankCurve(feedback);
   const exploring = stances?.buckets.find((bucket) => bucket.stance === "exploring")?.count ?? 0;
 
   return (
@@ -540,10 +489,10 @@ function FeedbackTile({ stats, className }: { stats: QuizStats; className?: stri
       <h4 className="meta">What readers said</h4>
       <p className="mt-1 text-2xs text-ink-muted">Quiz experience, 1 to 5</p>
 
-      {/* Rating on the left, the two rank ladders on the right. The ladders are
-          what made this tile taller than every other one, so as a full-width band
-          they can sit beside the rating instead of under it. Below md the two
-          stack in reading order, which is the order the card asked the questions. */}
+      {/* Rating on the left, the two curves on the right. The curves are what
+          make this tile taller than every other one, so as a full-width band they
+          sit beside the rating instead of under it. Below md the two stack in
+          reading order, which is the order the card asked the questions. */}
       <div className="mt-3 grid gap-x-6 gap-y-4 md:grid-cols-2">
         <div className={families || matches ? undefined : "md:col-span-2"}>
           {hasRatings ? (
@@ -605,19 +554,17 @@ function FeedbackTile({ stats, className }: { stats: QuizStats; className?: stri
         {(families || matches) && (
           <div>
             {families && (
-              <RankBars
-                title="Where the closest family sat"
-                ariaLabel="Rank of the closest family"
-                note="This list counts only the answers that named a family. A skipped question, and a 'no' written before this question existed, are not in it. The last row counts 'none of these families', which is an answer about coverage."
+              <RankCurve
+                title="Where their own family sat"
+                noneLabel="none of these families"
                 view={families}
               />
             )}
 
             {matches && (
-              <RankBars
+              <RankCurve
                 title="Where their own church sat"
-                ariaLabel="Rank of their own church"
-                note="The second picker is optional, so this list is usually shorter than the family one above it. A skipped question, and a 'no' written before this question existed, are in neither. The last row counts 'not in this list' together with any position past #8."
+                noneLabel="not in this list"
                 view={matches}
                 className={families ? "mt-4" : undefined}
               />
@@ -627,14 +574,22 @@ function FeedbackTile({ stats, className }: { stats: QuizStats; className?: stri
       </div>
 
       <p className="mt-auto pt-3 text-3xs leading-relaxed text-ink-muted">
-        {judged > 0 ? (
+        {topOne ? (
           <>
-            {share(feedback.accurateYes, judged)} of {formatCount(judged)} answers said the #1 match
-            was the best one. Comments are read by a moderator and counted, never quoted.
+            {topOne.percent}% of {formatCount(topOne.judged)} readers who compared said the #1
+            match is exactly where they are
+            {topOne.closePercent > 0 ? `; another ${topOne.closePercent}% called it close` : ""}.
+            {" "}
+          </>
+        ) : compared > 0 ? (
+          <>
+            The exactly-right share appears once {MIN_JUDGED} readers have compared the match with
+            their own church; {formatCount(compared)} so far.{" "}
           </>
         ) : (
-          "Nobody has judged their top match yet."
+          <>Nobody has compared their top match with their own church yet.{" "}</>
         )}
+        Comments are read by a moderator and counted, never quoted.
       </p>
     </article>
   );
@@ -930,9 +885,10 @@ function MethodDetails({ stats }: { stats: QuizStats }) {
             the top-1 match figure is unaffected, because it answers a different question.
           </li>
           <li>
-            The rank breakdown counts only answers that named a rank, which is why its denominator
-            can be smaller than the top-1 one: a “no” written before that question existed never
-            said how far off the match was.
+            The two rank curves count only answers that named a place, which is why their
+            denominators can be smaller than the top-1 one: a “no” written before that question
+            existed never said how far off the match was, and the escape hatches have no place to
+            plot.
           </li>
           <li>
             Tolerance and certainty average only runs that answered both sliders, so the two figures

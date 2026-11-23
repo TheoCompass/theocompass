@@ -104,12 +104,12 @@ type PostureRow = {
 /**
  * One row, because the whole feedback aggregate is a single pass over a small
  * table: `rating_1..5` build the histogram without a second GROUP BY, and the
- * `family_*` / `match_*` sums build the two breakdowns the same way.
+ * four stance sums build that question's buckets the same way.
  *
- * The buckets are ranges on purpose. `family_rank` and `match_rank_pos` are
- * positions in the list the reader saw (0 is that list's escape hatch), so the
- * published buckets are `=1`, `2-3`, `4-8` and everything else -- which stays
- * true if the card ever shows six families instead of eight.
+ * The two rank questions are **not** summed here. A place is a number, and the
+ * panel draws a cumulative curve over the places people actually picked, so
+ * those two levels come from their own `GROUP BY rank` statements below and are
+ * shaped by `rankTallyFrom()`.
  */
 type FeedbackRow = {
   total: number | null;
@@ -121,21 +121,47 @@ type FeedbackRow = {
   rating_3: number | null;
   rating_4: number | null;
   rating_5: number | null;
-  family_top1: number | null;
-  family_top3: number | null;
-  family_top8: number | null;
-  family_beyond: number | null;
-  family_judged: number | null;
-  match_top1: number | null;
-  match_top3: number | null;
-  match_top8: number | null;
-  match_beyond: number | null;
-  match_judged: number | null;
   stance_fit: number | null;
   stance_close: number | null;
   stance_off: number | null;
   stance_exploring: number | null;
   stance_judged: number | null;
+};
+
+/** One `GROUP BY rank` row: a place and how many readers named it. */
+type RankRow = { rank: number | null; count: number | null };
+
+/**
+ * One level's rank tally: every place that received an answer, the escape hatch,
+ * and the quantiles the panel prints.
+ *
+ * `counts` is sparse -- only places someone actually picked, so a distribution
+ * that piles up at #1 and #140 is a handful of entries rather than 140 -- and it
+ * is what the curve is drawn from. A place is a place, not a range: the card
+ * offers every family and every church in the chosen one since the pickers were
+ * reworked, so the only honest summary is the distribution itself.
+ *
+ * `none` is the pickers' escape hatch (`0`, "none of these" / "not in this
+ * list"), which says the list did not cover the reader rather than where they
+ * sit. It is an answer, so it is counted -- and kept out of `counts`, because it
+ * has no place on a rank axis. `ranked` is the sum of `counts`, so
+ * `ranked + none` is the denominator behind every figure drawn from this tally.
+ *
+ * The quantiles are places, never averages of places: `median` is the smallest
+ * place whose cumulative share reaches 50%, so it always names a rank somebody
+ * could have picked. "#33.5" would name nobody's church, and the panel prints
+ * these as `#n`. The same rule gives `p25`, `p75` and `p90`; a tie at one place
+ * collapses several of them onto that place, which is the truth about a
+ * distribution piled up at #1.
+ */
+export type RankTally = {
+  counts: Record<number, number>;
+  none: number;
+  ranked: number;
+  median: number | null;
+  p25: number | null;
+  p75: number | null;
+  p90: number | null;
 };
 
 const DAILY_DAYS = 14;
@@ -193,6 +219,66 @@ function histogramFrom(rows: HistogramRow[] | undefined): number[] {
 }
 
 /**
+ * The place where the cumulative share first reaches `share`.
+ *
+ * `places` is ascending and `counts` adds up to `ranked`. Returning a *place*
+ * rather than interpolating between two is the whole convention: the median of
+ * two answers at #1 and #4 is #1, not #2.5, because the panel prints "median #1"
+ * and there is no #2.5 to name. For an odd count it lands on the middle answer;
+ * for an even one it takes the lower of the two middle places, which is the only
+ * one of the pair a reader could have picked.
+ */
+function quantileRank(
+  places: number[],
+  counts: Record<number, number>,
+  ranked: number,
+  share: number
+): number | null {
+  if (ranked <= 0 || places.length === 0) return null;
+  const threshold = ranked * share;
+  let seen = 0;
+  for (const place of places) {
+    seen += counts[place] ?? 0;
+    if (seen >= threshold) return place;
+  }
+  return places[places.length - 1] ?? null;
+}
+
+/**
+ * Turn two `GROUP BY rank` rows into the tally the panel draws.
+ *
+ * `0` is the escape hatch and is counted on its own; every other integer is a
+ * place. Anything else -- a hand-inserted negative, a fraction -- is left out
+ * rather than failing the endpoint, the same bargain every other reader of these
+ * tables makes. The quantiles are computed here rather than in the browser so
+ * one convention is tested once, on the side that owns the arithmetic.
+ */
+function rankTallyFrom(rows: RankRow[] | undefined): RankTally {
+  const counts: Record<number, number> = {};
+  let none = 0;
+  for (const row of rows ?? []) {
+    const rank = row.rank;
+    const count = numeric(row.count);
+    if (typeof rank !== "number" || !Number.isInteger(rank) || rank < 0 || count <= 0) continue;
+    if (rank === 0) none += count;
+    else counts[rank] = (counts[rank] ?? 0) + count;
+  }
+  const places = Object.keys(counts)
+    .map(Number)
+    .sort((a, b) => a - b);
+  const ranked = places.reduce((sum, place) => sum + (counts[place] ?? 0), 0);
+  return {
+    counts,
+    none,
+    ranked,
+    median: quantileRank(places, counts, ranked, 0.5),
+    p25: quantileRank(places, counts, ranked, 0.25),
+    p75: quantileRank(places, counts, ranked, 0.75),
+    p90: quantileRank(places, counts, ranked, 0.9),
+  };
+}
+
+/**
  * Counts, an average and a five-bucket histogram -- and nothing else.
  *
  * `total` is the number of *experience* ratings, not the number of rows: it is
@@ -209,27 +295,34 @@ function histogramFrom(rows: HistogramRow[] | undefined): number[] {
  *                mutually exclusive buckets. The only denominator that
  *                includes `exploring`, and the only one that is not a subset
  *                of the accuracy split.
- *   familyRanks  the family the reader picked, including 0 for "none of these"
- *                familyJudged = the four buckets, i.e. the rows that named one
- *   matchRanks   where their denomination sat, 0 for "not one of these"
- *                matchJudged  = the four buckets
+ *   familyRanks  where the reader's own family sat, 0 for "none of these";
+ *                familyJudged = ranked + none, i.e. the rows that answered
+ *   matchRanks   where their own denomination sat, 0 for "not one of these";
+ *                matchJudged  = ranked + none
  *   accurateYes/accurateNo
  *                every judged row, including the pre-0007 yes/no answers that
- *                never named a position. That is the figure the panel has
- *                published since before the positions existed, so its
- *                denominator has to keep spanning both wordings. `exploring`
- *                rows are absent from it on purpose: they are not a judgement
+ *                never named a position. Legacy: the published top-1 figure is
+ *                computed on the client from the stance (`fit / (fit + close +
+ *                off)`), because a boolean "yes" cannot be split into "exactly"
+ *                and "close" without inventing an answer. These two stay on the
+ *                payload for the queue and for older bundles, and `exploring`
+ *                rows are absent from them on purpose: they are not a judgement
  *                about position 1.
  *
- * The escape hatch counts as an answer in both breakdowns: "none of these
- * fitted" is a judgement about the list, not a shrug. A skipped question is NULL
- * and sits in no bucket and in no denominator.
+ * The two rank figures are separate statements (`GROUP BY rank`) because a place
+ * is a number and the panel draws the distribution itself; `familyJudged` and
+ * `matchJudged` are their sums rather than a second pair of CASE expressions, so
+ * a denominator cannot disagree with the curve above it.
+ *
+ * The escape hatch counts as an answer in both tallies: "none of these fitted"
+ * is a judgement about the list, not a shrug. A skipped question is NULL and
+ * sits in no tally and in no denominator.
  *
  * `accurateShare` is deliberately not computed here: the panel already owns
  * `share()` and divides yes by the readers who actually answered, so the two
  * numbers it prints come from the same place as every other percentage in it.
  */
-function feedbackFrom(row: FeedbackRow | undefined) {
+function feedbackFrom(row: FeedbackRow | undefined, family: RankTally, match: RankTally) {
   const total = numeric(row?.total);
   const average = row?.average;
   return {
@@ -244,22 +337,12 @@ function feedbackFrom(row: FeedbackRow | undefined) {
       numeric(row?.rating_4),
       numeric(row?.rating_5),
     ],
-    // Always every key, zeros included: the client formats each bucket and a
+    // Always every key, zeros included: the client formats each place and a
     // missing key would render as "undefined%" instead of "0%".
-    familyJudged: numeric(row?.family_judged),
-    familyRanks: {
-      top1: numeric(row?.family_top1),
-      top3: numeric(row?.family_top3),
-      top8: numeric(row?.family_top8),
-      beyond: numeric(row?.family_beyond),
-    },
-    matchJudged: numeric(row?.match_judged),
-    matchRanks: {
-      top1: numeric(row?.match_top1),
-      top3: numeric(row?.match_top3),
-      top8: numeric(row?.match_top8),
-      beyond: numeric(row?.match_beyond),
-    },
+    familyJudged: family.ranked + family.none,
+    familyRanks: family,
+    matchJudged: match.ranked + match.none,
+    matchRanks: match,
     // The stance (0008): one population, four buckets, `exploring` included.
     // It is the only figure here whose denominator is *not* a subset of
     // `accurateYes + accurateNo` -- it is larger, because `exploring` rows are
@@ -296,6 +379,8 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     median,
     posture,
     feedback,
+    familyRanks,
+    matchRanks,
   ] = await env.DB.batch([
     env.DB.prepare("SELECT COUNT(*) AS count, MIN(created_at) AS since FROM quiz_events"),
     env.DB.prepare("SELECT COUNT(*) AS count FROM quiz_events WHERE date(created_at) = date('now')"),
@@ -379,17 +464,18 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
     // accuracy terms keep their original scope -- every rated, non-hidden row --
     // so the percentage a reader sees is unaffected by that reset.
     //
-    // The two position sums (0007) are scoped to non-hidden rows too, for the
-    // same reason: hiding a row has to move every published figure, or the panel
-    // would show a breakdown that disagrees with its own headline. They are
-    // independent of `rating_metric` -- the position question is new, and the
-    // rows that predate it are excluded by being NULL rather than by their
-    // metric.
+    // The two rank questions (0007) are separate statements below rather than
+    // sums here, because a place is a number and the panel draws the
+    // distribution: one `GROUP BY family_rank`, one `GROUP BY match_rank_pos`.
+    // They share this row's scope -- rated, non-hidden -- so hiding a row moves
+    // the headline and the curve together, and they are independent of
+    // `rating_metric`, because the position question is new and the rows that
+    // predate it are excluded by being NULL rather than by their metric.
     //
-    // `family_rank = 0` and `match_rank_pos = 0` are the two escape hatches, and
-    // they belong in the `beyond` bucket rather than outside the sample: "none
-    // of these fitted" is an answer about the list. The `judged` sums therefore
-    // equal the four buckets, and are what the bars divide by.
+    // `family_rank = 0` and `match_rank_pos = 0` are the two escape hatches:
+    // they are counted (`none`) rather than dropped, because "none of these
+    // fitted" is an answer about the list. The `judged` totals are `ranked +
+    // none`, and are what the curves divide by.
     env.DB.prepare(
       `SELECT SUM(CASE WHEN rating_metric = 'experience' THEN 1 ELSE 0 END) AS total,
               AVG(CASE WHEN rating_metric = 'experience' THEN rating END) AS average,
@@ -400,16 +486,6 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
               SUM(CASE WHEN rating_metric = 'experience' AND rating = 3 THEN 1 ELSE 0 END) AS rating_3,
               SUM(CASE WHEN rating_metric = 'experience' AND rating = 4 THEN 1 ELSE 0 END) AS rating_4,
               SUM(CASE WHEN rating_metric = 'experience' AND rating = 5 THEN 1 ELSE 0 END) AS rating_5,
-              SUM(CASE WHEN family_rank = 1 THEN 1 ELSE 0 END) AS family_top1,
-              SUM(CASE WHEN family_rank BETWEEN 2 AND 3 THEN 1 ELSE 0 END) AS family_top3,
-              SUM(CASE WHEN family_rank BETWEEN 4 AND 8 THEN 1 ELSE 0 END) AS family_top8,
-              SUM(CASE WHEN family_rank = 0 OR family_rank > 8 THEN 1 ELSE 0 END) AS family_beyond,
-              SUM(CASE WHEN family_rank IS NOT NULL THEN 1 ELSE 0 END) AS family_judged,
-              SUM(CASE WHEN match_rank_pos = 1 THEN 1 ELSE 0 END) AS match_top1,
-              SUM(CASE WHEN match_rank_pos BETWEEN 2 AND 3 THEN 1 ELSE 0 END) AS match_top3,
-              SUM(CASE WHEN match_rank_pos BETWEEN 4 AND 8 THEN 1 ELSE 0 END) AS match_top8,
-              SUM(CASE WHEN match_rank_pos = 0 OR match_rank_pos > 8 THEN 1 ELSE 0 END) AS match_beyond,
-              SUM(CASE WHEN match_rank_pos IS NOT NULL THEN 1 ELSE 0 END) AS match_judged,
               -- The stance (0008), four mutually exclusive answers. Unlike the two
               -- position sums this one also counts 'exploring', and stance_judged
               -- is the sum of the four: it is a different population from
@@ -422,6 +498,23 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
               SUM(CASE WHEN fit_stance IS NOT NULL THEN 1 ELSE 0 END) AS stance_judged
        FROM feedback
        WHERE rating IS NOT NULL AND status <> 'hidden'`
+    ),
+    // The two rank tallies, one row per place someone actually picked. Sparse on
+    // purpose: `{1: 9, 6: 1}` is the whole distribution for ten answers, and the
+    // curve is drawn from those places rather than from a fixed set of buckets.
+    // `ORDER BY` is for readability of the payload, not for the arithmetic --
+    // `rankTallyFrom()` sorts anyway.
+    env.DB.prepare(
+      `SELECT family_rank AS rank, COUNT(*) AS count
+       FROM feedback
+       WHERE rating IS NOT NULL AND status <> 'hidden' AND family_rank IS NOT NULL
+       GROUP BY family_rank ORDER BY family_rank ASC`
+    ),
+    env.DB.prepare(
+      `SELECT match_rank_pos AS rank, COUNT(*) AS count
+       FROM feedback
+       WHERE rating IS NOT NULL AND status <> 'hidden' AND match_rank_pos IS NOT NULL
+       GROUP BY match_rank_pos ORDER BY match_rank_pos ASC`
     ),
   ]);
 
@@ -436,6 +529,8 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
   const medianRow = (median.results?.[0] ?? {}) as MedianRow;
   const postureRow = (posture.results?.[0] ?? {}) as PostureRow;
   const feedbackRow = (feedback.results?.[0] ?? {}) as FeedbackRow;
+  const familyTally = rankTallyFrom((familyRanks.results ?? []) as RankRow[]);
+  const matchTally = rankTallyFrom((matchRanks.results ?? []) as RankRow[]);
 
   const payload = JSON.stringify({
     status: "success",
@@ -460,7 +555,7 @@ export async function handleGetStats(env: StatsEnv, headers: HeadersInit): Promi
         certainty: typeof postureRow.certainty === "number" ? round1(postureRow.certainty) : null,
         sample: numeric(postureRow.sample),
       },
-      feedback: feedbackFrom(feedbackRow),
+      feedback: feedbackFrom(feedbackRow, familyTally, matchTally),
     },
     updatedAt: new Date().toISOString(),
   });

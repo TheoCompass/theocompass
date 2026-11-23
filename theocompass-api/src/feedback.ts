@@ -1,5 +1,12 @@
 import { hasValidAdminCode } from "./roadmap";
 import { invalidateStatsCache } from "./quiz-stats";
+import {
+  familyOfDenomination,
+  loadVocabulary,
+  lookupDenomination,
+  lookupFamily,
+  type FeedbackVocabulary,
+} from "./vocabulary";
 
 /**
  * Post-quiz feedback, and the queue behind it.
@@ -15,12 +22,14 @@ import { invalidateStatsCache } from "./quiz-stats";
  * describes, while the reader still remembers whether it rang true.
  *
  * The match question is two levels of the list the reader is looking at, with
- * the names on the card: pick the family that came closest, then the
- * denomination inside it. `family_rank` is that family's place in the family
- * list (0 for "none of these") and `match_rank_pos` the chosen denomination's
- * place in the full list (0 for "not one of these"). Both are positions, so
- * neither asks the reader to translate their result into a bucket, and
- * "my denomination is missing" now has a control instead of a paragraph.
+ * the names on the card: pick your own family from the full family list, then
+ * your denomination inside it. `family_rank` is that family's place in the
+ * family list (0 for "none of these") and `match_rank_pos` the chosen
+ * denomination's place in the full results list (0 for "not one of these").
+ * Both are positions, so neither asks the reader to translate their result into
+ * a bucket; the published figure is the distribution of those places, which is
+ * why the card can grow the lists without a migration, and "my denomination is
+ * missing" has a control instead of a paragraph.
  *
  * The stance question comes first because it is the only one every reader can
  * answer: "how close is the top match to where you actually are?" -- about
@@ -30,15 +39,18 @@ import { invalidateStatsCache } from "./quiz-stats";
  * an unanswerable question into a recorded miss. `fit_stance` is what keeps
  * their answer out of the accuracy denominator instead of deflating it.
  *
- * `accurate` -- the published "Top 1 match accuracy" figure -- is derived from
- * the stance when there is one: `fit` is a 1, `close` and `off` are a 0, and
- * `exploring` is NULL (judged, but not against a church). Without a stance it
- * falls back to `match_rank_pos`, and without that to the boolean an old bundle
- * sends, so every wording the card has ever used still lands in the same column
- * and the figure stays continuous. A reader who names the #1 match as their
- * church but says the match is `off` is now a miss with a rank of 1: that
- * disagreement -- "the top match describes me better than the church I belong
- * to" -- used to be unrecordable, and it is exactly the signal worth reading.
+ * `accurate` is derived from the stance when there is one: `fit` is a 1, `close`
+ * and `off` are a 0, and `exploring` is NULL (judged, but not against a church).
+ * Without a stance it falls back to `match_rank_pos`, and without that to the
+ * boolean an old bundle sends, so every wording the card has ever used still
+ * lands in one column that the queue can read. That column is a *record*, not
+ * the published figure: the top-1 percentage is computed on the client from
+ * `stanceCounts` (`fit / (fit + close + off)`), because a legacy boolean "yes"
+ * cannot be split into "exactly" and "close" and pooling it inflated the number
+ * this site prints. A reader who names the #1 match as their church but says the
+ * match is `off` is now a miss with a rank of 1: that disagreement -- "the top
+ * match describes me better than the church I belong to" -- used to be
+ * unrecordable, and it is exactly the signal worth reading.
  *
  * The stars changed question once. They used to ask how close the match felt,
  * and rows written then carry `rating_metric = 'fit'`; everything this handler
@@ -67,14 +79,20 @@ export const FEEDBACK_STATUSES = ["new", "reviewed", "hidden"] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
 /**
- * How long the two pickers are. The card shows eight families and, inside the
- * chosen one, five denominations -- both counted from the top of the list the
- * results page is showing, so the ranks the card prints are the ranks the
- * reader sees. The API does not enforce the length (a future card may show ten),
- * it only has to accept what a card sends: anything past the list is still a
- * miss, and the published buckets are ranges rather than named places.
+ * How long the two pickers can be *when the data cannot say*.
+ *
+ * The card offers every family (30 on the current data) and, inside the chosen
+ * one, every denomination in it -- both indexed from the top of the list the
+ * results page is showing, so the ranks the card sends are the places the reader
+ * sees. The handler does not enforce either length: a position is checked against
+ * the length of the real list (`vocabulary.ts`), and these constants are only the
+ * fallback for a worker whose KV bundle could not be read. `FAMILY_RANK_MAX` is a
+ * sanity ceiling comfortably above the real thirty and `MATCH_RANK_POS_MAX`
+ * covers the whole 230-denomination list; nothing in the schema depends on either
+ * number, because what `/api/stats` publishes is the distribution of the places
+ * themselves rather than a fixed set of buckets.
  */
-export const FAMILY_RANK_MAX = 8;
+export const FAMILY_RANK_MAX = 64;
 export const MATCH_RANK_POS_MAX = 500;
 
 /**
@@ -86,6 +104,21 @@ export const MATCH_RANK_POS_MAX = 500;
 export function parseRank(value: unknown, max: number): number | null {
   if (typeof value !== "number" || !Number.isInteger(value)) return null;
   return value >= 0 && value <= max ? value : null;
+}
+
+/**
+ * How many rows were in the church list when the position beside it was counted.
+ *
+ * This is the length of a list, not a place in one, so it is never 0: the
+ * escape hatch ("not in this list") says nothing about the list. Junk is dropped
+ * rather than the submission, and dropping it leaves the position's own bounds
+ * in charge -- a nonsense scope must not throw away a credible position. It is
+ * also bounded by the data's own list length, because no card this worker served
+ * could have printed more rows than the bundle holds.
+ */
+export function parseScope(value: unknown, max: number): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  return value >= 1 && value <= max ? value : null;
 }
 
 /**
@@ -136,7 +169,7 @@ const HOURLY_CAP = 120;
 /** Session ids and match ids are all short and URL-safe; anything else is not ours. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 
-type FeedbackEnv = { DB: D1Database; ADMIN_CODE?: string };
+type FeedbackEnv = { DB: D1Database; ADMIN_CODE?: string; THEOCOMPASS_CACHE?: KVNamespace };
 
 function jsonError(error: string, status: number, headers: HeadersInit): Response {
   return new Response(JSON.stringify({ error }), { status, headers });
@@ -218,8 +251,16 @@ type ParseResult = { ok: true; value: FeedbackInput } | { ok: false; error: stri
  * submission with neither is not feedback. Everything else is context the
  * client happens to know; a junk optional field is dropped rather than rejected,
  * the same bargain `parseIssueReport` makes.
+ *
+ * `vocabulary` is optional and is only ever used to *narrow*: with it, a position
+ * is tied to a real row of a real list (see `vocabulary.ts`); without it, the
+ * numeric bounds are the only check, which is what this handler did before the
+ * names existed and what it still does when the KV bundle cannot be read.
  */
-export function parseFeedback(body: unknown): ParseResult {
+export function parseFeedback(
+  body: unknown,
+  vocabulary: FeedbackVocabulary | null = null
+): ParseResult {
   const payload = (body ?? {}) as Record<string, unknown>;
 
   const sessionId = typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
@@ -234,6 +275,47 @@ export function parseFeedback(body: unknown): ParseResult {
     return { ok: false, error: "rating must be an integer between 1 and 5." };
   }
 
+  // The lengths come from the same document the results page was built from, so
+  // a position is checked against a list that exists; the constants are only for
+  // a worker that cannot read the bundle. An index that knows no names cannot
+  // judge a name either, so an empty vocabulary validates nothing at all.
+  const familiesKnown = Boolean(vocabulary && vocabulary.families.size > 0);
+  const churchesKnown = Boolean(vocabulary && vocabulary.denominations.size > 0);
+  const familyMax = vocabulary && vocabulary.families.size > 0 ? vocabulary.families.size : FAMILY_RANK_MAX;
+  const matchMax =
+    vocabulary && vocabulary.denominations.size > 0 ? vocabulary.denominations.size : MATCH_RANK_POS_MAX;
+
+  // The names are not stored: they are here so a position can be tied to the
+  // list it was counted in. A tab left open across a re-seed, or a body that was
+  // never a card, prints a name this data does not have -- and then the position
+  // beside it is not a place in any list this worker can publish. Only the
+  // position goes; the rating and the note are still worth keeping, and a body
+  // with no names at all (every card written before the names) loses nothing.
+  const familyName = lookupFamily(vocabulary, payload.familyName);
+  const matchName = lookupDenomination(vocabulary, payload.matchName);
+
+  let familyRank = parseRank(payload.familyRank, familyMax);
+  let matchRankPos = parseRank(payload.matchRankPos, matchMax);
+
+  if (familiesKnown && payload.familyName != null && familyName === null) familyRank = null;
+  if (churchesKnown && payload.matchName != null && matchName === null) matchRankPos = null;
+
+  // The card sends the length of the list it printed, so a position past the end
+  // of that list is not a position: it is a body that was never on the card.
+  // `0` is the escape hatch and stays whatever the scope says.
+  const scope = parseScope(payload.matchRankScope, matchMax);
+  if (matchRankPos !== null && matchRankPos > 0 && scope !== null && matchRankPos > scope) {
+    matchRankPos = null;
+  }
+
+  // The two levels have to agree. A church named under a family it does not sit
+  // in did not come from this card; the family's own place in the family list is
+  // a separate statement and survives, while the church's position does not.
+  const matchFamily = matchName === null ? null : familyOfDenomination(vocabulary, matchName);
+  if (familyName !== null && matchFamily !== null && matchFamily !== familyName) {
+    if (matchRankPos !== null && matchRankPos > 0) matchRankPos = null;
+  }
+
   // Derived, never asked twice, and in the order the questions were asked:
   // stance (0008) first, then the denomination's position (0007), then the
   // boolean an old bundle still sends. The current card sends `fitStance` and
@@ -243,8 +325,6 @@ export function parseFeedback(body: unknown): ParseResult {
   // NULL -- which is also how a skip is stored, and that is fine: the stance
   // column is what tells the two apart.
   const fitStance = parseStance(payload.fitStance);
-  const familyRank = parseRank(payload.familyRank, FAMILY_RANK_MAX);
-  const matchRankPos = parseRank(payload.matchRankPos, MATCH_RANK_POS_MAX);
 
   const accurate: 0 | 1 | null =
     fitStance === "exploring"
@@ -310,7 +390,14 @@ export async function handlePostFeedback(
     return jsonError("Expected a JSON body.", 400, headers);
   }
 
-  const parsed = parseFeedback(body);
+  // The list names on the card are only used to check the positions beside them,
+  // so the vocabulary is read here, once per isolate, and never stored. It is
+  // read *before* the parse because the parse is what narrows with it; a body
+  // with no positions still pays one cached KV read, which is the price of not
+  // splitting the validation across two functions that could drift apart.
+  const vocabulary = await loadVocabulary(env);
+
+  const parsed = parseFeedback(body, vocabulary);
   if (!parsed.ok) {
     return jsonError(parsed.error, 400, headers);
   }

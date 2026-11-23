@@ -457,8 +457,9 @@ export default function Home() {
                 </Link>
               </dd>
             </div>
-            {/* Appears once enough readers have judged their top match; see
-                _QuizAccuracy.tsx. Shares the panel's fetch. */}
+            {/* Appears once enough readers have compared their top match with
+                their own church; see _QuizAccuracy.tsx. Shares the panel's
+                fetch. */}
             <QuizAccuracy />
           </dl>
 
